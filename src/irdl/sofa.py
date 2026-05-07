@@ -8,7 +8,7 @@ import numpy as np
 import pooch as po
 import pyfar as pf
 
-from irdl.downloader import CACHE_DIR, _pooch_from_doi
+from irdl.downloader import CACHE_DIR, _pooch_from_doi, _fetch
 from irdl.utils import _fits_in_memory, _move_to_export_dir
 
 
@@ -124,14 +124,15 @@ def get_fabian(
         Head-above-torso-rotation of HRTFs in degrees.
         Either 0, 10, 20, 30, 40, 50, 310, 320, 330, 340 or 350.
     cache_dir : :class:`str` or :class:`pathlib.Path`
-        Path to the directory where the data should be stored. Will be overwritten, if the
-        environment variable `IRDL_DATA_DIR` is set. Default is the user cache directory.
+        Directory used to store raw downloads and intermediate files. Overridden
+        by the environment variable ``IRDL_DATA_DIR`` when set. Defaults to the
+        user cache directory.
     export_dir : :class:`str` or :class:`pathlib.Path` or None
-        Directory to move the output file to when ``output_format='hdf5'``.
-        Defaults to ``None`` (file stays in ``cache_dir``).
+        Directory to move the output file to after processing. When ``None``
+        (default) the output file stays in ``cache_dir``.
     output_format : :class:`str`
         Output format of the returned data.
-        Either ``'pyfar'`` (default), ``'hdf5'``, or ``'numpy'``.
+        Either ``'pyfar'`` (default), ``'hdf5'``, ``'sofa'`` or ``'numpy'``.
 
     Returns
     -------
@@ -142,6 +143,7 @@ def get_fabian(
           ``'source_coordinates'`` (:class:`pyfar.Coordinates`), and
           ``'receiver_coordinates'`` (:class:`pyfar.Coordinates`).
         - ``'hdf5'`` : :class:`pathlib.Path` to the HDF5 file containing the data.
+        - ``'sofa'`` : :class:`pathlib.Path` to the SOFA file.
         - ``'numpy'`` : :class:`dict` with keys ``'impulse_response'`` (:class:`numpy.ndarray`),
           ``'source_coordinates'`` (:class:`numpy.ndarray`),
           ``'receiver_coordinates'`` (:class:`numpy.ndarray`), and
@@ -152,46 +154,64 @@ def get_fabian(
     assert hato in [0, 10, 20, 30, 40, 50, 310, 320, 330, 340, 350], (
         "hato must be one of [0, 10, 20, 30, 40, 50, 310, 320, 330, 340, 350]"
     )
-    assert output_format in ["pyfar", "hdf5", "numpy"], "unknown output format"
+    assert output_format in ["pyfar", "hdf5", "numpy", "sofa"], "unknown output format"
 
-    # download the zip file
-    path = Path(cache_dir) / "FABIAN"
     doi = "10.14279/depositonce-5718.5"
-    zipfile = "FABIAN_HRTF_DATABASE_v4.zip"
-    pup = _pooch_from_doi(doi, path=path)
-    pup.fetch(zipfile, progressbar=True)
+    zipfile_name = "FABIAN_HRTF_DATABASE_v4.zip"
+    cache_dir = Path(cache_dir) / "FABIAN"
 
-    # check if the sofa file is already extracted, if not extract it
-    logger = po.get_logger()
-    sofa_file = path / f"FABIAN_HRIR_{kind}_HATO_{hato}.sofa"
-    extracted_already = sofa_file.exists()
+    # paths
+    base_name = f"FABIAN_HRIR_{kind}_HATO_{hato}"
+    sofa_cache = cache_dir / f"{base_name}.sofa"
+    h5_cache = cache_dir / f"{base_name}.h5"
+    sofa_export = Path(export_dir) / f"{base_name}.sofa" if export_dir else None
+    h5_export = Path(export_dir) / f"{base_name}.h5" if export_dir else None
 
-    if not extracted_already:
-        with ZipFile(Path(path) / zipfile, "r") as zf:
+    # use file if it already exists exists, preferring export
+    sofa_path = sofa_export if sofa_export is not None and sofa_export.exists() else sofa_cache
+    h5_path = h5_export if h5_export is not None and h5_export.exists() else h5_cache
+
+    # extract sofa from zip if we need it and don't have it yet
+    sofa_exists = sofa_cache.exists() or (sofa_export is not None and sofa_export.exists())
+    h5_exists = h5_cache.exists() or (h5_export is not None and h5_export.exists())
+    needs_sofa = (
+        (output_format == "hdf5" and not h5_exists)
+        or (output_format != "hdf5" and not sofa_exists)
+    )
+    if needs_sofa and not sofa_exists:
+        pup = _pooch_from_doi(doi, path=cache_dir)
+        _fetch(pup, zipfile_name)
+        logger = po.get_logger()
+        with ZipFile(cache_dir / zipfile_name, "r") as zf:
             for name in zf.namelist():
-                if name.endswith(sofa_file.name):
+                if name.endswith(sofa_cache.name):
                     zf.getinfo(name).filename = Path(name).name
-                    logger.info(f"Extracting {name} to {sofa_file.parent / Path(name).name}")
-                    zf.extract(name, path=sofa_file.parent)
+                    logger.info(f"Extracting {name} to {sofa_cache.parent / Path(name).name}")
+                    zf.extract(name, path=cache_dir)
 
-    # check if the sofa file fits into memory, if not switch to hdf5 output format
-    if output_format in ["pyfar", "numpy"] and not _fits_in_memory(sofa_file):
+    # check if the file can be loaded into memory if not, fall back to hdf5
+    if output_format in ["pyfar", "numpy"] and not _fits_in_memory(sofa_path):
         output_format = "hdf5"
 
     match output_format:
-        case "pyfar":
-            return _sofa_to_pyfar(sofa_file)
-
         case "hdf5":
-            h5_file = sofa_file.with_suffix(".h5")
-            dest = (Path(export_dir) if export_dir else path) / h5_file.name
-            # check if already converted
-            if not dest.exists():
-                _sofa_to_h5(sofa_file)
-            # check if sofa just extracted to be converted
-            if not extracted_already:
-                sofa_file.unlink(missing_ok=True)
-            return _move_to_export_dir(h5_file, export_dir)
+            if not h5_path.exists():
+                h5_path = _sofa_to_h5(sofa_path)
+            return _move_to_export_dir(h5_path, export_dir)
+
+        case "sofa":
+            return _move_to_export_dir(sofa_path, export_dir)
+        
+        case "pyfar":
+            #Export original file, so .sofa
+            if export_dir is not None and not sofa_export.exists():
+              _move_to_export_dir(sofa_cache, export_dir)
+              return _sofa_to_pyfar(sofa_export)
+            return _sofa_to_pyfar(sofa_path)
 
         case "numpy":
-            return _load_sofa(sofa_file)
+            #Export original file, so .sofa
+            if export_dir is not None and not sofa_export.exists():
+                _move_to_export_dir(sofa_cache, export_dir)
+                return _load_sofa(sofa_export)
+            return _load_sofa(sofa_path)
