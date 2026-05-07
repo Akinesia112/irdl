@@ -12,7 +12,7 @@ import numpy as np
 import pooch as po
 import pyfar as pf
 
-from irdl.downloader import CACHE_DIR, _pooch_from_doi, _fetch
+from irdl.downloader import CACHE_DIR, _fetch, _pooch_from_doi
 from irdl.utils import _fits_in_memory, _move_to_export_dir
 
 
@@ -37,6 +37,8 @@ def _download_and_merge(scenario: str, path: Path, pup: po.Pooch):
         Path to the merged HDF5 file.
 
     """
+    output_path = path / f"{scenario}.h5"
+
     offsets = {"C1": (0, 0), "C2": (0, 1), "C3": (1, 0), "C4": (1, 1)}
 
     # download split files
@@ -315,32 +317,32 @@ def get_miracle(
     file_cache = cache_dir / file_name
     file_export = Path(export_dir) / file_name if export_dir else None
 
-    #check if the file already exists in export_dir or cache
+    # check if the file already exists in export_dir or cache
     if file_export is not None and file_export.exists():
         h5_file = file_export
     elif file_cache.exists():
         h5_file = file_cache
-    #file needs to be produced
+    # file needs to be produced
     else:
         # if file needs to be split
         if dataset_split:
-            #check if raw file is on machine already and use it as source if so
+            # check if raw file is on machine already and use it as source if so
             raw_cache = Path(cache_dir) / f"{scenario}.h5"
             raw_export = Path(export_dir) / f"{scenario}.h5" if export_dir else None
             if raw_export is not None and raw_export.exists():
                 source = raw_export
             elif raw_cache.exists():
                 source = raw_cache
-            #download raw file
+            # download raw file
             else:
                 pup = _pooch_from_doi(doi, path=cache_dir)
                 _fetch(pup, f"{scenario}.h5")
                 source = raw_cache
-            
-            #split file and save in cache
+
+            # split file and save in cache
             _save_h5(_split_data(_load_h5(source), dataset_split), file_cache)
             h5_file = file_cache
-        #if raw file is asked for
+        # if raw file is asked for
         else:
             pup = _pooch_from_doi(doi, path=cache_dir)
             _fetch(pup, file_name)
@@ -353,7 +355,7 @@ def get_miracle(
 
     match output_format:
         case "hdf5":
-            return h5_file 
+            return h5_file
         case "pyfar":
             return _to_pyfar(_load_h5(h5_file))
         case "numpy":
@@ -423,16 +425,16 @@ def get_sriracha(
     file_cache = cache_dir / file_name
     file_export = Path(export_dir) / file_name if export_dir else None
 
-    #check if the file already exists in export_dir or cache
+    # check if the file already exists in export_dir or cache
     if file_export is not None and file_export.exists():
         h5_file = file_export
     elif file_cache.exists():
         h5_file = file_cache
-    #file needs to be produced
+    # file needs to be produced
     else:
         pup = _pooch_from_doi(doi, cache_dir)
 
-        #check if file needs to merged (full plane scenario and no split)
+        # check if file needs to merged (full plane scenario and no split)
         if scenario[-1] != "D" and dataset_split is None:
             _download_and_merge(scenario, cache_dir, pup)
         # just download file if not

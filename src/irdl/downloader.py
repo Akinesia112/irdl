@@ -8,6 +8,7 @@ from irdl.repositories import doi_to_repository
 #: The cache directory for storage of the temporary downloads. Defaults to the user cache directory.
 CACHE_DIR = po.os_cache("irdl")
 
+
 class RichProgressBar:
     """Wraps :class:`rich.progress.Progress` to satisfy the pooch progress bar interface.
 

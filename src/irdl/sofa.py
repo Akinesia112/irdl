@@ -8,7 +8,7 @@ import numpy as np
 import pooch as po
 import pyfar as pf
 
-from irdl.downloader import CACHE_DIR, _pooch_from_doi, _fetch
+from irdl.downloader import CACHE_DIR, _fetch, _pooch_from_doi
 from irdl.utils import _fits_in_memory, _move_to_export_dir
 
 
@@ -174,10 +174,7 @@ def get_fabian(
     # extract sofa from zip if we need it and don't have it yet
     sofa_exists = sofa_cache.exists() or (sofa_export is not None and sofa_export.exists())
     h5_exists = h5_cache.exists() or (h5_export is not None and h5_export.exists())
-    needs_sofa = (
-        (output_format == "hdf5" and not h5_exists)
-        or (output_format != "hdf5" and not sofa_exists)
-    )
+    needs_sofa = (output_format == "hdf5" and not h5_exists) or (output_format != "hdf5" and not sofa_exists)
     if needs_sofa and not sofa_exists:
         pup = _pooch_from_doi(doi, path=cache_dir)
         _fetch(pup, zipfile_name)
@@ -201,16 +198,16 @@ def get_fabian(
 
         case "sofa":
             return _move_to_export_dir(sofa_path, export_dir)
-        
+
         case "pyfar":
-            #Export original file, so .sofa
+            # Export original file, so .sofa
             if export_dir is not None and not sofa_export.exists():
-              _move_to_export_dir(sofa_cache, export_dir)
-              return _sofa_to_pyfar(sofa_export)
+                _move_to_export_dir(sofa_cache, export_dir)
+                return _sofa_to_pyfar(sofa_export)
             return _sofa_to_pyfar(sofa_path)
 
         case "numpy":
-            #Export original file, so .sofa
+            # Export original file, so .sofa
             if export_dir is not None and not sofa_export.exists():
                 _move_to_export_dir(sofa_cache, export_dir)
                 return _load_sofa(sofa_export)
