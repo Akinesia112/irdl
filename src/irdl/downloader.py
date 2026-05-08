@@ -1,7 +1,5 @@
 """Implements download and post-processing based on pooch."""
 
-from pathlib import Path
-
 import pooch as po
 from rich.progress import BarColumn, DownloadColumn, Progress, TextColumn, TimeRemainingColumn, TransferSpeedColumn
 
@@ -67,7 +65,7 @@ class RichProgressBar:
             self._task_id = None
 
 
-def fetch(pup: po.Pooch, fname: str) -> str:
+def _fetch(pup: po.Pooch, fname: str) -> str:
     """Fetch a file from a pooch registry, displaying a Rich progress bar.
 
     Parameters
@@ -87,7 +85,7 @@ def fetch(pup: po.Pooch, fname: str) -> str:
     return pup.fetch(fname, progressbar=RichProgressBar(fname, preset_total=preset_total))
 
 
-def pooch_from_doi(doi, path=CACHE_DIR):
+def _pooch_from_doi(doi, path=CACHE_DIR):
     """Create a Pooch instance from a DOI.
 
     Parameters
@@ -103,7 +101,7 @@ def pooch_from_doi(doi, path=CACHE_DIR):
         The Pooch instance.
 
     """
-    pup = po.create(path=path, base_url=doi, retry_if_failed=2, env="IRDL_DATA_DIR")
+    pup = po.create(path=path, base_url=doi, retry_if_failed=2, env="IRDL_CACHE_DIR")
     repository = doi_to_repository(doi)
     repository.populate_registry(pup)
     for file in pup.registry.keys():
@@ -114,26 +112,3 @@ def pooch_from_doi(doi, path=CACHE_DIR):
     else:
         pup.file_sizes = {}
     return pup
-
-
-def process(func):
-    """Decorator to process downloaded files.
-
-    The decorated function should take two arguments: the input file name and the output file name.
-    The decorator checks if the output file already exists and is up to date. If so, it returns the
-    output file name. Otherwise, it calls the decorated function to process the input file and
-    create the output file.
-    """
-
-    def check_process(fname, action, pup=None):
-        logger = po.get_logger()
-        fname = Path(fname)
-        if fname.exists() and action == "fetch":
-            logger.info(f"The file '{fname}' exists is up to date.")
-            return func(fname, process=False)
-        else:
-            logger.info(f"Processing and writing to '{fname}'.")
-            fname.parent.mkdir(parents=True, exist_ok=True)
-            return func(fname, process=True)
-
-    return check_process

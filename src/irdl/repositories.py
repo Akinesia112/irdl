@@ -164,6 +164,7 @@ class DSpaceRepository(DataRepository):
         """
         return self.api_response[file_name].get("size")
 
+
     def populate_registry(self, pooch):
         """Populate the registry using the data repository's API.
 
