@@ -42,15 +42,15 @@ def _move_to_export_dir(cached_path, export_dir):
     Parameters
     ----------
     cached_path : :class:`pathlib.Path`
-    Path to the file in the cache directory.
+        Path to the file in the cache directory.
     export_dir : :class:`str`, :class:`pathlib.Path`, or None
-    Directory to move the file to. If ``None`` or identical to the file's
-    parent directory, the file is not moved and ``cached_path`` is returned.
+        Directory to move the file to. If ``None`` or identical to the file's
+        parent directory, the file is not moved and ``cached_path`` is returned.
 
     Returns
     -------
     path : :class:`pathlib.Path`
-    Path to the file, either in ``export_dir`` or unchanged if no move was needed.
+        Path to the file, either in ``export_dir`` or unchanged if no move was needed.
 
     """
     # no export_dir specified

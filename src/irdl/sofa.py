@@ -167,7 +167,7 @@ def get_fabian(
     sofa_export = Path(export_dir) / f"{base_name}.sofa" if export_dir else None
     h5_export = Path(export_dir) / f"{base_name}.h5" if export_dir else None
 
-    # use file if it already exists exists, preferring export
+    # use file if it already exists, preferring export
     sofa_path = sofa_export if sofa_export is not None and sofa_export.exists() else sofa_cache
     h5_path = h5_export if h5_export is not None and h5_export.exists() else h5_cache
 
