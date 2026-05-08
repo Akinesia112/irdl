@@ -120,7 +120,7 @@ class DSpaceRepository(DataRepository):
                 )
                 response.raise_for_status()
                 bitstreams = response.json()["_embedded"]["bitstreams"]
-            
+
             self._api_response = {
                 bs["name"]: {
                     "url": bs["_links"]["content"]["href"],
@@ -222,7 +222,7 @@ def doi_to_repository(doi):
             logger.debug(f"  Attempt {attempt + 1}/{MAX_RETRIES} failed ({type(e).__name__}), waiting {wait:.0f}s")
             if attempt < MAX_RETRIES - 1:
                 sleep(wait)
-                
+
     if archive_url is None:
         raise ConnectionError(f"Could not resolve DOI {doi} to a URL. Check the DOI or try running the script again.")
 

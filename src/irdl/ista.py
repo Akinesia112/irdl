@@ -287,7 +287,6 @@ def get_miracle(
         Output format of the returned data.
         Either ``'pyfar'`` (default), ``'hdf5'``, or ``'numpy'``.
 
-
     Returns
     -------
     data : :class:`dict` or :class:`pathlib.Path`
