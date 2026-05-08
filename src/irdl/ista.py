@@ -278,7 +278,7 @@ def get_miracle(
         One of ``'C1'``, ``'C2'``, ``'C3'``, ``'C4'``, or ``None`` (default).
     cache_dir : :class:`str` or :class:`pathlib.Path`
         Directory used to store raw downloads and intermediate files. Overridden
-        by the environment variable ``IRDL_DATA_DIR`` when set. Defaults to the
+        by the environment variable ``IRDL_CACHE_DIR`` when set. Defaults to the
         user cache directory.
     export_dir : :class:`str` or :class:`pathlib.Path` or None
         Directory to move the output file to after processing. When ``None``
@@ -383,7 +383,7 @@ def get_sriracha(
         Dense scenarios (ending in ``-D``) do not have splits.
     cache_dir : :class:`str` or :class:`pathlib.Path`
         Directory used to store raw downloads and intermediate files. Overridden
-        by the environment variable ``IRDL_DATA_DIR`` when set. Defaults to the
+        by the environment variable ``IRDL_CACHE_DIR`` when set. Defaults to the
         user cache directory.
     export_dir : :class:`str` or :class:`pathlib.Path` or None
         Directory to move the output file to after processing. When ``None``

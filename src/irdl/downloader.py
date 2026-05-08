@@ -101,7 +101,7 @@ def _pooch_from_doi(doi, path=CACHE_DIR):
         The Pooch instance.
 
     """
-    pup = po.create(path=path, base_url=doi, retry_if_failed=2, env="IRDL_DATA_DIR")
+    pup = po.create(path=path, base_url=doi, retry_if_failed=2, env="IRDL_CACHE_DIR")
     repository = doi_to_repository(doi)
     repository.populate_registry(pup)
     for file in pup.registry.keys():

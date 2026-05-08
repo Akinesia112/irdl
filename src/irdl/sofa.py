@@ -125,7 +125,7 @@ def get_fabian(
         Either 0, 10, 20, 30, 40, 50, 310, 320, 330, 340 or 350.
     cache_dir : :class:`str` or :class:`pathlib.Path`
         Directory used to store raw downloads and intermediate files. Overridden
-        by the environment variable ``IRDL_DATA_DIR`` when set. Defaults to the
+        by the environment variable ``IRDL_CACHE_DIR`` when set. Defaults to the
         user cache directory.
     export_dir : :class:`str` or :class:`pathlib.Path` or None
         Directory to move the output file to after processing. When ``None``
