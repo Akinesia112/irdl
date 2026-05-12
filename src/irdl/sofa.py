@@ -12,6 +12,7 @@ import pooch as po
 
 from irdl.base import CACHE_DIR, BaseDataset
 from irdl.downloader import _fetch, _pooch_from_doi
+from irdl.utils import _move_to_export_dir
 
 
 class FabianDataset(BaseDataset):
@@ -62,7 +63,7 @@ class FabianDataset(BaseDataset):
         return f"FABIAN_HRIR_{kind}_HATO_{hato}.sofa"
 
     def download(self, **kwargs) -> Path:
-        """Download FABIAN ZIP archive and extract SOFA file.
+        """Download FABIAN ZIP archive.
 
         Parameters
         ----------
@@ -72,35 +73,105 @@ class FabianDataset(BaseDataset):
         Returns
         -------
         :class:`pathlib.Path`
-            Path to the extracted SOFA file.
+            Path to the downloaded ZIP file.
         """
-        kind = kwargs.get("kind", "measured")
-        hato = kwargs.get("hato", 0)
         cache_dir = Path(kwargs.get("cache_dir", CACHE_DIR)) / "FABIAN"
         cache_dir.mkdir(parents=True, exist_ok=True)
 
         zipfile_name = "FABIAN_HRTF_DATABASE_v4.zip"
+        zip_path = cache_dir / zipfile_name
+
+        # Download ZIP archive if not exists
+        if not zip_path.exists():
+            pup = _pooch_from_doi(self.doi, path=cache_dir)
+            _fetch(pup, zipfile_name)
+
+        return zip_path
+
+    def _process(self, file_path: Path, **kwargs) -> Path:
+        """Extract SOFA file from FABIAN ZIP archive.
+
+        Parameters
+        ----------
+        file_path : :class:`pathlib.Path`
+            Path to the ZIP file.
+        **kwargs : :class:`dict`
+            Expected keys: kind, hato.
+
+        Returns
+        -------
+        :class:`pathlib.Path`
+            Path to the extracted SOFA file.
+        """
+        kind = kwargs.get("kind", "measured")
+        hato = kwargs.get("hato", 0)
+        cache_dir = file_path.parent
         base_name = f"FABIAN_HRIR_{kind}_HATO_{hato}"
-        sofa_cache = cache_dir / f"{base_name}.sofa"
+        sofa_path = cache_dir / f"{base_name}.sofa"
 
         # Check if SOFA file already exists
-        if sofa_cache.exists():
-            return sofa_cache
-
-        # Download ZIP archive
-        pup = _pooch_from_doi(self.doi, path=cache_dir)
-        _fetch(pup, zipfile_name)
+        if sofa_path.exists():
+            return sofa_path
 
         # Extract SOFA file from ZIP
         logger = po.get_logger()
-        with ZipFile(cache_dir / zipfile_name, "r") as zf:
+        with ZipFile(file_path, "r") as zf:
             for name in zf.namelist():
-                if name.endswith(sofa_cache.name):
+                if name.endswith(sofa_path.name):
                     zf.getinfo(name).filename = Path(name).name
-                    logger.info(f"Extracting {name} to {sofa_cache}")
+                    logger.info(f"Extracting {name} to {sofa_path}")
                     zf.extract(name, path=cache_dir)
 
-        return sofa_cache
+        return sofa_path
+
+    def get(self, **kwargs) -> Any:
+        """Retrieve FABIAN dataset with special handling for raw output format."""
+        output_format = kwargs.get("output_format", "pyfar")
+        cache_dir = Path(kwargs.get("cache_dir", CACHE_DIR))
+        export_dir = Path(kwargs.get("export_dir")) if kwargs.get("export_dir") else None
+
+        # For raw output, return the ZIP file directly
+        if output_format == "raw":
+            file_name = "FABIAN_HRTF_DATABASE_v4.zip"
+            file_cache = cache_dir / "FABIAN" / file_name
+            file_export = Path(export_dir) / file_name if export_dir else None
+
+            # Check cache
+            if file_export is not None and file_export.exists():
+                return file_export
+            if file_cache.exists():
+                if export_dir is not None:
+                    return _move_to_export_dir(file_cache, str(export_dir))
+                return file_cache
+
+            # Download ZIP
+            file_cache.parent.mkdir(parents=True, exist_ok=True)
+            pup = _pooch_from_doi(self.doi, path=file_cache.parent)
+            _fetch(pup, file_name)
+
+            if export_dir is not None:
+                return _move_to_export_dir(file_cache, str(export_dir))
+            return file_cache
+
+        # For non-raw, use the standard flow
+        return super().get(**kwargs)
+
+    def _construct_file_name(self, **kwargs) -> str:
+        """Construct file name based on kind and hato parameters.
+
+        Parameters
+        ----------
+        **kwargs : :class:`dict`
+            Expected keys: kind, hato.
+
+        Returns
+        -------
+        :class:`str`
+            File name in format "FABIAN_HRIR_{kind}_HATO_{hato}.sofa".
+        """
+        kind = kwargs.get("kind", "measured")
+        hato = kwargs.get("hato", 0)
+        return f"FABIAN_HRIR_{kind}_HATO_{hato}.sofa"
 
     def ingest(self, file_path: Path) -> Any:
         """Load SOFA file into :class:`sofar.Sofa` object.
@@ -152,7 +223,8 @@ def get_fabian(
         (default) the output file stays in ``cache_dir``.
     output_format : :class:`str`
         Output format of the returned data.
-        Either ``'pyfar'`` (default), ``'hdf5'``, ``'numpy'`` or ``'sofa'``.
+        Either ``'pyfar'`` (default), ``'hdf5'``, ``'numpy'``, ``'sofa'``, or ``'raw'``.
+        For ``'raw'``, returns :class:`pathlib.Path` to the ZIP archive.
 
     Returns
     -------
@@ -168,6 +240,7 @@ def get_fabian(
           ``'source_coordinates'`` (:class:`numpy.ndarray`),
           ``'receiver_coordinates'`` (:class:`numpy.ndarray`), and
           ``'sampling_rate'`` (:class:`float`).
+        - ``'raw'`` : :class:`pathlib.Path` to the ZIP archive.
     """
     return fabian_dataset.get(
         kind=kind, hato=hato, cache_dir=cache_dir, export_dir=export_dir, output_format=output_format

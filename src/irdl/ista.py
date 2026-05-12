@@ -304,6 +304,8 @@ def get_miracle(
           ``'sampling_rate'`` (:class:`int`)
 
     """
+    if output_format not in ["pyfar", "hdf5", "numpy", "raw"]:
+        raise ValueError("output_format must be one of ['pyfar', 'hdf5', 'numpy', 'raw']")
     if scenario not in ["A1", "A2", "D1", "R2"]:
         raise ValueError("scenario must be one of ['A1', 'A2', 'D1', 'R2']")
     if dataset_split not in [None, "C1", "C2", "C3", "C4"]:
@@ -356,6 +358,8 @@ def get_miracle(
 
     match output_format:
         case "hdf5":
+            return h5_file
+        case "raw":
             return h5_file
         case "pyfar":
             return _to_pyfar(_load_h5(h5_file))
@@ -412,12 +416,17 @@ def get_sriracha(
           ``'humidity'`` (:class:`numpy.ndarray`).
 
     """
+    if output_format not in ["pyfar", "hdf5", "numpy", "raw"]:
+        raise ValueError("output_format must be one of ['pyfar', 'hdf5', 'numpy', 'raw']")
     if scenario not in ["SR1", "SRA1", "SR1-D", "SRA1-D", "SR2", "SRA2", "SR2-D", "SRA2-D"]:
         raise ValueError("scenario must be one of [SR1, SRA1, SR1-D, SRA1-D, SR2, SRA2, SR2-D, SRA2-D]")
     if dataset_split not in [None, "C1", "C2", "C3", "C4"]:
         raise ValueError("dataset_split must be None or in [C1, C2, C3, C4]")
     if scenario[-1] == "D" and dataset_split is not None:
         raise ValueError("dense datasets do not have splits")
+    # raw output_format not allowed for non-dense full scenarios
+    if output_format == "raw" and scenario[-1] != "D" and dataset_split is None:
+        raise ValueError("raw output_format not supported for non-dense SRIRACHA scenarios without split")
 
     doi = "10.14279/depositonce-23943"
     cache_dir = Path(cache_dir) / "SRIRACHA"
@@ -451,6 +460,7 @@ def get_sriracha(
 
     match output_format:
         case "hdf5":
+        case "raw":
             return h5_file
         case "pyfar":
             return _to_pyfar(_load_h5(h5_file))

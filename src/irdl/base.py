@@ -58,7 +58,7 @@ class BaseDataset:
             - export_dir : :class:`pathlib.Path` or :class:`None`
                 Directory for final output.
             - output_format : :class:`str`
-                One of "pyfar", "numpy", "hdf5", "sofa".
+                One of "pyfar", "numpy", "hdf5", "sofa", "raw".
             - Dataset-specific kwargs (scenario, kind, hato, etc.)
 
         Returns
@@ -69,6 +69,7 @@ class BaseDataset:
             - "numpy" : :class:`dict` of numpy arrays
             - "hdf5" : :class:`pathlib.Path` to .h5 file
             - "sofa" : :class:`pathlib.Path` to .sofa file
+            - "raw" : :class:`pathlib.Path` to the raw file as downloaded
         """
         # Extract common parameters
         cache_dir = Path(kwargs.get("cache_dir", CACHE_DIR))
@@ -76,8 +77,8 @@ class BaseDataset:
         output_format = kwargs.get("output_format", "pyfar")
 
         # Validate common parameters
-        if output_format not in ("pyfar", "hdf5", "numpy", "sofa"):
-            raise ValueError("output_format must be one of 'pyfar', 'hdf5', 'numpy', 'sofa'")
+        if output_format not in ("pyfar", "hdf5", "numpy", "sofa", "raw"):
+            raise ValueError("output_format must be one of 'pyfar', 'hdf5', 'numpy', 'sofa', 'raw'")
 
         # Validate dataset-specific parameters
         self.validate_params(kwargs)
@@ -88,8 +89,15 @@ class BaseDataset:
         # Steps 2-3: Get the raw file (download if needed)
         file_path = self._get_file(cache_dir=cache_dir, export_dir=export_dir, **dataset_kwargs)
 
+        # For raw output, return the file directly without processing
+        if output_format == "raw":
+            return file_path
+
+        # For non-raw: process the file if needed, then ingest and convert
+        processed_path = self._process(file_path, **dataset_kwargs)
+
         # Ingest to SOFA (internal standard)
-        sofa = self.ingest(file_path)
+        sofa = self.ingest(processed_path)
 
         # Step 7: Convert to requested output format
         return self._to_output(sofa, output_format, cache_dir, export_dir)
@@ -158,7 +166,7 @@ class BaseDataset:
         file_path : :class:`pathlib.Path`
             Path to the file on disk (either cached or newly downloaded).
         """
-        # Construct file name based on Dataset (subclass can override)
+        # Construct expected file name based on Dataset (subclass can override)
         file_name = self._construct_file_name(**kwargs)
         file_cache = cache_dir / file_name
         file_export = Path(export_dir) / file_name if export_dir else None
@@ -170,13 +178,33 @@ class BaseDataset:
             return file_cache
 
         # File not cached - download it
-        downloaded_path = self.download(cache_dir=cache_dir, export_dir=export_dir, **kwargs)
+        downloaded_path = self.download(cache_dir=cache_dir, **kwargs)
 
         # Move to export_dir if specified
         if export_dir is not None:
             return self._move_to_export(downloaded_path, export_dir)
 
         return downloaded_path
+
+    def _process(self, file_path: Path, **kwargs) -> Path:
+        """Post-process downloaded file if needed.
+
+        Override in subclass to extract, transform, or otherwise process
+        the raw downloaded file before ingestion.
+
+        Parameters
+        ----------
+        file_path : :class:`pathlib.Path`
+            Path to the raw downloaded file.
+        **kwargs : :class:`dict`
+            Dataset-specific parameters (may be needed for processing decisions).
+
+        Returns
+        -------
+        file_path : :class:`pathlib.Path`
+            Path to the processed file (may be same as input if no processing needed).
+        """
+        return file_path
 
     def _construct_file_name(self, **kwargs) -> str:
         """Construct the file name for this Dataset.
