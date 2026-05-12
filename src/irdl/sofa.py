@@ -29,16 +29,16 @@ class FabianDataset(BaseDataset):
     name = "fabian"
     doi = "10.14279/depositonce-5718.5"
 
-    def validate_params(self, kwargs: dict) -> None:
+    def validate_params(self, dataset_kwargs: dict) -> None:
         """Validate FABIAN-specific parameters.
 
         Parameters
         ----------
-        kwargs : :class:`dict`
+        dataset_kwargs : :class:`dict`
             Parameters to validate. Expected keys: kind, hato.
         """
-        kind = kwargs["kind"]
-        hato = kwargs["hato"]
+        kind = dataset_kwargs["kind"]
+        hato = dataset_kwargs["hato"]
 
         if kind not in ["measured", "modeled"]:
             raise ValueError("kind must be either 'measured' or 'modeled'")
@@ -124,37 +124,29 @@ class FabianDataset(BaseDataset):
 
         return sofa_path
 
-    def get(self, **kwargs) -> Any:
-        """Retrieve FABIAN dataset with special handling for raw output format."""
-        output_format = kwargs.get("output_format", "pyfar")
-        cache_dir = Path(kwargs.get("cache_dir", CACHE_DIR))
-        export_dir = Path(kwargs.get("export_dir")) if kwargs.get("export_dir") else None
-
-        # For raw output, return the ZIP file directly
-        if output_format == "raw":
-            file_name = "FABIAN_HRTF_DATABASE_v4.zip"
-            file_cache = cache_dir / "FABIAN" / file_name
-            file_export = Path(export_dir) / file_name if export_dir else None
-
-            # Check cache
-            if file_export is not None and file_export.exists():
-                return file_export
-            if file_cache.exists():
-                if export_dir is not None:
-                    return _move_to_export_dir(file_cache, str(export_dir))
-                return file_cache
-
-            # Download ZIP
-            file_cache.parent.mkdir(parents=True, exist_ok=True)
-            pup = _pooch_from_doi(self.doi, path=file_cache.parent)
-            _fetch(pup, file_name)
-
-            if export_dir is not None:
-                return _move_to_export_dir(file_cache, str(export_dir))
-            return file_cache
-
-        # For non-raw, use the standard flow
-        return super().get(**kwargs)
+    @classmethod
+    def get(
+        cls,
+        kind: str = "measured",
+        hato: int = 0,
+        cache_dir: str = CACHE_DIR,
+        export_dir: str = None,
+        output_format: str = "pyfar",
+    ):
+        """kind : str
+            Type of HRTF to download. Either 'measured' or 'modeled'.
+        hato : int
+            Head-above-torso-rotation of HRTFs in degrees.
+            One of: 0, 10, 20, 30, 40, 50, 310, 320, 330, 340, 350.
+        """
+        instance = cls()
+        return instance._get(
+            kind=kind,
+            hato=hato,
+            cache_dir=cache_dir,
+            export_dir=export_dir,
+            output_format=output_format,
+        )
 
     def ingest(self, file_path: Path) -> Any:
         """Load SOFA file into :class:`sofar.Sofa` object.
@@ -174,57 +166,4 @@ class FabianDataset(BaseDataset):
         return sf.read_sofa(str(file_path))
 
 
-# Singleton instance
-fabian_dataset = FabianDataset()
 
-
-# Backwards-compatible public API
-def get_fabian(
-    kind: str = "measured",
-    hato: int = 0,
-    cache_dir: str = CACHE_DIR,
-    export_dir: str = None,
-    output_format: str = "pyfar",
-):
-    """Download and extract the FABIAN HRTF Database v4 from DepositOnce.
-
-    DOI: `10.14279/depositonce-5718.5 <https://doi.org/10.14279/depositonce-5718.5>`_
-
-    Parameters
-    ----------
-    kind : :class:`str`
-        Type of HRTF to download. Either ``'measured'`` or ``'modeled'``.
-    hato : :class:`int`
-        Head-above-torso-rotation of HRTFs in degrees.
-        Either 0, 10, 20, 30, 40, 50, 310, 320, 330, 340 or 350.
-    cache_dir : :class:`str` or :class:`pathlib.Path`
-        Directory used to store raw downloads and intermediate files. Overridden
-        by the environment variable ``IRDL_CACHE_DIR`` when set. Defaults to the
-        user cache directory.
-    export_dir : :class:`str` or :class:`pathlib.Path` or :class:`None`
-        Directory to move the output file to after processing. When ``None``
-        (default) the output file stays in ``cache_dir``.
-    output_format : :class:`str`
-        Output format of the returned data.
-        Either ``'pyfar'`` (default), ``'hdf5'``, ``'numpy'``, ``'sofa'``, or ``'raw'``.
-        For ``'raw'``, returns :class:`pathlib.Path` to the ZIP archive.
-
-    Returns
-    -------
-    data : :class:`dict` or :class:`pathlib.Path`
-        Returned data depends on ``output_format``:
-
-        - ``'pyfar'`` : :class:`dict` with keys ``'impulse_response'`` (:class:`pyfar.Signal`),
-          ``'source_coordinates'`` (:class:`pyfar.Coordinates`), and
-          ``'receiver_coordinates'`` (:class:`pyfar.Coordinates`).
-        - ``'hdf5'`` : :class:`pathlib.Path` to the HDF5 file containing the data.
-        - ``'sofa'`` : :class:`pathlib.Path` to the SOFA file.
-        - ``'numpy'`` : :class:`dict` with keys ``'impulse_response'`` (:class:`numpy.ndarray`),
-          ``'source_coordinates'`` (:class:`numpy.ndarray`),
-          ``'receiver_coordinates'`` (:class:`numpy.ndarray`), and
-          ``'sampling_rate'`` (:class:`float`).
-        - ``'raw'`` : :class:`pathlib.Path` to the ZIP archive.
-    """
-    return fabian_dataset.get(
-        kind=kind, hato=hato, cache_dir=cache_dir, export_dir=export_dir, output_format=output_format
-    )

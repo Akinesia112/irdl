@@ -35,56 +35,94 @@ class BaseDataset:
         Unique identifier for the Dataset.
     - doi : :class:`str`
         Digital Object Identifier for the Dataset.
-    - validate_params()
-        Validate dataset-specific parameters.
-    - download()
+    - validate_params(dataset_kwargs: dict)
+        Validate dataset-specific parameters only (no common params).
+    - download(**kwargs) -> Path
         Download and return :class:`pathlib.Path` to raw file.
-    - ingest()
+    - ingest(file_path: Path) -> sofar.Sofa
         Convert raw file to :class:`sofar.Sofa` object.
+    - get() @classmethod
+        Public entry point with explicit type signature for CLI auto-generation.
+
+    Subclasses may override:
+
+    - validate_output_format(output_format: str, **dataset_kwargs)
+        Dataset-specific validation of output_format in context of dataset params.
+    - _get(**dataset_kwargs)
+        For datasets with special handling (e.g., FABIAN raw output).
     """
 
     name: str
     doi: str
 
-    def get(self, **kwargs) -> Any:
-        """Retrieve Dataset and return in requested format.
+    # Default docstring prefix for all get() classmethods
+    _get_doc_prefix = """Download {name} dataset.
+
+DOI: {doi}
+
+Parameters
+----------
+cache_dir : str
+    Cache directory for downloads. Default: user cache directory.
+export_dir : str, optional
+    Directory for final output. Default: None (stays in cache_dir).
+output_format : str
+    Output format: 'pyfar', 'numpy', 'hdf5', 'sofa', or 'raw'.
+"""
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        # Automatically compose docstrings for get() classmethod
+        if hasattr(cls, 'get') and hasattr(cls, 'name') and hasattr(cls, 'doi'):
+            # Get the underlying function of the classmethod
+            get_func = cls.get.__func__
+            # Format prefix with class attributes
+            prefix = BaseDataset._get_doc_prefix.format(
+                name=cls.name,
+                doi=cls.doi
+            )
+            # Get subclass-specific docstring
+            suffix = get_func.__doc__ or ""
+            # Combine: prefix + suffix
+            full_doc = prefix
+            if suffix:
+                if not full_doc.endswith('\n\n'):
+                    full_doc += '\n\n'
+                full_doc += suffix
+            get_func.__doc__ = full_doc
+
+    def _get(self, *, cache_dir: str, export_dir: str | None,
+             output_format: str, **dataset_kwargs) -> Any:
+        """Internal implementation of Dataset retrieval.
 
         Parameters
         ----------
-        **kwargs : :class:`dict`
-            Arbitrary parameters including:
-            - cache_dir : :class:`pathlib.Path`
-                Override default cache directory.
-            - export_dir : :class:`pathlib.Path` or :class:`None`
-                Directory for final output.
-            - output_format : :class:`str`
-                One of "pyfar", "numpy", "hdf5", "sofa", "raw".
-            - Dataset-specific kwargs (scenario, kind, hato, etc.)
+        cache_dir : str
+            Cache directory for downloads.
+        export_dir : str, optional
+            Directory for final output.
+        output_format : str
+            Output format: 'pyfar', 'numpy', 'hdf5', 'sofa', or 'raw'.
+        **dataset_kwargs
+            Dataset-specific parameters.
 
         Returns
         -------
-        data : :class:`dict` or :class:`pathlib.Path`
-            Returned data depends on output_format:
-            - "pyfar" : :class:`dict` of pyfar objects
-            - "numpy" : :class:`dict` of numpy arrays
-            - "hdf5" : :class:`pathlib.Path` to .h5 file
-            - "sofa" : :class:`pathlib.Path` to .sofa file
-            - "raw" : :class:`pathlib.Path` to the raw file as downloaded
+        data : dict or pathlib.Path
+            Returned data depends on output_format.
         """
-        # Extract common parameters
-        cache_dir = Path(kwargs.get("cache_dir", CACHE_DIR))
-        export_dir = Path(kwargs.get("export_dir")) if kwargs.get("export_dir") else None
-        output_format = kwargs.get("output_format", "pyfar")
+        cache_dir = Path(cache_dir)
+        export_dir = Path(export_dir) if export_dir else None
 
         # Validate common parameters
         if output_format not in ("pyfar", "hdf5", "numpy", "sofa", "raw"):
             raise ValueError("output_format must be one of 'pyfar', 'hdf5', 'numpy', 'sofa', 'raw'")
 
         # Validate dataset-specific parameters
-        self.validate_params(kwargs)
+        self.validate_params(dataset_kwargs)
 
-        # Remove common params from kwargs before passing to _get_file
-        dataset_kwargs = {k: v for k, v in kwargs.items() if k not in ("cache_dir", "export_dir", "output_format")}
+        # Dataset-specific output_format validation (e.g., SRIRACHA raw restrictions)
+        self.validate_output_format(output_format, **dataset_kwargs)
 
         # Steps 2-3: Get the raw file (download if needed)
         file_path = self._get_file(cache_dir=cache_dir, export_dir=export_dir, **dataset_kwargs)
@@ -99,17 +137,34 @@ class BaseDataset:
         # Ingest to SOFA (internal standard)
         sofa = self.ingest(processed_path)
 
-        # Step 7: Convert to requested output format
+        # Convert to requested output format
         return self._to_output(sofa, output_format, cache_dir, export_dir)
 
-    def validate_params(self, kwargs: dict) -> None:
-        """Validate dataset-specific parameters.
+    def validate_output_format(self, output_format: str, **dataset_kwargs) -> None:
+        """Validate output_format in the context of dataset-specific parameters.
 
-        Override in subclass.
+        Override in subclasses that have output_format restrictions
+        (e.g., SRIRACHA blocks raw for non-dense scenarios).
 
         Parameters
         ----------
-        kwargs : :class:`dict`
+        output_format : str
+            The output format to validate.
+        **dataset_kwargs
+            Dataset-specific parameters that may affect validation.
+        """
+        pass
+
+    def validate_params(self, dataset_kwargs: dict) -> None:
+        """Validate dataset-specific parameters only.
+
+        Override in subclass. This method receives only dataset-specific
+        parameters (scenario, dataset_split, kind, hato, etc.) — common
+        parameters have already been extracted and validated.
+
+        Parameters
+        ----------
+        dataset_kwargs : dict
             Dataset-specific parameters to validate.
         """
         raise NotImplementedError(f"{self.__class__.__name__} must implement validate_params()")

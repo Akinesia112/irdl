@@ -46,10 +46,10 @@ class MiracleDataset(IstaBaseDataset):
     name = "miracle"
     doi = "10.14279/depositonce-20837"
 
-    def validate_params(self, kwargs: dict) -> None:
+    def validate_params(self, dataset_kwargs: dict) -> None:
         """Validate MIRACLE-specific parameters."""
-        scenario = kwargs["scenario"]
-        dataset_split = kwargs.get("dataset_split")
+        scenario = dataset_kwargs["scenario"]
+        dataset_split = dataset_kwargs.get("dataset_split")
 
         if scenario not in ["A1", "A2", "D1", "R2"]:
             raise ValueError("scenario must be one of ['A1', 'A2', 'D1', 'R2']")
@@ -57,6 +57,30 @@ class MiracleDataset(IstaBaseDataset):
             raise ValueError("dataset_split must be None or in [C1, C2, C3, C4]")
         if scenario == "D1" and dataset_split is not None:
             raise ValueError("scenario D1 cannot be split")
+
+    @classmethod
+    def get(
+        cls,
+        scenario: str = "A1",
+        dataset_split: str = None,
+        cache_dir: str = CACHE_DIR,
+        export_dir: str = None,
+        output_format: str = "pyfar",
+    ):
+        """scenario : str
+            Name of the scenario to download. One of 'A1', 'A2', 'D1', 'R2'.
+        dataset_split : str, optional
+            Artificial dataset split. One of 'C1', 'C2', 'C3', 'C4', or None.
+            Dense scenarios (D1) cannot be split.
+        """
+        instance = cls()
+        return instance._get(
+            scenario=scenario,
+            dataset_split=dataset_split,
+            cache_dir=cache_dir,
+            export_dir=export_dir,
+            output_format=output_format,
+        )
 
     def _construct_file_name(self, **kwargs) -> str:
         """Construct HDF5 file name for MIRACLE (always full file, splits extracted later)."""
@@ -163,11 +187,10 @@ class SrirachaDataset(IstaBaseDataset):
     name = "sriracha"
     doi = "10.14279/depositonce-23943"
 
-    def validate_params(self, kwargs: dict) -> None:
+    def validate_params(self, dataset_kwargs: dict) -> None:
         """Validate SRIRACHA-specific parameters."""
-        scenario = kwargs["scenario"]
-        dataset_split = kwargs.get("dataset_split")
-        output_format = kwargs.get("output_format", "pyfar")
+        scenario = dataset_kwargs["scenario"]
+        dataset_split = dataset_kwargs.get("dataset_split")
 
         if scenario not in ["SR1", "SRA1", "SR1-D", "SRA1-D", "SR2", "SRA2", "SR2-D", "SRA2-D"]:
             raise ValueError("scenario must be one of [SR1, SRA1, SR1-D, SRA1-D, SR2, SRA2, SR2-D, SRA2-D]")
@@ -175,9 +198,39 @@ class SrirachaDataset(IstaBaseDataset):
             raise ValueError("dataset_split must be None or in [C1, C2, C3, C4]")
         if scenario[-1] == "D" and dataset_split is not None:
             raise ValueError("dense datasets do not have splits")
+
+    def validate_output_format(self, output_format: str, **dataset_kwargs) -> None:
+        """Validate output_format in context of SRIRACHA dataset parameters."""
+        scenario = dataset_kwargs.get("scenario")
+        dataset_split = dataset_kwargs.get("dataset_split")
         # raw output_format not allowed for non-dense full scenarios
-        if output_format == "raw" and scenario[-1] != "D" and dataset_split is None:
+        if output_format == "raw" and scenario and scenario[-1] != "D" and dataset_split is None:
             raise ValueError("raw output_format not supported for non-dense SRIRACHA scenarios without split")
+
+    @classmethod
+    def get(
+        cls,
+        scenario: str = "SR1-D",
+        dataset_split: str = None,
+        cache_dir: str = CACHE_DIR,
+        export_dir: str = None,
+        output_format: str = "pyfar",
+    ):
+        """scenario : str
+            Name of the scenario to download. One of 'SR1', 'SRA1', 'SR1-D',
+            'SRA1-D', 'SR2', 'SRA2', 'SR2-D', or 'SRA2-D'.
+        dataset_split : str, optional
+            Optional dataset split for full-plane scenarios. One of 'C1', 'C2',
+            'C3', 'C4', or None. Dense scenarios (ending in -D) do not have splits.
+        """
+        instance = cls()
+        return instance._get(
+            scenario=scenario,
+            dataset_split=dataset_split,
+            cache_dir=cache_dir,
+            export_dir=export_dir,
+            output_format=output_format,
+        )
 
     def _construct_file_name(self, **kwargs) -> str:
         """Construct HDF5 file name for SRIRACHA."""
@@ -301,121 +354,4 @@ class SrirachaDataset(IstaBaseDataset):
         return output_path
 
 
-# Create singleton instances
-miracle_dataset = MiracleDataset()
-sriracha_dataset = SrirachaDataset()
 
-
-def get_miracle(
-    scenario: str = "A1",
-    dataset_split: str = None,
-    cache_dir: str = CACHE_DIR,
-    export_dir: str = None,
-    output_format: str = "pyfar",
-):
-    """Download and extract the MIRACLE database from DepositOnce.
-
-    DOI: `10.14279/depositonce-20837 <https://doi.org/10.14279/depositonce-20837>`_
-
-    Parameters
-    ----------
-    scenario : :class:`str`
-        Name of the scenario to download. Either ``'A1'``, ``'A2'``, ``'D1'`` or ``'R2'``.
-    dataset_split : :class:`str` or None
-        Artificial dataset split. Analogous to ``dataset_split`` in :func:`get_sriracha`.
-        One of ``'C1'``, ``'C2'``, ``'C3'``, ``'C4'``, or ``None`` (default).
-    cache_dir : :class:`str` or :class:`pathlib.Path`
-        Directory used to store raw downloads and intermediate files. Overridden
-        by the environment variable ``IRDL_CACHE_DIR`` when set. Defaults to the
-        user cache directory.
-    export_dir : :class:`str` or :class:`pathlib.Path` or None
-        Directory to move the output file to after processing. When ``None``
-        (default) the output file stays in ``cache_dir``.
-    output_format : :class:`str`
-        Output format of the returned data.
-        Either ``'pyfar'`` (default), ``'hdf5'``, ``'numpy'``, or ``'raw'``.
-
-    Returns
-    -------
-    data : :class:`dict` or :class:`pathlib.Path`
-        Returned data depends on ``output_format``:
-
-        - ``'pyfar'``: :class:`dict` with keys ``'impulse_response'`` (:class:`pyfar.Signal`),
-          ``'source_coordinates'`` (:class:`pyfar.Coordinates`),
-          ``'receiver_coordinates'`` (:class:`pyfar.Coordinates`)
-        - ``'hdf5'``: :class:`pathlib.Path` to the HDF5 file containing the data.
-        - ``'numpy'``: :class:`dict` with keys ``'impulse_response'`` (:class:`numpy.ndarray`),
-          ``'source_coordinates'`` (:class:`numpy.ndarray`),
-          ``'receiver_coordinates'`` (:class:`numpy.ndarray`),
-          ``'speed_of_sound'`` (:class:`numpy.ndarray`),
-          ``'temperature'`` (:class:`numpy.ndarray`),
-          ``'sampling_rate'`` (:class:`int`)
-        - ``'raw'``: :class:`pathlib.Path` to the raw HDF5 file.
-
-    """
-    return miracle_dataset.get(
-        scenario=scenario,
-        dataset_split=dataset_split,
-        cache_dir=cache_dir,
-        export_dir=export_dir,
-        output_format=output_format,
-    )
-
-
-def get_sriracha(
-    scenario: str = "SR1-D",
-    dataset_split: str = None,
-    cache_dir: str = CACHE_DIR,
-    export_dir: str = None,
-    output_format: str = "pyfar",
-):
-    """Download and extract the SRIRACHA database from DepositOnce.
-
-    DOI: `10.14279/depositonce-23943 <https://doi.org/10.14279/depositonce-23943>`_
-
-    Parameters
-    ----------
-    scenario : :class:`str`
-        Name of the scenario to download. One of ``'SR1'``, ``'SRA1'``, ``'SR1-D'``,
-        ``'SRA1-D'``, ``'SR2'``, ``'SRA2'``, ``'SR2-D'``, or ``'SRA2-D'``.
-    dataset_split : :class:`str` or None
-        Optional dataset split for full-plane scenarios.
-        One of ``'C1'``, ``'C2'``, ``'C3'``, ``'C4'``, or ``None`` (default).
-        Dense scenarios (ending in ``-D``) do not have splits.
-    cache_dir : :class:`str` or :class:`pathlib.Path`
-        Directory used to store raw downloads and intermediate files. Overridden
-        by the environment variable ``IRDL_CACHE_DIR`` when set. Defaults to the
-        user cache directory.
-    export_dir : :class:`str` or :class:`pathlib.Path` or None
-        Directory to move the output file to after processing. When ``None``
-        (default) the output file stays in ``cache_dir``.
-    output_format : :class:`str`
-        Output format of the returned data.
-        Either ``'pyfar'`` (default), ``'hdf5'``, ``'numpy'``, or ``'raw'``.
-
-    Returns
-    -------
-    data : :class:`dict` or :class:`pathlib.Path`
-        Returned data depends on ``output_format``:
-
-        - ``'pyfar'``: :class:`dict` with keys ``'impulse_response'`` (:class:`pyfar.Signal`),
-          ``'source_coordinates'`` (:class:`pyfar.Coordinates`), and
-          ``'receiver_coordinates'`` (:class:`pyfar.Coordinates`).
-        - ``'hdf5'``: :class:`pathlib.Path` to the HDF5 file containing the data.
-        - ``'numpy'``: :class:`dict` with keys ``'impulse_response'`` (:class:`numpy.ndarray`),
-          ``'source_coordinates'`` (:class:`numpy.ndarray`),
-          ``'receiver_coordinates'`` (:class:`numpy.ndarray`),
-          ``'speed_of_sound'`` (:class:`numpy.ndarray`),
-          ``'temperature'`` (:class:`numpy.ndarray`),
-          ``'sampling_rate'`` (:class:`int`), and optionally
-          ``'humidity'`` (:class:`numpy.ndarray`).
-        - ``'raw'``: :class:`pathlib.Path` to the raw HDF5 file.
-
-    """
-    return sriracha_dataset.get(
-        scenario=scenario,
-        dataset_split=dataset_split,
-        cache_dir=cache_dir,
-        export_dir=export_dir,
-        output_format=output_format,
-    )
