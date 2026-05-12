@@ -40,11 +40,12 @@ class FabianDataset(BaseDataset):
         hato = params.get("hato", 0)
         output_format = params.get("output_format", "pyfar")
 
-        assert kind in ["measured", "modeled"], "kind must be either 'measured' or 'modeled'"
-        assert hato in [0, 10, 20, 30, 40, 50, 310, 320, 330, 340, 350], (
-            "hato must be one of [0, 10, 20, 30, 40, 50, 310, 320, 330, 340, 350]"
-        )
-        assert output_format in ["pyfar", "hdf5", "numpy", "sofa"], "unknown output format"
+        if kind not in ["measured", "modeled"]:
+            raise ValueError("kind must be either 'measured' or 'modeled'")
+        if hato not in [0, 10, 20, 30, 40, 50, 310, 320, 330, 340, 350]:
+            raise ValueError("hato must be one of [0, 10, 20, 30, 40, 50, 310, 320, 330, 340, 350]")
+        if output_format not in ["pyfar", "hdf5", "numpy", "sofa"]:
+            raise ValueError("unknown output format")
 
     def _construct_file_name(self, **params) -> str:
         """Construct file name based on kind and hato parameters.

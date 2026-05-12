@@ -304,10 +304,14 @@ def get_miracle(
           ``'sampling_rate'`` (:class:`int`)
 
     """
-    assert output_format in ["pyfar", "hdf5", "numpy"], "unknown output format"
-    assert scenario in ["A1", "A2", "D1", "R2"], "scenario must be one of ['A1', 'A2', 'D1', 'R2']"
-    assert dataset_split in [None, "C1", "C2", "C3", "C4"], "dataset_split must be None or in [C1, C2, C3, C4]"
-    assert not (scenario == "D1" and dataset_split is not None), "scenario D1 cannot be split"
+    if output_format not in ["pyfar", "hdf5", "numpy"]:
+        raise ValueError("unknown output format")
+    if scenario not in ["A1", "A2", "D1", "R2"]:
+        raise ValueError("scenario must be one of ['A1', 'A2', 'D1', 'R2']")
+    if dataset_split not in [None, "C1", "C2", "C3", "C4"]:
+        raise ValueError("dataset_split must be None or in [C1, C2, C3, C4]")
+    if scenario == "D1" and dataset_split is not None:
+        raise ValueError("scenario D1 cannot be split")
 
     doi = "10.14279/depositonce-20837"
     cache_dir = Path(cache_dir) / "MIRACLE"
@@ -410,12 +414,14 @@ def get_sriracha(
           ``'humidity'`` (:class:`numpy.ndarray`).
 
     """
-    assert output_format in ["pyfar", "hdf5", "numpy"], "unknown output format"
-    assert scenario in ["SR1", "SRA1", "SR1-D", "SRA1-D", "SR2", "SRA2", "SR2-D", "SRA2-D"], (
-        "scenario must be one of [SR1, SRA1, SR1-D, SRA1-D, SR2, SRA2, SR2-D, SRA2-D]"
-    )
-    assert dataset_split in [None, "C1", "C2", "C3", "C4"], "dataset_split must be None or in [C1, C2, C3, C4]"
-    assert not (scenario[-1] == "D" and dataset_split is not None), "dense datasets do not have splits"
+    if output_format not in ["pyfar", "hdf5", "numpy"]:
+        raise ValueError("unknown output format")
+    if scenario not in ["SR1", "SRA1", "SR1-D", "SRA1-D", "SR2", "SRA2", "SR2-D", "SRA2-D"]:
+        raise ValueError("scenario must be one of [SR1, SRA1, SR1-D, SRA1-D, SR2, SRA2, SR2-D, SRA2-D]")
+    if dataset_split not in [None, "C1", "C2", "C3", "C4"]:
+        raise ValueError("dataset_split must be None or in [C1, C2, C3, C4]")
+    if scenario[-1] == "D" and dataset_split is not None:
+        raise ValueError("dense datasets do not have splits")
 
     doi = "10.14279/depositonce-23943"
     cache_dir = Path(cache_dir) / "SRIRACHA"
