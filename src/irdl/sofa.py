@@ -37,8 +37,8 @@ class FabianDataset(BaseDataset):
         kwargs : :class:`dict`
             Parameters to validate. Expected keys: kind, hato.
         """
-        kind = kwargs.get("kind", "measured")
-        hato = kwargs.get("hato", 0)
+        kind = kwargs["kind"]
+        hato = kwargs["hato"]
 
         if kind not in ["measured", "modeled"]:
             raise ValueError("kind must be either 'measured' or 'modeled'")
@@ -58,8 +58,8 @@ class FabianDataset(BaseDataset):
         :class:`str`
             File name in format "FABIAN_HRIR_{kind}_HATO_{hato}.sofa".
         """
-        kind = kwargs.get("kind", "measured")
-        hato = kwargs.get("hato", 0)
+        kind = kwargs["kind"]
+        hato = kwargs["hato"]
         return f"FABIAN_HRIR_{kind}_HATO_{hato}.sofa"
 
     def download(self, **kwargs) -> Path:
@@ -103,8 +103,8 @@ class FabianDataset(BaseDataset):
         :class:`pathlib.Path`
             Path to the extracted SOFA file.
         """
-        kind = kwargs.get("kind", "measured")
-        hato = kwargs.get("hato", 0)
+        kind = kwargs["kind"]
+        hato = kwargs["hato"]
         cache_dir = file_path.parent
         base_name = f"FABIAN_HRIR_{kind}_HATO_{hato}"
         sofa_path = cache_dir / f"{base_name}.sofa"
@@ -155,23 +155,6 @@ class FabianDataset(BaseDataset):
 
         # For non-raw, use the standard flow
         return super().get(**kwargs)
-
-    def _construct_file_name(self, **kwargs) -> str:
-        """Construct file name based on kind and hato parameters.
-
-        Parameters
-        ----------
-        **kwargs : :class:`dict`
-            Expected keys: kind, hato.
-
-        Returns
-        -------
-        :class:`str`
-            File name in format "FABIAN_HRIR_{kind}_HATO_{hato}.sofa".
-        """
-        kind = kwargs.get("kind", "measured")
-        hato = kwargs.get("hato", 0)
-        return f"FABIAN_HRIR_{kind}_HATO_{hato}.sofa"
 
     def ingest(self, file_path: Path) -> Any:
         """Load SOFA file into :class:`sofar.Sofa` object.

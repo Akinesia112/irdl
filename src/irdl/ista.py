@@ -48,7 +48,7 @@ class MiracleDataset(IstaBaseDataset):
 
     def validate_params(self, kwargs: dict) -> None:
         """Validate MIRACLE-specific parameters."""
-        scenario = kwargs.get("scenario", "A1")
+        scenario = kwargs["scenario"]
         dataset_split = kwargs.get("dataset_split")
 
         if scenario not in ["A1", "A2", "D1", "R2"]:
@@ -59,15 +59,13 @@ class MiracleDataset(IstaBaseDataset):
             raise ValueError("scenario D1 cannot be split")
 
     def _construct_file_name(self, **kwargs) -> str:
-        """Construct HDF5 file name for MIRACLE."""
-        scenario = kwargs.get("scenario", "A1")
-        dataset_split = kwargs.get("dataset_split")
-        if dataset_split:
-            return f"{scenario}-{dataset_split}.h5"
+        """Construct HDF5 file name for MIRACLE (always full file, splits extracted later)."""
+        scenario = kwargs["scenario"]
+        # Always download the full file; splits are extracted in _get_file()
         return f"{scenario}.h5"
 
     def download(self, **kwargs) -> Path:
-        """Download MIRACLE HDF5 file."""
+        """Download MIRACLE HDF5 file (always full scenario file)."""
         cache_dir = Path(kwargs["cache_dir"]) / "MIRACLE"
 
         file_name = self._construct_file_name(**kwargs)
@@ -83,6 +81,81 @@ class MiracleDataset(IstaBaseDataset):
 
         return file_path
 
+    def _get_file(self, cache_dir: Path, export_dir: Path | None, **kwargs) -> Path:
+        """Check cache or download full file, then split if needed."""
+        dataset_split = kwargs.get("dataset_split")
+
+        # Download/get the full file
+        file_path = super()._get_file(cache_dir, export_dir, **kwargs)
+
+        # If a split is requested, extract it from the full file
+        if dataset_split is not None:
+            return self._extract_split(file_path, dataset_split, export_dir)
+
+        return file_path
+
+    def _extract_split(self, file_path: Path, dataset_split: str, export_dir: Path | None) -> Path:
+        """Extract a dataset split from a full MIRACLE HDF5 file.
+
+        Parameters
+        ----------
+        file_path : Path
+            Path to the full HDF5 file.
+        dataset_split : str
+            Split to extract (C1, C2, C3, C4).
+        export_dir : Path or None
+            Optional directory for the extracted file.
+
+        Returns
+        -------
+        Path
+            Path to the extracted split HDF5 file.
+        """
+        # Load full data from HDF5
+        with h5.File(file_path, "r") as f:
+            data = {
+                "impulse_response": f["data"]["impulse_response"][()],
+                "receiver_coordinates": f["data"]["location"]["receiver"][()],
+                "source_coordinates": f["data"]["location"]["source"][()],
+                "speed_of_sound": f["metadata"]["c0"][()],
+                "temperature": f["metadata"]["temperature"][()],
+                "sampling_rate": f["metadata"]["sampling_rate"][()],
+            }
+            if "humidity" in f["metadata"]:
+                data["humidity"] = f["metadata"]["humidity"][()]
+
+        # Split to the requested quadrant
+        offsets = {"C1": (0, 0), "C2": (0, 1), "C3": (1, 0), "C4": (1, 1)}
+        row, column = offsets[dataset_split]
+        n = int(np.sqrt(data["source_coordinates"].shape[0]))
+        ir_shape = data["impulse_response"].shape
+        data["source_coordinates"] = data["source_coordinates"].reshape(n, n, 3)[row::2, column::2, :].reshape(-1, 3)
+        data["impulse_response"] = (
+            data["impulse_response"].reshape(n, n, *ir_shape[1:])[row::2, column::2, :].reshape(-1, *ir_shape[1:])
+        )
+
+        # Save split data to a new HDF5 file
+        split_file_name = file_path.stem + f"-{dataset_split}{file_path.suffix}"
+        if export_dir:
+            split_path = Path(export_dir) / split_file_name
+        else:
+            split_path = file_path.parent / split_file_name
+
+        with h5.File(split_path, "w") as f:
+            data_group = f.create_group("data")
+            data_group.create_dataset("impulse_response", data=data["impulse_response"])
+            location_group = data_group.create_group("location")
+            location_group.create_dataset("source", data=data["source_coordinates"])
+            location_group.create_dataset("receiver", data=data["receiver_coordinates"])
+            metadata_group = f.create_group("metadata")
+            metadata_group.create_dataset("c0", data=data["speed_of_sound"])
+            metadata_group.create_dataset("temperature", data=data["temperature"])
+            metadata_group.create_dataset("sampling_rate", data=data["sampling_rate"])
+            if "humidity" in data:
+                metadata_group.create_dataset("humidity", data=data["humidity"])
+
+        return split_path
+
 
 class SrirachaDataset(IstaBaseDataset):
     """SRIRACHA: Shoebox Room Impulse Response Archive with Varying Absorption."""
@@ -92,7 +165,7 @@ class SrirachaDataset(IstaBaseDataset):
 
     def validate_params(self, kwargs: dict) -> None:
         """Validate SRIRACHA-specific parameters."""
-        scenario = kwargs.get("scenario", "SR1-D")
+        scenario = kwargs["scenario"]
         dataset_split = kwargs.get("dataset_split")
         output_format = kwargs.get("output_format", "pyfar")
 
@@ -108,7 +181,7 @@ class SrirachaDataset(IstaBaseDataset):
 
     def _construct_file_name(self, **kwargs) -> str:
         """Construct HDF5 file name for SRIRACHA."""
-        scenario = kwargs.get("scenario", "SR1-D")
+        scenario = kwargs["scenario"]
         dataset_split = kwargs.get("dataset_split")
         if dataset_split:
             return f"{scenario}-{dataset_split}.h5"
@@ -231,253 +304,6 @@ class SrirachaDataset(IstaBaseDataset):
 # Create singleton instances
 miracle_dataset = MiracleDataset()
 sriracha_dataset = SrirachaDataset()
-
-
-# =============================================================================
-# Legacy Utility Functions (kept for backwards compatibility)
-# =============================================================================
-
-
-def _download_and_merge(scenario: str, path: Path, pup: po.Pooch):
-    """Download and merge four HDF5 files into one full-plane dataset.
-
-    Interleaves the datasplits into one dataset, writing
-    row-by-row to keep memory usage bounded.
-
-    Parameters
-    ----------
-    scenario : str
-        Base scenario name, e.g. ``'SR1'``.
-    path : Path
-        Directory where HDF5 files are stored.
-    pup : po.Pooch
-        Pooch instance for downloading files.
-
-    Returns
-    -------
-    output_path : Path
-        Path to the merged HDF5 file.
-
-    """
-    output_path = path / f"{scenario}.h5"
-
-    offsets = {"C1": (0, 0), "C2": (0, 1), "C3": (1, 0), "C4": (1, 1)}
-
-    # download split files
-    split_files = {}
-    for split in offsets:
-        fname = f"{scenario}-{split}.h5"
-        _fetch(pup, fname)
-        split_files[split] = path / fname
-
-    # read shapes and shared metadata from the first split
-    with h5.File(split_files["C1"], "r") as f:
-        ir_shape = f["data"]["impulse_response"].shape
-        ir_dtype = f["data"]["impulse_response"].dtype
-        n_split = ir_shape[0]
-        sampling_rate = f["metadata"]["sampling_rate"][()]
-        receiver = f["data"]["location"]["receiver"][()]
-        has_humidity = "humidity" in f["metadata"]
-
-    # calculate total number of sources and grid dimension
-    n_sources = len(split_files) * n_split
-    n_full_grid = int(np.sqrt(n_sources))
-    n_split_grid = n_full_grid // 2
-
-    with h5.File(output_path, "w") as out:
-        # create groups and datasets
-        data_grp = out.create_group("data")
-        ir_ds = data_grp.create_dataset("impulse_response", shape=(n_sources, *ir_shape[1:]), dtype=ir_dtype)
-        loc_grp = data_grp.create_group("location")
-        src_ds = loc_grp.create_dataset("source", shape=(n_sources, 3), dtype="float64")
-        loc_grp.create_dataset("receiver", data=receiver)
-
-        meta_grp = out.create_group("metadata")
-        meta_grp.create_dataset("sampling_rate", data=sampling_rate)
-        c0_ds = meta_grp.create_dataset("c0", shape=(n_sources,), dtype="float32")
-        temp_ds = meta_grp.create_dataset("temperature", shape=(n_sources,), dtype="float32")
-        if has_humidity:
-            hum_ds = meta_grp.create_dataset("humidity", shape=(n_sources,), dtype="float32")
-
-        # open all split files
-        handles = {s: h5.File(f, "r") for s, f in split_files.items()}
-        try:
-            # copy data from each split to the correct location in the output datasets
-            for split_name, (row, col) in offsets.items():
-                f = handles[split_name]
-                for r in range(n_split_grid):
-                    # index one row of the split grid
-                    src = slice(r * n_split_grid, (r + 1) * n_split_grid)
-                    # map split-grid-row to full-grid-row
-                    grid_row = 2 * r + row
-                    # index one row of the full grid, skipping every other entry
-                    # to interleave splits
-                    dst = slice(grid_row * n_full_grid + col, grid_row * n_full_grid + n_full_grid, 2)
-
-                    ir_ds[dst] = f["data"]["impulse_response"][src]
-                    src_ds[dst] = f["data"]["location"]["source"][src]
-                    c0_ds[dst] = f["metadata"]["c0"][src]
-                    temp_ds[dst] = f["metadata"]["temperature"][src]
-                    if has_humidity:
-                        hum_ds[dst] = f["metadata"]["humidity"][src]
-        # close all files
-        finally:
-            for fh in handles.values():
-                fh.close()
-
-        # delete split files
-        for f in split_files.values():
-            f.unlink()
-
-    return output_path
-
-
-def _load_h5(file: str):
-    """Load raw arrays from an HDF5 file into a dictionary.
-
-    Parameters
-    ----------
-    file : :class:`pathlib.Path` or :class:`str`
-        Path to the HDF5 file.
-
-    Returns
-    -------
-    data : :class:`dict`
-        Dictionary with the following keys:
-
-        - ``'impulse_response'`` : :class:`numpy.ndarray` — Impulse response data.
-        - ``'receiver_coordinates'`` : :class:`numpy.ndarray` — Receiver positions as cartesian
-          coordinates.
-        - ``'source_coordinates'`` : :class:`numpy.ndarray` — Corrected source positions as
-          cartesian coordinates.
-        - ``'speed_of_sound'`` : :class:`numpy.ndarray` — Speed of sound per source position in
-          m/s.
-        - ``'temperature'`` : :class:`numpy.ndarray` — Ambient temperature per source position
-          in °C.
-        - ``'sampling_rate'`` : :class:`int` — Sampling rate in Hz.
-        - ``'humidity'`` : :class:`numpy.ndarray` *(optional)* — Ambient humidity per source
-          position, if present in the file.
-
-    """
-    with h5.File(file, "r") as f:
-        data = {
-            # data
-            "impulse_response": f["data"]["impulse_response"][()],
-            "receiver_coordinates": f["data"]["location"]["receiver"][()],
-            "source_coordinates": f["data"]["location"]["source"][()],
-            # metadata
-            "speed_of_sound": f["metadata"]["c0"][()],
-            "temperature": f["metadata"]["temperature"][()],
-            "sampling_rate": f["metadata"]["sampling_rate"][()],
-        }
-
-        if "humidity" in f["metadata"]:
-            data["humidity"] = f["metadata"]["humidity"][()]
-
-    return data
-
-
-def _split_data(data: dict, dataset_split: str):
-    """Filter a data dictionary to a subgroup of source positions.
-
-    Splits source positions and corresponding impulse responses into one of four
-    dataset splits analogous to the ``dataset_split`` parameter in :func:`get_sriracha`.
-
-    Parameters
-    ----------
-    data : :class:`dict`
-        Dictionary of numpy arrays as returned by :func:`_load_h5`.
-    dataset_split : :class:`str`
-        Spatial quadrant to filter to. One of ``'C1'``, ``'C2'``, ``'C3'``, or ``'C4'``.
-
-    Returns
-    -------
-    data : :class:`dict`
-        Input dictionary with ``'source_coordinates'``, and ``'impulse_response'`` filtered
-        to the requested dataset split.
-
-    """
-    # look up dictionary for the slicing indices
-    offsets = {"C1": (0, 0), "C2": (0, 1), "C3": (1, 0), "C4": (1, 1)}
-    row, column = offsets[dataset_split]
-
-    # get array sizes for variable slicing
-    n = int(np.sqrt(data["source_coordinates"].shape[0]))
-    ir_shape = data["impulse_response"].shape
-
-    # reshaping, slicing and reshape back to original shape
-    data["source_coordinates"] = data["source_coordinates"].reshape(n, n, 3)[row::2, column::2, :].reshape(-1, 3)
-    data["impulse_response"] = (
-        data["impulse_response"].reshape(n, n, *ir_shape[1:])[row::2, column::2, :].reshape(-1, *ir_shape[1:])
-    )
-
-    return data
-
-
-def _to_pyfar(data: dict):
-    """Convert dictionary of arrays to pyfar objects.
-
-    Converts impulse responses, source coordinates, and receiver coordinates to
-    :class:`pyfar.Signal` and :class:`pyfar.Coordinates` respectively.
-
-    Parameters
-    ----------
-    data : :class:`dict`
-        Dictionary of numpy arrays as returned by :func:`_load_h5` or :func:`_split_data`.
-
-    Returns
-    -------
-    data : :class:`dict`
-        Dictionary with the following keys:
-
-        - ``'impulse_response'`` : :class:`pyfar.Signal` — Impulse response data.
-        - ``'source_coordinates'`` : :class:`pyfar.Coordinates` — Corrected source positions.
-        - ``'receiver_coordinates'`` : :class:`pyfar.Coordinates` — Receiver positions.
-
-    """
-    data["impulse_response"] = pf.Signal(data["impulse_response"], sampling_rate=data["sampling_rate"])
-    data["source_coordinates"] = pf.Coordinates(*data["source_coordinates"].T)
-    data["receiver_coordinates"] = pf.Coordinates(*data["receiver_coordinates"].T)
-
-    for key in ["sampling_rate", "speed_of_sound", "temperature", "humidity"]:
-        data.pop(key, None)
-
-    return data
-
-
-def _save_h5(data: dict, path: str):
-    """Save a data dictionary of numpy arrays to an HDF5 file.
-
-    Helper function for artificially split data. Writes the contents of a data
-    dictionary as returned by :func:`_load_h5` or :func:`_split_data` to an HDF5
-    file following the same structure as the MIRACLE and SRIRACHA datasets.
-
-    Parameters
-    ----------
-    data : :class:`dict`
-        Dictionary of numpy arrays as returned by :func:`_load_h5` or :func:`_split_data`.
-    path : :class:`pathlib.Path` or :class:`str`
-        Path to the HDF5 file to write.
-
-    Returns
-    -------
-    path : :class:`pathlib.Path`
-        Path to the written HDF5 file.
-
-    """
-    with h5.File(path, "w") as f:
-        data_group = f.create_group("data")
-        data_group.create_dataset("impulse_response", data=data["impulse_response"])
-        location_group = data_group.create_group("location")
-        location_group.create_dataset("source", data=data["source_coordinates"])
-        location_group.create_dataset("receiver", data=data["receiver_coordinates"])
-        metadata_group = f.create_group("metadata")
-        metadata_group.create_dataset("c0", data=data["speed_of_sound"])
-        metadata_group.create_dataset("temperature", data=data["temperature"])
-        metadata_group.create_dataset("sampling_rate", data=data["sampling_rate"])
-        if "humidity" in data:
-            metadata_group.create_dataset("humidity", data=data["humidity"])
-    return path
 
 
 def get_miracle(
