@@ -28,31 +28,28 @@ class FabianDataset(BaseDataset):
     name = "fabian"
     doi = "10.14279/depositonce-5718.5"
 
-    def validate_params(self, params: dict) -> None:
+    def validate_params(self, kwargs: dict) -> None:
         """Validate FABIAN-specific parameters.
 
         Parameters
         ----------
-        params : :class:`dict`
-            Parameters to validate. Expected keys: kind, hato, output_format.
+        kwargs : :class:`dict`
+            Parameters to validate. Expected keys: kind, hato.
         """
-        kind = params.get("kind", "measured")
-        hato = params.get("hato", 0)
-        output_format = params.get("output_format", "pyfar")
+        kind = kwargs.get("kind", "measured")
+        hato = kwargs.get("hato", 0)
 
         if kind not in ["measured", "modeled"]:
             raise ValueError("kind must be either 'measured' or 'modeled'")
         if hato not in [0, 10, 20, 30, 40, 50, 310, 320, 330, 340, 350]:
             raise ValueError("hato must be one of [0, 10, 20, 30, 40, 50, 310, 320, 330, 340, 350]")
-        if output_format not in ["pyfar", "hdf5", "numpy", "sofa"]:
-            raise ValueError("unknown output format")
 
-    def _construct_file_name(self, **params) -> str:
+    def _construct_file_name(self, **kwargs) -> str:
         """Construct file name based on kind and hato parameters.
 
         Parameters
         ----------
-        **params : :class:`dict`
+        **kwargs : :class:`dict`
             Expected keys: kind, hato.
 
         Returns
@@ -60,16 +57,16 @@ class FabianDataset(BaseDataset):
         :class:`str`
             File name in format "FABIAN_HRIR_{kind}_HATO_{hato}.sofa".
         """
-        kind = params.get("kind", "measured")
-        hato = params.get("hato", 0)
+        kind = kwargs.get("kind", "measured")
+        hato = kwargs.get("hato", 0)
         return f"FABIAN_HRIR_{kind}_HATO_{hato}.sofa"
 
-    def download(self, **params) -> Path:
+    def download(self, **kwargs) -> Path:
         """Download FABIAN ZIP archive and extract SOFA file.
 
         Parameters
         ----------
-        **params : :class:`dict`
+        **kwargs : :class:`dict`
             Expected keys: kind, hato, cache_dir.
 
         Returns
@@ -77,9 +74,9 @@ class FabianDataset(BaseDataset):
         :class:`pathlib.Path`
             Path to the extracted SOFA file.
         """
-        kind = params.get("kind", "measured")
-        hato = params.get("hato", 0)
-        cache_dir = Path(params.get("cache_dir", CACHE_DIR)) / "FABIAN"
+        kind = kwargs.get("kind", "measured")
+        hato = kwargs.get("hato", 0)
+        cache_dir = Path(kwargs.get("cache_dir", CACHE_DIR)) / "FABIAN"
         cache_dir.mkdir(parents=True, exist_ok=True)
 
         zipfile_name = "FABIAN_HRTF_DATABASE_v4.zip"

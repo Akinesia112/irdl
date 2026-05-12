@@ -304,8 +304,6 @@ def get_miracle(
           ``'sampling_rate'`` (:class:`int`)
 
     """
-    if output_format not in ["pyfar", "hdf5", "numpy"]:
-        raise ValueError("unknown output format")
     if scenario not in ["A1", "A2", "D1", "R2"]:
         raise ValueError("scenario must be one of ['A1', 'A2', 'D1', 'R2']")
     if dataset_split not in [None, "C1", "C2", "C3", "C4"]:
@@ -414,8 +412,6 @@ def get_sriracha(
           ``'humidity'`` (:class:`numpy.ndarray`).
 
     """
-    if output_format not in ["pyfar", "hdf5", "numpy"]:
-        raise ValueError("unknown output format")
     if scenario not in ["SR1", "SRA1", "SR1-D", "SRA1-D", "SR2", "SRA2", "SR2-D", "SRA2-D"]:
         raise ValueError("scenario must be one of [SR1, SRA1, SR1-D, SRA1-D, SR2, SRA2, SR2-D, SRA2-D]")
     if dataset_split not in [None, "C1", "C2", "C3", "C4"]:

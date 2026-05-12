@@ -46,12 +46,12 @@ class BaseDataset:
     name: str
     doi: str
 
-    def get(self, **params) -> Any:
+    def get(self, **kwargs) -> Any:
         """Retrieve Dataset and return in requested format.
 
         Parameters
         ----------
-        **params : :class:`dict`
+        **kwargs : :class:`dict`
             Arbitrary parameters including:
             - cache_dir : :class:`pathlib.Path`
                 Override default cache directory.
@@ -59,7 +59,7 @@ class BaseDataset:
                 Directory for final output.
             - output_format : :class:`str`
                 One of "pyfar", "numpy", "hdf5", "sofa".
-            - Dataset-specific params (scenario, kind, hato, etc.)
+            - Dataset-specific kwargs (scenario, kind, hato, etc.)
 
         Returns
         -------
@@ -70,19 +70,23 @@ class BaseDataset:
             - "hdf5" : :class:`pathlib.Path` to .h5 file
             - "sofa" : :class:`pathlib.Path` to .sofa file
         """
-        # Step 1: Validate all parameters
-        self.validate_params(params)
-
         # Extract common parameters
-        cache_dir = Path(params.get("cache_dir", CACHE_DIR))
-        export_dir = Path(params.get("export_dir")) if params.get("export_dir") else None
-        output_format = params.get("output_format", "pyfar")
+        cache_dir = Path(kwargs.get("cache_dir", CACHE_DIR))
+        export_dir = Path(kwargs.get("export_dir")) if kwargs.get("export_dir") else None
+        output_format = kwargs.get("output_format", "pyfar")
+
+        # Validate common parameters
+        if output_format not in ("pyfar", "hdf5", "numpy", "sofa"):
+            raise ValueError("output_format must be one of 'pyfar', 'hdf5', 'numpy', 'sofa'")
+
+        # Validate dataset-specific parameters
+        self.validate_params(kwargs)
 
         # Remove common params from kwargs before passing to _get_file
-        dataset_params = {k: v for k, v in params.items() if k not in ("cache_dir", "export_dir", "output_format")}
+        dataset_kwargs = {k: v for k, v in kwargs.items() if k not in ("cache_dir", "export_dir", "output_format")}
 
         # Steps 2-3: Get the raw file (download if needed)
-        file_path = self._get_file(cache_dir=cache_dir, export_dir=export_dir, **dataset_params)
+        file_path = self._get_file(cache_dir=cache_dir, export_dir=export_dir, **dataset_kwargs)
 
         # Ingest to SOFA (internal standard)
         sofa = self.ingest(file_path)
@@ -90,28 +94,28 @@ class BaseDataset:
         # Step 7: Convert to requested output format
         return self._to_output(sofa, output_format, cache_dir, export_dir)
 
-    def validate_params(self, params: dict) -> None:
+    def validate_params(self, kwargs: dict) -> None:
         """Validate dataset-specific parameters.
 
         Override in subclass.
 
         Parameters
         ----------
-        params : :class:`dict`
+        kwargs : :class:`dict`
             Dataset-specific parameters to validate.
         """
         raise NotImplementedError(f"{self.__class__.__name__} must implement validate_params()")
 
-    def download(self, **params) -> Path:
+    def download(self, **kwargs) -> Path:
         """Download raw files and return :class:`pathlib.Path` to the primary file.
 
         Override in subclass.
 
         Parameters
         ----------
-        **params : :class:`dict`
+        **kwargs : :class:`dict`
             Dataset-specific parameters (scenario, kind, hato, etc.).
-            cache_dir and export_dir are NOT in params (handled by get()).
+            cache_dir and export_dir are NOT in kwargs (handled by get()).
 
         Returns
         -------
@@ -137,7 +141,7 @@ class BaseDataset:
         """
         raise NotImplementedError(f"{self.__class__.__name__} must implement ingest()")
 
-    def _get_file(self, cache_dir: Path, export_dir: Path | None, **params) -> Path:
+    def _get_file(self, cache_dir: Path, export_dir: Path | None, **kwargs) -> Path:
         """Check cache or download file.
 
         Parameters
@@ -146,7 +150,7 @@ class BaseDataset:
             Base cache directory.
         export_dir : :class:`pathlib.Path` or :class:`None`
             Optional export directory.
-        **params : :class:`dict`
+        **kwargs : :class:`dict`
             Dataset-specific parameters passed to download().
 
         Returns
@@ -155,7 +159,7 @@ class BaseDataset:
             Path to the file on disk (either cached or newly downloaded).
         """
         # Construct file name based on Dataset (subclass can override)
-        file_name = self._construct_file_name(**params)
+        file_name = self._construct_file_name(**kwargs)
         file_cache = cache_dir / file_name
         file_export = Path(export_dir) / file_name if export_dir else None
 
@@ -166,7 +170,7 @@ class BaseDataset:
             return file_cache
 
         # File not cached - download it
-        downloaded_path = self.download(cache_dir=cache_dir, export_dir=export_dir, **params)
+        downloaded_path = self.download(cache_dir=cache_dir, export_dir=export_dir, **kwargs)
 
         # Move to export_dir if specified
         if export_dir is not None:
@@ -174,14 +178,14 @@ class BaseDataset:
 
         return downloaded_path
 
-    def _construct_file_name(self, **params) -> str:
+    def _construct_file_name(self, **kwargs) -> str:
         """Construct the file name for this Dataset.
 
         Override in subclass if needed.
 
         Parameters
         ----------
-        **params : :class:`dict`
+        **kwargs : :class:`dict`
             Dataset-specific parameters used to construct the file name.
 
         Returns
