@@ -18,6 +18,8 @@ The BaseDataset class handles:
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+import pyfar as pf
 import sofar as sf
 
 # Import CACHE_DIR from downloader to maintain consistency
@@ -76,8 +78,11 @@ class BaseDataset:
         export_dir = Path(params.get("export_dir")) if params.get("export_dir") else None
         output_format = params.get("output_format", "pyfar")
 
+        # Remove common params from kwargs before passing to _get_file
+        dataset_params = {k: v for k, v in params.items() if k not in ("cache_dir", "export_dir", "output_format")}
+
         # Steps 2-3: Get the raw file (download if needed)
-        file_path = self._get_file(cache_dir=cache_dir, export_dir=export_dir, **params)
+        file_path = self._get_file(cache_dir=cache_dir, export_dir=export_dir, **dataset_params)
 
         # Ingest to SOFA (internal standard)
         sofa = self.ingest(file_path)
@@ -205,8 +210,7 @@ class BaseDataset:
 
         return _move_to_export_dir(source, str(export_dir))
 
-    def _to_output(self, sofa: sf.Sofa, output_format: str,
-                        cache_dir: Path, export_dir: Path | None) -> Any:
+    def _to_output(self, sofa: sf.Sofa, output_format: str, cache_dir: Path, export_dir: Path | None) -> Any:
         """Convert :class:`sofar.Sofa` to the requested output format.
 
         Parameters
@@ -256,8 +260,6 @@ class BaseDataset:
             - "source_coordinates" : :class:`pyfar.Coordinates`
             - "receiver_coordinates" : :class:`pyfar.Coordinates`
         """
-        import pyfar as pf
-
         return {
             "impulse_response": pf.Signal(sofa.Data_IR, sampling_rate=sofa.Data_SamplingRate),
             "source_coordinates": pf.Coordinates(*sofa.SourcePosition.T),
@@ -281,8 +283,6 @@ class BaseDataset:
             - "receiver_coordinates" : :class:`numpy.ndarray`
             - "sampling_rate" : :class:`float`
         """
-        import numpy as np
-
         return {
             "impulse_response": np.array(sofa.Data_IR),
             "source_coordinates": np.array(sofa.SourcePosition),

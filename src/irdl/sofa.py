@@ -127,7 +127,13 @@ fabian_dataset = FabianDataset()
 
 
 # Backwards-compatible public API
-def get_fabian(**params):
+def get_fabian(
+    kind: str = "measured",
+    hato: int = 0,
+    cache_dir: str = CACHE_DIR,
+    export_dir: str = None,
+    output_format: str = "pyfar",
+):
     """Download and extract the FABIAN HRTF Database v4 from DepositOnce.
 
     DOI: `10.14279/depositonce-5718.5 <https://doi.org/10.14279/depositonce-5718.5>`_
@@ -165,4 +171,6 @@ def get_fabian(**params):
           ``'receiver_coordinates'`` (:class:`numpy.ndarray`), and
           ``'sampling_rate'`` (:class:`float`).
     """
-    return fabian_dataset.get(**params)
+    return fabian_dataset.get(
+        kind=kind, hato=hato, cache_dir=cache_dir, export_dir=export_dir, output_format=output_format
+    )
