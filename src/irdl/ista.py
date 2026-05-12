@@ -6,14 +6,236 @@
 """
 
 from pathlib import Path
+from typing import Any
 
 import h5py as h5
 import numpy as np
 import pooch as po
 import pyfar as pf
 
+from irdl.base import BaseDataset
 from irdl.downloader import CACHE_DIR, _fetch, _pooch_from_doi
-from irdl.utils import _fits_in_memory, _move_to_export_dir
+from irdl.utils import _move_to_export_dir
+
+# =============================================================================
+# Dataset Classes (Phase 2 Migration - ADR-0001)
+# =============================================================================
+
+
+class IstaBaseDataset(BaseDataset):
+    """Base class for HDF5-based datasets from ISTA (MIRACLE, SRIRACHA).
+
+    Both MIRACLE and SRIRACHA share identical HDF5 file structure and can use
+    the same ingestion logic to convert HDF5 to SOFA format.
+    """
+
+    def ingest(self, file_path: Path) -> Any:
+        """Convert HDF5 file to SOFA object.
+
+        Shared implementation for MIRACLE and SRIRACHA since they use
+        identical HDF5 structure.
+
+        TODO: Implement HDF5 -> SOFA conversion
+        """
+        raise NotImplementedError("HDF5 to SOFA ingestion not yet implemented")
+
+
+class MiracleDataset(IstaBaseDataset):
+    """MIRACLE: Microphone Array Impulse Response Dataset for Acoustic Learning."""
+
+    name = "miracle"
+    doi = "10.14279/depositonce-20837"
+
+    def validate_params(self, kwargs: dict) -> None:
+        """Validate MIRACLE-specific parameters."""
+        scenario = kwargs.get("scenario", "A1")
+        dataset_split = kwargs.get("dataset_split")
+
+        if scenario not in ["A1", "A2", "D1", "R2"]:
+            raise ValueError("scenario must be one of ['A1', 'A2', 'D1', 'R2']")
+        if dataset_split not in [None, "C1", "C2", "C3", "C4"]:
+            raise ValueError("dataset_split must be None or in [C1, C2, C3, C4]")
+        if scenario == "D1" and dataset_split is not None:
+            raise ValueError("scenario D1 cannot be split")
+
+    def _construct_file_name(self, **kwargs) -> str:
+        """Construct HDF5 file name for MIRACLE."""
+        scenario = kwargs.get("scenario", "A1")
+        dataset_split = kwargs.get("dataset_split")
+        if dataset_split:
+            return f"{scenario}-{dataset_split}.h5"
+        return f"{scenario}.h5"
+
+    def download(self, **kwargs) -> Path:
+        """Download MIRACLE HDF5 file."""
+        cache_dir = Path(kwargs["cache_dir"]) / "MIRACLE"
+
+        file_name = self._construct_file_name(**kwargs)
+        file_path = cache_dir / file_name
+
+        # Check if already exists (handled by _get_file, but download may be called directly)
+        if file_path.exists():
+            return file_path
+
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        pup = _pooch_from_doi(self.doi, path=cache_dir)
+        _fetch(pup, file_name)
+
+        return file_path
+
+
+class SrirachaDataset(IstaBaseDataset):
+    """SRIRACHA: Shoebox Room Impulse Response Archive with Varying Absorption."""
+
+    name = "sriracha"
+    doi = "10.14279/depositonce-23943"
+
+    def validate_params(self, kwargs: dict) -> None:
+        """Validate SRIRACHA-specific parameters."""
+        scenario = kwargs.get("scenario", "SR1-D")
+        dataset_split = kwargs.get("dataset_split")
+        output_format = kwargs.get("output_format", "pyfar")
+
+        if scenario not in ["SR1", "SRA1", "SR1-D", "SRA1-D", "SR2", "SRA2", "SR2-D", "SRA2-D"]:
+            raise ValueError("scenario must be one of [SR1, SRA1, SR1-D, SRA1-D, SR2, SRA2, SR2-D, SRA2-D]")
+        if dataset_split not in [None, "C1", "C2", "C3", "C4"]:
+            raise ValueError("dataset_split must be None or in [C1, C2, C3, C4]")
+        if scenario[-1] == "D" and dataset_split is not None:
+            raise ValueError("dense datasets do not have splits")
+        # raw output_format not allowed for non-dense full scenarios
+        if output_format == "raw" and scenario[-1] != "D" and dataset_split is None:
+            raise ValueError("raw output_format not supported for non-dense SRIRACHA scenarios without split")
+
+    def _construct_file_name(self, **kwargs) -> str:
+        """Construct HDF5 file name for SRIRACHA."""
+        scenario = kwargs.get("scenario", "SR1-D")
+        dataset_split = kwargs.get("dataset_split")
+        if dataset_split:
+            return f"{scenario}-{dataset_split}.h5"
+        return f"{scenario}.h5"
+
+    def download(self, **kwargs) -> Path:
+        """Download SRIRACHA HDF5 file (single file only)."""
+        cache_dir = Path(kwargs["cache_dir"]) / "SRIRACHA"
+
+        file_name = self._construct_file_name(**kwargs)
+        file_path = cache_dir / file_name
+
+        if file_path.exists():
+            return file_path
+
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        pup = _pooch_from_doi(self.doi, path=cache_dir)
+        _fetch(pup, file_name)
+
+        return file_path
+
+    def _get_file(self, cache_dir: Path, export_dir: Path | None, **kwargs) -> Path:
+        """Check cache or download, with special handling for non-dense full scenarios."""
+        scenario = kwargs["scenario"]
+        dataset_split = kwargs.get("dataset_split")
+
+        # For non-dense scenarios without split, need to download and merge 4 files
+        if scenario[-1] != "D" and dataset_split is None:
+            return self._download_and_merge(scenario, cache_dir, export_dir, **kwargs)
+
+        # For all other cases (dense, or with split), use normal flow
+        return super()._get_file(cache_dir, export_dir, **kwargs)
+
+    def _download_and_merge(self, scenario: str, cache_dir: Path, export_dir: Path | None, **kwargs) -> Path:
+        """Download and merge four HDF5 split files into one full-plane dataset.
+
+        This is the same logic as the module-level _download_and_merge but adapted
+        for the Dataset class architecture.
+        """
+        path = cache_dir / "SRIRACHA"
+        path.mkdir(parents=True, exist_ok=True)
+        output_path = path / f"{scenario}.h5"
+
+        offsets = {"C1": (0, 0), "C2": (0, 1), "C3": (1, 0), "C4": (1, 1)}
+
+        # download split files
+        split_files = {}
+        pup = _pooch_from_doi(self.doi, path=path)
+        for split in offsets:
+            fname = f"{scenario}-{split}.h5"
+            _fetch(pup, fname)
+            split_files[split] = path / fname
+
+        # read shapes and shared metadata from the first split
+        with h5.File(split_files["C1"], "r") as f:
+            ir_shape = f["data"]["impulse_response"].shape
+            ir_dtype = f["data"]["impulse_response"].dtype
+            n_split = ir_shape[0]
+            sampling_rate = f["metadata"]["sampling_rate"][()]
+            receiver = f["data"]["location"]["receiver"][()]
+            has_humidity = "humidity" in f["metadata"]
+
+        # calculate total number of sources and grid dimension
+        n_sources = len(split_files) * n_split
+        n_full_grid = int(np.sqrt(n_sources))
+        n_split_grid = n_full_grid // 2
+
+        with h5.File(output_path, "w") as out:
+            # create groups and datasets
+            data_grp = out.create_group("data")
+            ir_ds = data_grp.create_dataset("impulse_response", shape=(n_sources, *ir_shape[1:]), dtype=ir_dtype)
+            loc_grp = data_grp.create_group("location")
+            src_ds = loc_grp.create_dataset("source", shape=(n_sources, 3), dtype="float64")
+            loc_grp.create_dataset("receiver", data=receiver)
+
+            meta_grp = out.create_group("metadata")
+            meta_grp.create_dataset("sampling_rate", data=sampling_rate)
+            c0_ds = meta_grp.create_dataset("c0", shape=(n_sources,), dtype="float32")
+            temp_ds = meta_grp.create_dataset("temperature", shape=(n_sources,), dtype="float32")
+            if has_humidity:
+                hum_ds = meta_grp.create_dataset("humidity", shape=(n_sources,), dtype="float32")
+
+            # open all split files
+            handles = {s: h5.File(f, "r") for s, f in split_files.items()}
+            try:
+                # copy data from each split to the correct location in the output datasets
+                for split_name, (row, col) in offsets.items():
+                    f = handles[split_name]
+                    for r in range(n_split_grid):
+                        # index one row of the split grid
+                        src = slice(r * n_split_grid, (r + 1) * n_split_grid)
+                        # map split-grid-row to full-grid-row
+                        grid_row = 2 * r + row
+                        # index one row of the full grid, skipping every other entry
+                        # to interleave splits
+                        dst = slice(grid_row * n_full_grid + col, grid_row * n_full_grid + n_full_grid, 2)
+
+                        ir_ds[dst] = f["data"]["impulse_response"][src]
+                        src_ds[dst] = f["data"]["location"]["source"][src]
+                        c0_ds[dst] = f["metadata"]["c0"][src]
+                        temp_ds[dst] = f["metadata"]["temperature"][src]
+                        if has_humidity:
+                            hum_ds[dst] = f["metadata"]["humidity"][src]
+            # close all files
+            finally:
+                for fh in handles.values():
+                    fh.close()
+
+            # delete split files
+            for f in split_files.values():
+                f.unlink()
+
+        # Move to export_dir if specified
+        if export_dir is not None:
+            return _move_to_export_dir(output_path, export_dir)
+
+        return output_path
+
+
+# Create singleton instances
+miracle_dataset = MiracleDataset()
+sriracha_dataset = SrirachaDataset()
+
+
+# =============================================================================
+# Legacy Utility Functions (kept for backwards compatibility)
+# =============================================================================
 
 
 def _download_and_merge(scenario: str, path: Path, pup: po.Pooch):
@@ -285,7 +507,7 @@ def get_miracle(
         (default) the output file stays in ``cache_dir``.
     output_format : :class:`str`
         Output format of the returned data.
-        Either ``'pyfar'`` (default), ``'hdf5'``, or ``'numpy'``.
+        Either ``'pyfar'`` (default), ``'hdf5'``, ``'numpy'``, or ``'raw'``.
 
     Returns
     -------
@@ -302,69 +524,16 @@ def get_miracle(
           ``'speed_of_sound'`` (:class:`numpy.ndarray`),
           ``'temperature'`` (:class:`numpy.ndarray`),
           ``'sampling_rate'`` (:class:`int`)
+        - ``'raw'``: :class:`pathlib.Path` to the raw HDF5 file.
 
     """
-    if output_format not in ["pyfar", "hdf5", "numpy", "raw"]:
-        raise ValueError("output_format must be one of ['pyfar', 'hdf5', 'numpy', 'raw']")
-    if scenario not in ["A1", "A2", "D1", "R2"]:
-        raise ValueError("scenario must be one of ['A1', 'A2', 'D1', 'R2']")
-    if dataset_split not in [None, "C1", "C2", "C3", "C4"]:
-        raise ValueError("dataset_split must be None or in [C1, C2, C3, C4]")
-    if scenario == "D1" and dataset_split is not None:
-        raise ValueError("scenario D1 cannot be split")
-
-    doi = "10.14279/depositonce-20837"
-    cache_dir = Path(cache_dir) / "MIRACLE"
-
-    file_name = f"{scenario}-{dataset_split}.h5" if dataset_split else f"{scenario}.h5"
-    file_cache = cache_dir / file_name
-    file_export = Path(export_dir) / file_name if export_dir else None
-
-    # check if the file already exists in export_dir or cache
-    if file_export is not None and file_export.exists():
-        h5_file = file_export
-    elif file_cache.exists():
-        h5_file = file_cache
-    # file needs to be produced
-    else:
-        # if file needs to be split
-        if dataset_split:
-            # check if raw file is on machine already and use it as source if so
-            raw_cache = Path(cache_dir) / f"{scenario}.h5"
-            raw_export = Path(export_dir) / f"{scenario}.h5" if export_dir else None
-            if raw_export is not None and raw_export.exists():
-                source = raw_export
-            elif raw_cache.exists():
-                source = raw_cache
-            # download raw file
-            else:
-                pup = _pooch_from_doi(doi, path=cache_dir)
-                _fetch(pup, f"{scenario}.h5")
-                source = raw_cache
-
-            # split file and save in cache
-            _save_h5(_split_data(_load_h5(source), dataset_split), file_cache)
-            h5_file = file_cache
-        # if raw file is asked for
-        else:
-            pup = _pooch_from_doi(doi, path=cache_dir)
-            _fetch(pup, file_name)
-            h5_file = file_cache
-
-    if output_format in ["pyfar", "numpy"] and not _fits_in_memory(h5_file):
-        output_format = "hdf5"
-
-    h5_file = _move_to_export_dir(h5_file, export_dir)
-
-    match output_format:
-        case "hdf5":
-            return h5_file
-        case "raw":
-            return h5_file
-        case "pyfar":
-            return _to_pyfar(_load_h5(h5_file))
-        case "numpy":
-            return _load_h5(h5_file)
+    return miracle_dataset.get(
+        scenario=scenario,
+        dataset_split=dataset_split,
+        cache_dir=cache_dir,
+        export_dir=export_dir,
+        output_format=output_format,
+    )
 
 
 def get_sriracha(
@@ -396,7 +565,7 @@ def get_sriracha(
         (default) the output file stays in ``cache_dir``.
     output_format : :class:`str`
         Output format of the returned data.
-        Either ``'pyfar'`` (default), ``'hdf5'``, or ``'numpy'``.
+        Either ``'pyfar'`` (default), ``'hdf5'``, ``'numpy'``, or ``'raw'``.
 
     Returns
     -------
@@ -414,55 +583,13 @@ def get_sriracha(
           ``'temperature'`` (:class:`numpy.ndarray`),
           ``'sampling_rate'`` (:class:`int`), and optionally
           ``'humidity'`` (:class:`numpy.ndarray`).
+        - ``'raw'``: :class:`pathlib.Path` to the raw HDF5 file.
 
     """
-    if output_format not in ["pyfar", "hdf5", "numpy", "raw"]:
-        raise ValueError("output_format must be one of ['pyfar', 'hdf5', 'numpy', 'raw']")
-    if scenario not in ["SR1", "SRA1", "SR1-D", "SRA1-D", "SR2", "SRA2", "SR2-D", "SRA2-D"]:
-        raise ValueError("scenario must be one of [SR1, SRA1, SR1-D, SRA1-D, SR2, SRA2, SR2-D, SRA2-D]")
-    if dataset_split not in [None, "C1", "C2", "C3", "C4"]:
-        raise ValueError("dataset_split must be None or in [C1, C2, C3, C4]")
-    if scenario[-1] == "D" and dataset_split is not None:
-        raise ValueError("dense datasets do not have splits")
-    # raw output_format not allowed for non-dense full scenarios
-    if output_format == "raw" and scenario[-1] != "D" and dataset_split is None:
-        raise ValueError("raw output_format not supported for non-dense SRIRACHA scenarios without split")
-
-    doi = "10.14279/depositonce-23943"
-    cache_dir = Path(cache_dir) / "SRIRACHA"
-
-    file_name = f"{scenario}-{dataset_split}.h5" if dataset_split else f"{scenario}.h5"
-    file_cache = cache_dir / file_name
-    file_export = Path(export_dir) / file_name if export_dir else None
-
-    # check if the file already exists in export_dir or cache
-    if file_export is not None and file_export.exists():
-        h5_file = file_export
-    elif file_cache.exists():
-        h5_file = file_cache
-    # file needs to be produced
-    else:
-        pup = _pooch_from_doi(doi, cache_dir)
-
-        # check if file needs to merged (full plane scenario and no split)
-        if scenario[-1] != "D" and dataset_split is None:
-            _download_and_merge(scenario, cache_dir, pup)
-        # just download file if not
-        else:
-            _fetch(pup, file_name)
-        h5_file = file_cache
-
-    # check if the file can be loaded into memory if not, fall back to hdf5
-    if output_format in ["pyfar", "numpy"] and not _fits_in_memory(h5_file):
-        output_format = "hdf5"
-
-    h5_file = _move_to_export_dir(h5_file, export_dir)
-
-    match output_format:
-        case "hdf5":
-        case "raw":
-            return h5_file
-        case "pyfar":
-            return _to_pyfar(_load_h5(h5_file))
-        case "numpy":
-            return _load_h5(h5_file)
+    return sriracha_dataset.get(
+        scenario=scenario,
+        dataset_split=dataset_split,
+        cache_dir=cache_dir,
+        export_dir=export_dir,
+        output_format=output_format,
+    )
