@@ -5,6 +5,7 @@
 
 """
 
+from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
 
@@ -20,13 +21,14 @@ from irdl.utils import _move_to_export_dir
 # =============================================================================
 
 
-class IstaBaseDataset(BaseDataset):
-    """Base class for HDF5-based datasets from ISTA (MIRACLE, SRIRACHA).
+class IstaBaseDataset(BaseDataset, ABC):
+    """Abstract base class for HDF5-based datasets from ISTA (MIRACLE, SRIRACHA).
 
     Both MIRACLE and SRIRACHA share identical HDF5 file structure and can use
     the same ingestion logic to convert HDF5 to SOFA format.
     """
 
+    @abstractmethod
     def ingest(self, file_path: Path) -> Any:
         """Convert HDF5 file to SOFA object.
 
@@ -35,7 +37,6 @@ class IstaBaseDataset(BaseDataset):
 
         TODO: Implement HDF5 -> SOFA conversion
         """
-        raise NotImplementedError("HDF5 to SOFA ingestion not yet implemented")
 
 
 class MiracleDataset(IstaBaseDataset):
