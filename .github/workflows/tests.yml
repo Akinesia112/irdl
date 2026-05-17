@@ -29,5 +29,5 @@ jobs:
         uses: artpelling/irdl/.github/actions/smoke-tests@main
         with:
           command: uv run --frozen --no-dev --exact
-      #- name: Run unit tests
-      #  run: uv run --frozen python -m pytest
+      - name: Run unit tests
+        run: uv run --frozen python -m pytest
