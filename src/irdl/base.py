@@ -23,7 +23,6 @@ import pyfar as pf
 import sofar as sf
 
 # Import CACHE_DIR from downloader to maintain consistency
-from irdl.downloader import CACHE_DIR
 
 
 class BaseDataset:
@@ -73,26 +72,22 @@ output_format : str
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         # Automatically compose docstrings for get() classmethod
-        if hasattr(cls, 'get') and hasattr(cls, 'name') and hasattr(cls, 'doi'):
+        if hasattr(cls, "get") and hasattr(cls, "name") and hasattr(cls, "doi"):
             # Get the underlying function of the classmethod
             get_func = cls.get.__func__
             # Format prefix with class attributes
-            prefix = BaseDataset._get_doc_prefix.format(
-                name=cls.name,
-                doi=cls.doi
-            )
+            prefix = BaseDataset._get_doc_prefix.format(name=cls.name, doi=cls.doi)
             # Get subclass-specific docstring
             suffix = get_func.__doc__ or ""
             # Combine: prefix + suffix
             full_doc = prefix
             if suffix:
-                if not full_doc.endswith('\n\n'):
-                    full_doc += '\n\n'
+                if not full_doc.endswith("\n\n"):
+                    full_doc += "\n\n"
                 full_doc += suffix
             get_func.__doc__ = full_doc
 
-    def _get(self, *, cache_dir: str, export_dir: str | None,
-             output_format: str, **dataset_kwargs) -> Any:
+    def _get(self, *, cache_dir: str, export_dir: str | None, output_format: str, **dataset_kwargs) -> Any:
         """Internal implementation of Dataset retrieval.
 
         Parameters

@@ -10,8 +10,6 @@ from typing import Any
 
 import h5py as h5
 import numpy as np
-import pooch as po
-import pyfar as pf
 
 from irdl.base import BaseDataset
 from irdl.downloader import CACHE_DIR, _fetch, _pooch_from_doi
@@ -67,7 +65,7 @@ class MiracleDataset(IstaBaseDataset):
         export_dir: str = None,
         output_format: str = "pyfar",
     ):
-        """scenario : str
+        """Scenario : str
             Name of the scenario to download. One of 'A1', 'A2', 'D1', 'R2'.
         dataset_split : str, optional
             Artificial dataset split. One of 'C1', 'C2', 'C3', 'C4', or None.
@@ -216,7 +214,7 @@ class SrirachaDataset(IstaBaseDataset):
         export_dir: str = None,
         output_format: str = "pyfar",
     ):
-        """scenario : str
+        """Scenario : str
             Name of the scenario to download. One of 'SR1', 'SRA1', 'SR1-D',
             'SRA1-D', 'SR2', 'SRA2', 'SR2-D', or 'SRA2-D'.
         dataset_split : str, optional
@@ -352,6 +350,3 @@ class SrirachaDataset(IstaBaseDataset):
             return _move_to_export_dir(output_path, export_dir)
 
         return output_path
-
-
-

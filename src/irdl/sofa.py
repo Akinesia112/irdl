@@ -12,7 +12,6 @@ import pooch as po
 
 from irdl.base import CACHE_DIR, BaseDataset
 from irdl.downloader import _fetch, _pooch_from_doi
-from irdl.utils import _move_to_export_dir
 
 
 class FabianDataset(BaseDataset):
@@ -133,7 +132,7 @@ class FabianDataset(BaseDataset):
         export_dir: str = None,
         output_format: str = "pyfar",
     ):
-        """kind : str
+        """Kind : str
             Type of HRTF to download. Either 'measured' or 'modeled'.
         hato : int
             Head-above-torso-rotation of HRTFs in degrees.
@@ -164,6 +163,3 @@ class FabianDataset(BaseDataset):
         import sofar as sf
 
         return sf.read_sofa(str(file_path))
-
-
-
