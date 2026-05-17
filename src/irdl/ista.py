@@ -10,7 +10,7 @@ from typing import Any
 
 import h5py as h5
 import numpy as np
-import sofar as sf 
+import sofar as sf
 
 from irdl.base import BaseDataset
 from irdl.downloader import CACHE_DIR, _fetch, _pooch_from_doi
@@ -41,17 +41,17 @@ class IstaBaseDataset(BaseDataset):
             SOFA object in the SingleRoomMIMOSRIR convention.
         """
         with h5.File(file_path, "r") as f:
-            ir = f["data"]["impulse_response"][()]              
-            receiver_pos = f["data"]["location"]["receiver"][()]  
-            source_pos = f["data"]["location"]["source"][()]     
+            ir = f["data"]["impulse_response"][()]
+            receiver_pos = f["data"]["location"]["receiver"][()]
+            source_pos = f["data"]["location"]["source"][()]
             sampling_rate = f["metadata"]["sampling_rate"][()]
             temperature = f["metadata"]["temperature"][()]
 
-        # SOFA dimension naming 
-        M, R, N = ir.shape # number of measurements, receiver and samples
-        E = 1 # number of emitters
-        C = 3  # number of coordinates
-        I = 1  # unity dimensions
+        # SOFA dimension naming
+        m, r, n = ir.shape  # number of measurements, receiver and samples
+        e = 1  # number of emitters
+        c = 3  # number of coordinates
+        i = 1  # unity dimensions
 
         sofa = sf.Sofa("SingleRoomMIMOSRIR")
 
@@ -64,35 +64,40 @@ class IstaBaseDataset(BaseDataset):
         sofa.GLOBAL_DatabaseName = self.name.upper()
         sofa.GLOBAL_RoomLocation = "TU Berlin, Einsteinufer 25"
         sofa.GLOBAL_ListenerShortName = "Custom planar microphone array"
-        sofa.GLOBAL_ListenerDescription = "64-channel planar microphone array (1.5 m × 1.5 m aluminium plate, Vogel's spiral, max spacing 1.47 m, 51.2 kHz sampling rate)"
+        sofa.GLOBAL_ListenerDescription = (
+            "64-channel planar microphone array "
+            "(1.5 m × 1.5 m aluminium plate, Vogel's spiral, max spacing 1.47 m, 51.2 kHz sampling rate)"
+        )
         sofa.GLOBAL_ReceiverShortName = "GRAS 40PL-1 Short CCP"
         sofa.GLOBAL_SourceShortName = "Loudspeaker"
-        sofa.GLOBAL_SourceDescription = "Dynamic 2” cone loudspeaker in a cylindrical enclosure (Frequency range 100 Hz–16 kHz)"
-    
-        sofa.RoomVolume = self.room_volume # #Dim. 1, M => so add a dimension upfront
-        
+        sofa.GLOBAL_SourceDescription = (
+            "Dynamic 2” cone loudspeaker in a cylindrical enclosure (Frequency range 100 Hz–16 kHz)"
+        )
+
+        sofa.RoomVolume = self.room_volume  # #Dim. 1, M => so add a dimension upfront
+
         # --- environmental, per-measurement ------------------------------------
-        sofa.RoomTemperature = temperature[..., np.newaxis] #dim spec is (I, M)
+        sofa.RoomTemperature = temperature[np.newaxis, ...]  # dim spec is (I, M)
         sofa.RoomTemperature_Units = "celsius"
-        
+
         # --- geometry ----------------------------------------------------------
         # Receiver: fixed microphone array
-        sofa.ReceiverPosition = receiver_pos.reshape(R, C, I) 
+        sofa.ReceiverPosition = receiver_pos.reshape(r, c, i)
         sofa.ReceiverPosition_Type = "cartesian"
         sofa.ReceiverPosition_Units = "metre"
 
         # Source: one cartesian position per measurement
-        sofa.SourcePosition = source_pos ##dim spec is (M, C)
+        sofa.SourcePosition = source_pos  ##dim spec is (M, C)
 
         # Emitter: single point source, co-located with the source frame origin
-        sofa.EmitterPosition = np.zeros((E, C, I)) 
+        sofa.EmitterPosition = np.zeros((e, c, i))
         sofa.EmitterPosition_Type = "cartesian"
         sofa.EmitterPosition_Units = "metre"
-     
+
         # --- IR data -----------------------------------------------------------
-        sofa.Data_IR = ir[..., np.newaxis] #dim spec (M, R, N, E)
-        sofa.Data_SamplingRate = np.full((I,M), sampling_rate) #dim spec (I, M)
-        sofa.Data_Delay = np.zeros((M, R, I))
+        sofa.Data_IR = ir[..., np.newaxis]  # dim spec (M, R, N, E)
+        sofa.Data_SamplingRate = np.full((i, m), sampling_rate)  # dim spec (I, M)
+        sofa.Data_Delay = np.zeros((m, r, i))
 
         return sofa
 
@@ -103,18 +108,20 @@ class MiracleDataset(IstaBaseDataset):
     name = "miracle"
     doi = "10.14279/depositonce-20837"
     raw_format = "hdf5"
-    room_volume = 830 #metadata needed for creation of sofa file
+    room_volume = 830  # metadata needed for creation of sofa file
 
     @classmethod
     def get(
         cls,
         scenario: str = "A1",
-        dataset_split: str = None,
-        cache_dir: str = CACHE_DIR,
-        export_dir: str = None,
+        dataset_split: str | None = None,
+        cache_dir: str | Path = CACHE_DIR,
+        export_dir: str | Path | None = None,
         output_format: str = "pyfar",
     ):
-        """scenario : str
+        """Select a scenario and optional quadrant split.
+
+        scenario : str
             Scenario to download. One of 'A1', 'A2', 'D1', 'R2'.
         dataset_split : str or None, optional
             Artificial dataset split. One of 'C1', 'C2', 'C3', 'C4' or None.
@@ -128,7 +135,6 @@ class MiracleDataset(IstaBaseDataset):
             export_dir=export_dir,
             output_format=output_format,
         )
-
 
     def _output_path(self, output_format, cache_dir, export_dir, **kwargs):
         """Construct the output path for a MIRACLE file-based output.
@@ -160,7 +166,6 @@ class MiracleDataset(IstaBaseDataset):
         name = f"{scenario}{('-' + split) if split else ''}{ext}"
         base = (export_dir if export_dir is not None else cache_dir) / "MIRACLE"
         return base / name
-    
 
     def validate_params(self, **dataset_kwargs) -> None:
         """Validate MIRACLE-specific parameters.
@@ -188,7 +193,6 @@ class MiracleDataset(IstaBaseDataset):
             raise ValueError("dataset_split must be None or in [C1, C2, C3, C4]")
         if scenario == "D1" and dataset_split is not None:
             raise ValueError("scenario D1 cannot be split")
-
 
     def _get_file(self, cache_dir: Path, export_dir: Path | None, **kwargs) -> Path:
         """Return the path to a MIRACLE HDF5 file, fetching and splitting as needed.
@@ -261,6 +265,7 @@ class MiracleDataset(IstaBaseDataset):
         Path
             Path to the extracted split HDF5 file.
         """
+        cache_dir.mkdir(parents=True, exist_ok=True)
         # Load full data from HDF5
         with h5.File(file_path, "r") as f:
             data = {
@@ -279,10 +284,15 @@ class MiracleDataset(IstaBaseDataset):
         row, column = offsets[dataset_split]
         n = int(np.sqrt(data["source_coordinates"].shape[0]))
         ir_shape = data["impulse_response"].shape
+
         data["source_coordinates"] = data["source_coordinates"].reshape(n, n, 3)[row::2, column::2, :].reshape(-1, 3)
         data["impulse_response"] = (
             data["impulse_response"].reshape(n, n, *ir_shape[1:])[row::2, column::2, :].reshape(-1, *ir_shape[1:])
         )
+        data["temperature"] = data["temperature"].reshape(n, n)[row::2, column::2].reshape(-1)
+        data["speed_of_sound"] = data["speed_of_sound"].reshape(n, n)[row::2, column::2].reshape(-1)
+        if "humidity" in data:
+            data["humidity"] = data["humidity"].reshape(n, n)[row::2, column::2].reshape(-1)
 
         # Save split data to a new HDF5 file
         split_file_name = file_path.stem + f"-{dataset_split}{file_path.suffix}"
@@ -316,12 +326,14 @@ class SrirachaDataset(IstaBaseDataset):
     def get(
         cls,
         scenario: str = "SR1-D",
-        dataset_split: str = None,
-        cache_dir: str = CACHE_DIR,
-        export_dir: str = None,
+        dataset_split: str | None = None,
+        cache_dir: str | Path = CACHE_DIR,
+        export_dir: str | Path | None = None,
         output_format: str = "pyfar",
     ):
-        """scenario : str
+        """Select a scenario and optional quadrant split.
+
+        scenario : str
             Scenario to download. One of 'SR1', 'SRA1', 'SR1-D', 'SRA1-D',
             'SR2', 'SRA2', 'SR2-D', 'SRA2-D'.
         dataset_split : str or None, optional
@@ -337,7 +349,6 @@ class SrirachaDataset(IstaBaseDataset):
             export_dir=export_dir,
             output_format=output_format,
         )
-
 
     def validate_params(self, **dataset_kwargs) -> None:
         """Validate SRIRACHA-specific parameters.
@@ -371,7 +382,6 @@ class SrirachaDataset(IstaBaseDataset):
         if output_format == "raw" and scenario and scenario[-1] != "D" and dataset_split is None:
             raise ValueError("raw output_format not supported for non-dense SRIRACHA scenarios without split")
 
-
     def _output_path(self, output_format, cache_dir, export_dir, **kwargs):
         """Construct the output path for a SRIRACHA file-based output.
 
@@ -402,7 +412,6 @@ class SrirachaDataset(IstaBaseDataset):
         name = f"{scenario}{('-' + split) if split else ''}{ext}"
         base = (export_dir if export_dir is not None else cache_dir) / "SRIRACHA"
         return base / name
-
 
     def _get_file(self, cache_dir: Path, export_dir: Path | None, **kwargs) -> Path:
         """Return the path to a SRIRACHA HDF5 file, fetching and merging as needed.
@@ -450,8 +459,7 @@ class SrirachaDataset(IstaBaseDataset):
         # 2b. Non-dense full plane -> download 4 split files and merge
         return self._download_and_merge(scenario, target_dir)
 
-
-    def _download_and_merge(self, scenario: str, cache_dir: Path, **kwargs) -> Path:
+    def _download_and_merge(self, scenario: str, cache_dir: Path) -> Path:
         """Download four quadrant HDF5 files and merge them into a full-plane file.
 
         Reads metadata from the first split, allocates output datasets with the
@@ -544,6 +552,3 @@ class SrirachaDataset(IstaBaseDataset):
                 f.unlink()
 
         return output_path
-
-
-

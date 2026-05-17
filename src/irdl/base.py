@@ -8,14 +8,10 @@ logic for parameter validation, file retrieval, ingestion, and output naming.
 from pathlib import Path
 from typing import Any
 
+import h5py as h5
 import numpy as np
 import pyfar as pf
 import sofar as sf
-import h5py as h5
-import shutil
-
-# Import CACHE_DIR from downloader to maintain consistency
-from irdl.downloader import CACHE_DIR
 
 
 class BaseDataset:
@@ -45,7 +41,7 @@ class BaseDataset:
 
     name: str
     doi: str
-    raw_format: str 
+    raw_format: str
 
     # Default docstring prefix for all get() classmethods
     _get_doc_prefix = """Download {name} dataset.
@@ -63,28 +59,25 @@ output_format : str
 """
 
     def __init_subclass__(cls, **kwargs):
+        """Compose the get() docstring when a subclass is defined."""
         super().__init_subclass__(**kwargs)
         # Automatically compose docstrings for get() classmethod
-        if hasattr(cls, 'get') and hasattr(cls, 'name') and hasattr(cls, 'doi'):
+        if hasattr(cls, "get") and hasattr(cls, "name") and hasattr(cls, "doi"):
             # Get the underlying function of the classmethod
             get_func = cls.get.__func__
             # Format prefix with class attributes
-            prefix = BaseDataset._get_doc_prefix.format(
-                name=cls.name,
-                doi=cls.doi
-            )
+            prefix = BaseDataset._get_doc_prefix.format(name=cls.name, doi=cls.doi)
             # Get subclass-specific docstring
             suffix = get_func.__doc__ or ""
             # Combine: prefix + suffix
             full_doc = prefix
             if suffix:
-                if not full_doc.endswith('\n\n'):
-                    full_doc += '\n\n'
+                if not full_doc.endswith("\n\n"):
+                    full_doc += "\n\n"
                 full_doc += suffix
             get_func.__doc__ = full_doc
 
-    def _get(self, *, cache_dir: str, export_dir: str | None,
-             output_format: str, **dataset_kwargs) -> Any:
+    def _get(self, *, cache_dir: str, export_dir: str | None, output_format: str, **dataset_kwargs) -> Any:
         """Execute the full dataset retrieval pipeline.
 
         Validates parameters, returns an existing output if found, otherwise
@@ -119,7 +112,7 @@ output_format : str
         # Validate dataset-specific parameters
         self.validate_params(output_format=output_format, **dataset_kwargs)
 
-        # define output_path ad check if (file-based) output exists already
+        # define output_path and check if (file-based) output exists already
         output_path = self._output_path(output_format, cache_dir, export_dir, **dataset_kwargs)
         if output_path is not None and output_path.exists():
             return output_path
@@ -136,7 +129,6 @@ output_format : str
 
         # Convert to requested output format
         return self._to_output(sofa, output_format, output_path)
-
 
     def _output_path(self, output_format: str, cache_dir: Path, export_dir: Path | None, **kwargs) -> Path | None:
         """Return the canonical Path where a file-based output would be written.
@@ -160,8 +152,8 @@ output_format : str
         Path or None
             Canonical output path, or None for in-memory formats.
         """
-        return NotImplementedError(f"{self.__class__.__name__} must implement output_path)")
-  
+        raise NotImplementedError(f"{self.__class__.__name__} must implement output_path)")
+
     def validate_params(self, **dataset_kwargs) -> None:
         """Validate dataset-specific parameters.
 
@@ -221,7 +213,6 @@ output_format : str
         """
         raise NotImplementedError(f"{self.__class__.__name__} must implement ingest()")
 
-
     def _to_output(self, sofa: sf.Sofa, output_format: str, output_path: Path) -> Any:
         """Dispatch a sofar.Sofa object to the requested output format.
 
@@ -266,10 +257,15 @@ output_format : str
             - 'source_coordinates' : pyfar.Coordinates
             - 'receiver_coordinates' : pyfar.Coordinates
         """
+        receiver = np.asarray(sofa.ReceiverPosition).squeeze()  # (R, C, I) -> (R, 3)
+        source = np.asarray(sofa.SourcePosition)  # (M, C)
+        ir = np.asarray(sofa.Data_IR).squeeze()
+        sr = float(np.asarray(sofa.Data_SamplingRate).flat[0])
+
         return {
-            "impulse_response": pf.Signal(sofa.Data_IR, sampling_rate=sofa.Data_SamplingRate),
-            "source_coordinates": pf.Coordinates(*sofa.SourcePosition.T),
-            "receiver_coordinates": pf.Coordinates(*sofa.ReceiverPosition.T),
+            "impulse_response": pf.Signal(ir, sampling_rate=sr),
+            "source_coordinates": pf.Coordinates(source[:, 0], source[:, 1], source[:, 2]),
+            "receiver_coordinates": pf.Coordinates(receiver[:, 0], receiver[:, 1], receiver[:, 2]),
         }
 
     def _to_numpy(self, sofa: sf.Sofa) -> dict:
@@ -293,7 +289,7 @@ output_format : str
             "impulse_response": np.array(sofa.Data_IR),
             "source_coordinates": np.array(sofa.SourcePosition),
             "receiver_coordinates": np.array(sofa.ReceiverPosition),
-            "sampling_rate": float(sofa.Data_SamplingRate),
+            "sampling_rate": float(np.asarray(sofa.Data_SamplingRate).flat[0]),
         }
 
     def _to_sofa(self, sofa: sf.Sofa, output_path: Path) -> Path:
@@ -314,7 +310,6 @@ output_format : str
         output_path.parent.mkdir(parents=True, exist_ok=True)
         sf.write_sofa(str(output_path), sofa)
         return output_path
-    
 
     def _to_hdf5(self, sofa: sf.Sofa, output_path: Path) -> Path:
         """Write a sofar.Sofa object as an HDF5 file.
@@ -332,7 +327,7 @@ output_format : str
             Path to the written .h5 file.
         """
         output_path.parent.mkdir(parents=True, exist_ok=True)
-    
+
         with h5.File(output_path, "w") as f:
             data_group = f.create_group("data")
             data_group.create_dataset("impulse_response", data=sofa.Data_IR)
@@ -343,11 +338,9 @@ output_format : str
             meta_group.create_dataset("sampling_rate", data=sofa.Data_SamplingRate)
 
             # Add other metadata if present
-            if hasattr(sofa, "Data_Temperature"):
-                meta_group.create_dataset("temperature", data=sofa.Data_Temperature)
-            if hasattr(sofa, "Data_Humidity"):
-                meta_group.create_dataset("humidity", data=sofa.Data_Humidity)
-        
+            if hasattr(sofa, "RoomTemperature"):
+                meta_group.create_dataset("temperature", data=sofa.RoomTemperature)
+
         return output_path
 
     def _lookup(

@@ -1,6 +1,5 @@
 import warnings
 
-
 import psutil
 
 
@@ -33,6 +32,3 @@ def _fits_in_memory(file_path):
             stacklevel=2,
         )
         return False
-
-
-
