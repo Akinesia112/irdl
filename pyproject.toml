@@ -47,10 +47,16 @@ docs = [
 
 lint = ["ruff==0.14.14"]
 
+tests = ["pytest"]
+
 dev = [
     {include-group = "docs"},
     {include-group = "lint"},
+    {include-group = "tests"},
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [project.scripts]
 irdl = "irdl.cli:app"
