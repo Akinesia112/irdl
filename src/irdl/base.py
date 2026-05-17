@@ -1,11 +1,12 @@
 """Base Dataset class and conversion utilities for IRDL.
 
-This module provides the BaseDataset class which serves as the common interface
+This module provides the BaseDataset abstract base class which serves as the common interface
 for all Dataset implementations. Each Dataset subclass must implement:
 
 - validate_params()
 - download()
 - ingest()
+- _construct_file_name()
 
 The BaseDataset class handles:
 
@@ -15,6 +16,7 @@ The BaseDataset class handles:
 - Output format conversion from SOFA
 """
 
+from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
 
@@ -23,10 +25,10 @@ import pyfar as pf
 import sofar as sf
 
 
-class BaseDataset:
-    """Provide common interface for all Dataset implementations.
+class BaseDataset(ABC):
+    """Abstract base class providing common interface for all Dataset implementations.
 
-    Subclasses must define:
+    Subclasses must implement the following abstract methods:
 
     - name : :class:`str`
         Unique identifier for the Dataset.
@@ -134,7 +136,7 @@ output_format : str
         # Convert to requested output format
         return self._to_output(sofa, output_format, cache_dir, export_dir)
 
-    def validate_output_format(self, output_format: str, **dataset_kwargs) -> None:
+    def validate_output_format(self, output_format: str, **dataset_kwargs) -> None:  # noqa: B027
         """Validate output_format in the context of dataset-specific parameters.
 
         Override in subclasses that have output_format restrictions
@@ -147,8 +149,9 @@ output_format : str
         **dataset_kwargs
             Dataset-specific parameters that may affect validation.
         """
-        pass
+        ...
 
+    @abstractmethod
     def validate_params(self, dataset_kwargs: dict) -> None:
         """Validate dataset-specific parameters only.
 
@@ -163,6 +166,7 @@ output_format : str
         """
         raise NotImplementedError(f"{self.__class__.__name__} must implement validate_params()")
 
+    @abstractmethod
     def download(self, **kwargs) -> Path:
         """Download raw files and return :class:`pathlib.Path` to the primary file.
 
@@ -181,6 +185,7 @@ output_format : str
         """
         raise NotImplementedError(f"{self.__class__.__name__} must implement download()")
 
+    @abstractmethod
     def ingest(self, file_path: Path) -> sf.Sofa:
         """Convert raw file to :class:`sofar.Sofa` object.
 
@@ -255,6 +260,7 @@ output_format : str
         """
         return file_path
 
+    @abstractmethod
     def _construct_file_name(self, **kwargs) -> str:
         """Construct the file name for this Dataset.
 
@@ -270,7 +276,6 @@ output_format : str
         :class:`str`
             The constructed file name.
         """
-        raise NotImplementedError(f"{self.__class__.__name__} must implement _construct_file_name()")
 
     def _move_to_export(self, source: Path, export_dir: Path) -> Path:
         """Move file from source to export_dir.
