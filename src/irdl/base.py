@@ -22,8 +22,6 @@ import numpy as np
 import pyfar as pf
 import sofar as sf
 
-# Import CACHE_DIR from downloader to maintain consistency
-
 
 class BaseDataset:
     """Provide common interface for all Dataset implementations.
@@ -70,6 +68,7 @@ output_format : str
 """
 
     def __init_subclass__(cls, **kwargs):
+        """Initialize subclass with automatic docstring composition for get() classmethod."""
         super().__init_subclass__(**kwargs)
         # Automatically compose docstrings for get() classmethod
         if hasattr(cls, "get") and hasattr(cls, "name") and hasattr(cls, "doi"):

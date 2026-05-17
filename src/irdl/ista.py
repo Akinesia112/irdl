@@ -65,12 +65,14 @@ class MiracleDataset(IstaBaseDataset):
         export_dir: str = None,
         output_format: str = "pyfar",
     ):
-        """Scenario : str
+        """scenario : str
+
             Name of the scenario to download. One of 'A1', 'A2', 'D1', 'R2'.
+
         dataset_split : str, optional
             Artificial dataset split. One of 'C1', 'C2', 'C3', 'C4', or None.
             Dense scenarios (D1) cannot be split.
-        """
+        """  # noqa: D400, D403
         instance = cls()
         return instance._get(
             scenario=scenario,
@@ -214,13 +216,15 @@ class SrirachaDataset(IstaBaseDataset):
         export_dir: str = None,
         output_format: str = "pyfar",
     ):
-        """Scenario : str
+        """scenario : str
+
             Name of the scenario to download. One of 'SR1', 'SRA1', 'SR1-D',
             'SRA1-D', 'SR2', 'SRA2', 'SR2-D', or 'SRA2-D'.
+
         dataset_split : str, optional
             Optional dataset split for full-plane scenarios. One of 'C1', 'C2',
             'C3', 'C4', or None. Dense scenarios (ending in -D) do not have splits.
-        """
+        """  # noqa: D400, D403
         instance = cls()
         return instance._get(
             scenario=scenario,
