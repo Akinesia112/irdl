@@ -117,7 +117,7 @@ output_format : str
             raise ValueError("output_format must be one of 'pyfar', 'hdf5', 'numpy', 'sofa', 'raw'")
 
         # Validate dataset-specific parameters
-        self.validate_params(**dataset_kwargs)
+        self.validate_params(output_format=output_format, **dataset_kwargs)
 
         # define output_path ad check if (file-based) output exists already
         output_path = self._output_path(output_format, cache_dir, export_dir, **dataset_kwargs)
@@ -162,16 +162,17 @@ output_format : str
         """
         return NotImplementedError(f"{self.__class__.__name__} must implement output_path)")
   
-    def validate_params(self, **dataset_kwargs: dict) -> None:
+    def validate_params(self, **dataset_kwargs) -> None:
         """Validate dataset-specific parameters.
 
-        Override in subclass. Common parameters (cache_dir, export_dir,
-        output_format) are validated in _get.
+        Override in subclass. Receives the dataset-specific parameters plus
+        ``output_format`` (so subclasses can forbid invalid output_format /
+        dataset-parameter combinations).
 
         Parameters
         ----------
         **dataset_kwargs
-            Dataset-specific parameters to validate.
+            Dataset-specific parameters to validate, plus ``output_format``.
 
         Raises
         ------

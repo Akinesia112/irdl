@@ -105,32 +105,6 @@ class MiracleDataset(IstaBaseDataset):
     raw_format = "hdf5"
     room_volume = 830 #metadata needed for creation of sofa file
 
-    def validate_params(self, dataset_kwargs: dict) -> None:
-        """Validate MIRACLE-specific parameters.
-
-        Parameters
-        ----------
-        **dataset_kwargs
-            Must contain 'scenario' (one of 'A1', 'A2', 'D1', 'R2'). May
-            contain 'dataset_split' (one of 'C1', 'C2', 'C3', 'C4', or None).
-            Scenario 'D1' cannot be split.
-
-        Raises
-        ------
-        ValueError
-            If scenario or split is out of range, or 'D1' is combined with a
-            split.
-        """
-        scenario = dataset_kwargs["scenario"]
-        dataset_split = dataset_kwargs.get("dataset_split")
-
-        if scenario not in ["A1", "A2", "D1", "R2"]:
-            raise ValueError("scenario must be one of ['A1', 'A2', 'D1', 'R2']")
-        if dataset_split not in [None, "C1", "C2", "C3", "C4"]:
-            raise ValueError("dataset_split must be None or in [C1, C2, C3, C4]")
-        if scenario == "D1" and dataset_split is not None:
-            raise ValueError("scenario D1 cannot be split")
-
     @classmethod
     def get(
         cls,
@@ -154,6 +128,7 @@ class MiracleDataset(IstaBaseDataset):
             export_dir=export_dir,
             output_format=output_format,
         )
+
 
     def _output_path(self, output_format, cache_dir, export_dir, **kwargs):
         """Construct the output path for a MIRACLE file-based output.
@@ -185,6 +160,34 @@ class MiracleDataset(IstaBaseDataset):
         name = f"{scenario}{('-' + split) if split else ''}{ext}"
         base = (export_dir if export_dir is not None else cache_dir) / "MIRACLE"
         return base / name
+    
+
+    def validate_params(self, **dataset_kwargs) -> None:
+        """Validate MIRACLE-specific parameters.
+
+        Parameters
+        ----------
+        **dataset_kwargs
+            Must contain 'scenario' (one of 'A1', 'A2', 'D1', 'R2'). May
+            contain 'dataset_split' (one of 'C1', 'C2', 'C3', 'C4', or None).
+            Scenario 'D1' cannot be split. ``output_format`` is also passed
+            but unused here.
+
+        Raises
+        ------
+        ValueError
+            If scenario or split is out of range, or 'D1' is combined with a
+            split.
+        """
+        scenario = dataset_kwargs["scenario"]
+        dataset_split = dataset_kwargs.get("dataset_split")
+
+        if scenario not in ["A1", "A2", "D1", "R2"]:
+            raise ValueError("scenario must be one of ['A1', 'A2', 'D1', 'R2']")
+        if dataset_split not in [None, "C1", "C2", "C3", "C4"]:
+            raise ValueError("dataset_split must be None or in [C1, C2, C3, C4]")
+        if scenario == "D1" and dataset_split is not None:
+            raise ValueError("scenario D1 cannot be split")
 
 
     def _get_file(self, cache_dir: Path, export_dir: Path | None, **kwargs) -> Path:
@@ -309,37 +312,6 @@ class SrirachaDataset(IstaBaseDataset):
     raw_format = "hdf5"
     room_volume = 73.5
 
-    def validate_params(self, output_format: str ,**dataset_kwargs: dict) -> None:
-        """Validate SRIRACHA-specific parameters.
-
-        Parameters
-        ----------
-        output_format : str
-            Used to forbid 'raw' for non-dense scenarios without a split.
-        **dataset_kwargs
-            Must contain 'scenario' (one of 'SR1', 'SRA1', 'SR1-D', 'SRA1-D',
-            'SR2', 'SRA2', 'SR2-D', 'SRA2-D'). May contain 'dataset_split'
-            (one of 'C1', 'C2', 'C3', 'C4', or None). Dense scenarios
-            (ending in '-D') cannot be split.
-
-        Raises
-        ------
-        ValueError
-            If scenario or split is invalid, a dense scenario is combined with
-            a split, or 'raw' is requested for a non-dense full plane.
-        """
-        scenario = dataset_kwargs.get("scenario")
-        dataset_split = dataset_kwargs.get("dataset_split")
-
-        if scenario not in ["SR1", "SRA1", "SR1-D", "SRA1-D", "SR2", "SRA2", "SR2-D", "SRA2-D"]:
-            raise ValueError("scenario must be one of [SR1, SRA1, SR1-D, SRA1-D, SR2, SRA2, SR2-D, SRA2-D]")
-        if dataset_split not in [None, "C1", "C2", "C3", "C4"]:
-            raise ValueError("dataset_split must be None or in [C1, C2, C3, C4]")
-        if scenario[-1] == "D" and dataset_split is not None:
-            raise ValueError("dense datasets do not have splits")
-        if output_format == "raw" and scenario and scenario[-1] != "D" and dataset_split is None:
-            raise ValueError("raw output_format not supported for non-dense SRIRACHA scenarios without split")
-
     @classmethod
     def get(
         cls,
@@ -365,6 +337,40 @@ class SrirachaDataset(IstaBaseDataset):
             export_dir=export_dir,
             output_format=output_format,
         )
+
+
+    def validate_params(self, **dataset_kwargs) -> None:
+        """Validate SRIRACHA-specific parameters.
+
+        Parameters
+        ----------
+        **dataset_kwargs
+            Must contain 'scenario' (one of 'SR1', 'SRA1', 'SR1-D', 'SRA1-D',
+            'SR2', 'SRA2', 'SR2-D', 'SRA2-D'). May contain 'dataset_split'
+            (one of 'C1', 'C2', 'C3', 'C4', or None). Dense scenarios
+            (ending in '-D') cannot be split. ``output_format`` is also
+            passed and used to forbid 'raw' for non-dense full-plane
+            scenarios.
+
+        Raises
+        ------
+        ValueError
+            If scenario or split is invalid, a dense scenario is combined with
+            a split, or 'raw' is requested for a non-dense full plane.
+        """
+        scenario = dataset_kwargs.get("scenario")
+        dataset_split = dataset_kwargs.get("dataset_split")
+        output_format = dataset_kwargs.get("output_format")
+
+        if scenario not in ["SR1", "SRA1", "SR1-D", "SRA1-D", "SR2", "SRA2", "SR2-D", "SRA2-D"]:
+            raise ValueError("scenario must be one of [SR1, SRA1, SR1-D, SRA1-D, SR2, SRA2, SR2-D, SRA2-D]")
+        if dataset_split not in [None, "C1", "C2", "C3", "C4"]:
+            raise ValueError("dataset_split must be None or in [C1, C2, C3, C4]")
+        if scenario[-1] == "D" and dataset_split is not None:
+            raise ValueError("dense datasets do not have splits")
+        if output_format == "raw" and scenario and scenario[-1] != "D" and dataset_split is None:
+            raise ValueError("raw output_format not supported for non-dense SRIRACHA scenarios without split")
+
 
     def _output_path(self, output_format, cache_dir, export_dir, **kwargs):
         """Construct the output path for a SRIRACHA file-based output.
@@ -443,6 +449,7 @@ class SrirachaDataset(IstaBaseDataset):
 
         # 2b. Non-dense full plane -> download 4 split files and merge
         return self._download_and_merge(scenario, target_dir)
+
 
     def _download_and_merge(self, scenario: str, cache_dir: Path, **kwargs) -> Path:
         """Download four quadrant HDF5 files and merge them into a full-plane file.
