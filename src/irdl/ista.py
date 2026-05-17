@@ -11,32 +11,99 @@ from typing import Any
 
 import h5py as h5
 import numpy as np
+import sofar as sf
 
 from irdl.base import BaseDataset
 from irdl.downloader import CACHE_DIR, _fetch, _pooch_from_doi
-from irdl.utils import _move_to_export_dir
-
-# =============================================================================
-# Dataset Classes (Phase 2 Migration - ADR-0001)
-# =============================================================================
 
 
-class IstaBaseDataset(BaseDataset, ABC):
-    """Abstract base class for HDF5-based datasets from ISTA (MIRACLE, SRIRACHA).
+class IstaBaseDataset(BaseDataset):
+    """Base class for HDF5-based datasets from ISTA (MIRACLE, SRIRACHA).
 
     Both MIRACLE and SRIRACHA share identical HDF5 file structure and can use
     the same ingestion logic to convert HDF5 to SOFA format.
     """
 
-    @abstractmethod
-    def ingest(self, file_path: Path) -> Any:
-        """Convert HDF5 file to SOFA object.
+    # Room volume for SOFA metadata (subclasses must define)
+    room_volume: float
 
-        Shared implementation for MIRACLE and SRIRACHA since they use
-        identical HDF5 structure.
+    def ingest(self, file_path: Path) -> sf.Sofa:
+        """Convert a MIRACLE/SRIRACHA HDF5 file into a SOFA object.
 
-        TODO: Implement HDF5 -> SOFA conversion
+        Both datasets share an identical HDF5 layout, so this single
+        implementation covers both subclasses. The output follows the
+        SingleRoomMIMOSRIR SOFA convention.
+
+        Parameters
+        ----------
+        file_path : Path
+            Path to the HDF5 file.
+
+        Returns
+        -------
+        sofar.Sofa
+            SOFA object in the SingleRoomMIMOSRIR convention.
         """
+        with h5.File(file_path, "r") as f:
+            ir = f["data"]["impulse_response"][()]
+            receiver_pos = f["data"]["location"]["receiver"][()]
+            source_pos = f["data"]["location"]["source"][()]
+            sampling_rate = f["metadata"]["sampling_rate"][()]
+            temperature = f["metadata"]["temperature"][()]
+
+        # SOFA dimension naming
+        M, R, N = ir.shape  # number of measurements, receiver and samples
+        E = 1  # number of emitters
+        C = 3  # number of coordinates
+        I = 1  # unity dimensions
+
+        sofa = sf.Sofa("SingleRoomMIMOSRIR")
+
+        # --- metadata  -------------------------------------------------
+        sofa.GLOBAL_Title = self.name.upper()
+        sofa.GLOBAL_AuthorContact = "a.pelling@tu-berlin.de; adam.kujawski@tu-berlin.de"
+        sofa.GLOBAL_Organization = "TU Berlin, Department of Engineering Acoustics"
+        sofa.GLOBAL_License = "CC BY-NC-SA 4.0"
+        sofa.GLOBAL_References = self.doi
+        sofa.GLOBAL_DatabaseName = self.name.upper()
+        sofa.GLOBAL_RoomLocation = "TU Berlin, Einsteinufer 25"
+        sofa.GLOBAL_ListenerShortName = "Custom planar microphone array"
+        sofa.GLOBAL_ListenerDescription = (
+            "64-channel planar microphone array "
+            "(1.5 m × 1.5 m aluminium plate, Vogel's spiral, max spacing 1.47 m, 51.2 kHz sampling rate)"
+        )
+        sofa.GLOBAL_ReceiverShortName = "GRAS 40PL-1 Short CCP"
+        sofa.GLOBAL_SourceShortName = "Loudspeaker"
+        sofa.GLOBAL_SourceDescription = (
+            "Dynamic 2\" cone loudspeaker in a cylindrical enclosure (Frequency range 100 Hz–16 kHz)"
+        )
+
+        sofa.RoomVolume = self.room_volume  # Dim. 1, M => so add a dimension upfront
+
+        # --- environmental, per-measurement ------------------------------------
+        sofa.RoomTemperature = temperature[..., np.newaxis]  # dim spec is (I, M)
+        sofa.RoomTemperature_Units = "celsius"
+
+        # --- geometry ----------------------------------------------------------
+        # Receiver: fixed microphone array
+        sofa.ReceiverPosition = receiver_pos.reshape(R, C, I)
+        sofa.ReceiverPosition_Type = "cartesian"
+        sofa.ReceiverPosition_Units = "metre"
+
+        # Source: one cartesian position per measurement
+        sofa.SourcePosition = source_pos  # dim spec is (M, C)
+
+        # Emitter: single point source, co-located with the source frame origin
+        sofa.EmitterPosition = np.zeros((E, C, I))
+        sofa.EmitterPosition_Type = "cartesian"
+        sofa.EmitterPosition_Units = "metre"
+
+        # --- IR data -----------------------------------------------------------
+        sofa.Data_IR = ir[..., np.newaxis]  # dim spec (M, R, N, E)
+        sofa.Data_SamplingRate = np.full((I, M), sampling_rate)  # dim spec (I, M)
+        sofa.Data_Delay = np.zeros((M, R, I))
+
+        return sofa
 
 
 class MiracleDataset(IstaBaseDataset):
@@ -44,9 +111,21 @@ class MiracleDataset(IstaBaseDataset):
 
     name = "miracle"
     doi = "10.14279/depositonce-20837"
+    room_volume = 830  # metadata needed for creation of sofa file
 
-    def validate_params(self, dataset_kwargs: dict) -> None:
-        """Validate MIRACLE-specific parameters."""
+    def validate_params(self, **dataset_kwargs) -> None:
+        """Validate MIRACLE-specific parameters.
+
+        Parameters
+        ----------
+        **dataset_kwargs
+            Dataset-specific parameters to validate. Expected keys: scenario, dataset_split.
+
+        Raises
+        ------
+        ValueError
+            If scenario or split is out of range, or 'D1' is combined with a split.
+        """
         scenario = dataset_kwargs["scenario"]
         dataset_split = dataset_kwargs.get("dataset_split")
 
@@ -61,19 +140,30 @@ class MiracleDataset(IstaBaseDataset):
     def get(
         cls,
         scenario: str = "A1",
-        dataset_split: str = None,
-        cache_dir: str = CACHE_DIR,
-        export_dir: str = None,
+        dataset_split: str | None = None,
+        cache_dir: str | Path = CACHE_DIR,
+        export_dir: str | Path | None = None,
         output_format: str = "pyfar",
     ):
-        """scenario : str
+        """Download MIRACLE dataset.
 
-            Name of the scenario to download. One of 'A1', 'A2', 'D1', 'R2'.
+DOI: 10.14279/depositonce-20837
 
-        dataset_split : str, optional
-            Artificial dataset split. One of 'C1', 'C2', 'C3', 'C4', or None.
-            Dense scenarios (D1) cannot be split.
-        """  # noqa: D400, D403
+Parameters
+----------
+cache_dir : str
+    Cache directory for downloads. Default: user cache directory.
+export_dir : str, optional
+    Directory for final output. Default: None (stays in cache_dir).
+output_format : str
+    Output format: 'pyfar', 'numpy', 'hdf5', 'sofa', or 'raw'.
+
+scenario : str
+    Scenario to download. One of 'A1', 'A2', 'D1', 'R2'.
+dataset_split : str or None, optional
+    Artificial dataset split. One of 'C1', 'C2', 'C3', 'C4' or None.
+    Dense scenarios (D1) cannot be split.
+"""
         instance = cls()
         return instance._get(
             scenario=scenario,
@@ -83,6 +173,34 @@ class MiracleDataset(IstaBaseDataset):
             output_format=output_format,
         )
 
+    def _output_path(self, output_format: str, cache_dir: Path, export_dir: Path | None, **kwargs) -> Path | None:
+        """Construct the output path for a MIRACLE file-based output.
+
+        Parameters
+        ----------
+        output_format : str
+            One of 'sofa', 'hdf5', 'raw'. Other formats return None.
+        cache_dir : Path
+            Cache directory.
+        export_dir : Path or None
+            Optional export directory; takes priority over cache_dir.
+        **kwargs
+            Must contain 'scenario'. May contain 'dataset_split'.
+
+        Returns
+        -------
+        Path or None
+            Canonical output path under '<base>/MIRACLE/', or None for in-memory formats.
+        """
+        if output_format not in ("sofa", "hdf5", "raw"):
+            return None
+        ext = ".sofa" if output_format == "sofa" else ".h5"
+        scenario = kwargs["scenario"]
+        split = kwargs.get("dataset_split")
+        name = f"{scenario}{('-' + split) if split else ''}{ext}"
+        base = (export_dir if export_dir is not None else cache_dir) / "MIRACLE"
+        return base / name
+
     def _construct_file_name(self, **kwargs) -> str:
         """Construct HDF5 file name for MIRACLE (always full file, splits extracted later)."""
         scenario = kwargs["scenario"]
@@ -90,27 +208,51 @@ class MiracleDataset(IstaBaseDataset):
         return f"{scenario}.h5"
 
     def download(self, **kwargs) -> Path:
-        """Download MIRACLE HDF5 file (always full scenario file)."""
+        """Download MIRACLE HDF5 file (always full scenario file).
+
+        Parameters
+        ----------
+        **kwargs
+            Dataset-specific parameters. Must contain 'cache_dir'.
+
+        Returns
+        -------
+        Path
+            Path to the downloaded file.
+        """
         cache_dir = Path(kwargs["cache_dir"]) / "MIRACLE"
+        cache_dir.mkdir(parents=True, exist_ok=True)
 
         file_name = self._construct_file_name(**kwargs)
         file_path = cache_dir / file_name
 
-        # Check if already exists (handled by _get_file, but download may be called directly)
-        if file_path.exists():
-            return file_path
-
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        pup = _pooch_from_doi(self.doi, path=cache_dir)
-        _fetch(pup, file_name)
+        # Download if not exists
+        if not file_path.exists():
+            pup = _pooch_from_doi(self.doi, path=cache_dir)
+            _fetch(pup, file_name)
 
         return file_path
 
     def _get_file(self, cache_dir: Path, export_dir: Path | None, **kwargs) -> Path:
-        """Check cache or download full file, then split if needed."""
+        """Check cache or download full file, then split if needed.
+
+        Parameters
+        ----------
+        cache_dir : Path
+            Base cache directory.
+        export_dir : Path or None
+            Optional export directory.
+        **kwargs
+            Dataset-specific parameters. Must contain 'scenario'. May contain 'dataset_split'.
+
+        Returns
+        -------
+        Path
+            Path to the file ready for ingest().
+        """
         dataset_split = kwargs.get("dataset_split")
 
-        # Download/get the full file
+        # Download/get the full file using parent's _get_file
         file_path = super()._get_file(cache_dir, export_dir, **kwargs)
 
         # If a split is requested, extract it from the full file
@@ -160,11 +302,12 @@ class MiracleDataset(IstaBaseDataset):
         )
 
         # Save split data to a new HDF5 file
-        split_file_name = file_path.stem + f"-{dataset_split}{file_path.suffix}"
+        split_file_name = f"{file_path.stem}-{dataset_split}{file_path.suffix}"
         if export_dir:
-            split_path = Path(export_dir) / split_file_name
+            split_path = Path(export_dir) / "MIRACLE" / split_file_name
         else:
             split_path = file_path.parent / split_file_name
+        split_path.parent.mkdir(parents=True, exist_ok=True)
 
         with h5.File(split_path, "w") as f:
             data_group = f.create_group("data")
@@ -187,45 +330,63 @@ class SrirachaDataset(IstaBaseDataset):
 
     name = "sriracha"
     doi = "10.14279/depositonce-23943"
+    room_volume = 73.5
 
-    def validate_params(self, dataset_kwargs: dict) -> None:
-        """Validate SRIRACHA-specific parameters."""
-        scenario = dataset_kwargs["scenario"]
+    def validate_params(self, **dataset_kwargs) -> None:
+        """Validate SRIRACHA-specific parameters.
+
+        Parameters
+        ----------
+        **dataset_kwargs
+            Dataset-specific parameters to validate. Expected keys: scenario, dataset_split.
+
+        Raises
+        ------
+        ValueError
+            If scenario, split, or output_format combination is invalid.
+        """
+        output_format = dataset_kwargs.get("output_format")
+        scenario = dataset_kwargs.get("scenario")
         dataset_split = dataset_kwargs.get("dataset_split")
 
         if scenario not in ["SR1", "SRA1", "SR1-D", "SRA1-D", "SR2", "SRA2", "SR2-D", "SRA2-D"]:
             raise ValueError("scenario must be one of [SR1, SRA1, SR1-D, SRA1-D, SR2, SRA2, SR2-D, SRA2-D]")
         if dataset_split not in [None, "C1", "C2", "C3", "C4"]:
             raise ValueError("dataset_split must be None or in [C1, C2, C3, C4]")
-        if scenario[-1] == "D" and dataset_split is not None:
+        if scenario.endswith("-D") and dataset_split is not None:
             raise ValueError("dense datasets do not have splits")
-
-    def validate_output_format(self, output_format: str, **dataset_kwargs) -> None:
-        """Validate output_format in context of SRIRACHA dataset parameters."""
-        scenario = dataset_kwargs.get("scenario")
-        dataset_split = dataset_kwargs.get("dataset_split")
-        # raw output_format not allowed for non-dense full scenarios
-        if output_format == "raw" and scenario and scenario[-1] != "D" and dataset_split is None:
+        if output_format == "raw" and scenario and not scenario.endswith("-D") and dataset_split is None:
             raise ValueError("raw output_format not supported for non-dense SRIRACHA scenarios without split")
 
     @classmethod
     def get(
         cls,
         scenario: str = "SR1-D",
-        dataset_split: str = None,
-        cache_dir: str = CACHE_DIR,
-        export_dir: str = None,
+        dataset_split: str | None = None,
+        cache_dir: str | Path = CACHE_DIR,
+        export_dir: str | Path | None = None,
         output_format: str = "pyfar",
     ):
-        """scenario : str
+        """Download SRIRACHA dataset.
 
-            Name of the scenario to download. One of 'SR1', 'SRA1', 'SR1-D',
-            'SRA1-D', 'SR2', 'SRA2', 'SR2-D', or 'SRA2-D'.
+DOI: 10.14279/depositonce-23943
 
-        dataset_split : str, optional
-            Optional dataset split for full-plane scenarios. One of 'C1', 'C2',
-            'C3', 'C4', or None. Dense scenarios (ending in -D) do not have splits.
-        """  # noqa: D400, D403
+Parameters
+----------
+cache_dir : str
+    Cache directory for downloads. Default: user cache directory.
+export_dir : str, optional
+    Directory for final output. Default: None (stays in cache_dir).
+output_format : str
+    Output format: 'pyfar', 'numpy', 'hdf5', 'sofa', or 'raw'.
+
+scenario : str
+    Scenario to download. One of 'SR1', 'SRA1', 'SR1-D', 'SRA1-D', 'SR2',
+    'SRA2', 'SR2-D', or 'SRA2-D'.
+dataset_split : str or None, optional
+    Optional dataset split for full-plane scenarios. One of 'C1', 'C2',
+    'C3', 'C4', or None. Dense scenarios (ending in -D) do not have splits.
+"""
         instance = cls()
         return instance._get(
             scenario=scenario,
@@ -234,6 +395,34 @@ class SrirachaDataset(IstaBaseDataset):
             export_dir=export_dir,
             output_format=output_format,
         )
+
+    def _output_path(self, output_format: str, cache_dir: Path, export_dir: Path | None, **kwargs) -> Path | None:
+        """Construct the output path for a SRIRACHA file-based output.
+
+        Parameters
+        ----------
+        output_format : str
+            One of 'sofa', 'hdf5', 'raw'. Other formats return None.
+        cache_dir : Path
+            Cache directory.
+        export_dir : Path or None
+            Optional export directory; takes priority over cache_dir.
+        **kwargs
+            Must contain 'scenario'. May contain 'dataset_split'.
+
+        Returns
+        -------
+        Path or None
+            Canonical output path under '<base>/SRIRACHA/', or None for in-memory formats.
+        """
+        if output_format not in ("sofa", "hdf5", "raw"):
+            return None
+        ext = ".sofa" if output_format == "sofa" else ".h5"
+        scenario = kwargs["scenario"]
+        split = kwargs.get("dataset_split")
+        name = f"{scenario}{('-' + split) if split else ''}{ext}"
+        base = (export_dir if export_dir is not None else cache_dir) / "SRIRACHA"
+        return base / name
 
     def _construct_file_name(self, **kwargs) -> str:
         """Construct HDF5 file name for SRIRACHA."""
@@ -244,18 +433,28 @@ class SrirachaDataset(IstaBaseDataset):
         return f"{scenario}.h5"
 
     def download(self, **kwargs) -> Path:
-        """Download SRIRACHA HDF5 file (single file only)."""
+        """Download SRIRACHA HDF5 file (single file only).
+
+        Parameters
+        ----------
+        **kwargs
+            Dataset-specific parameters. Must contain 'cache_dir'.
+
+        Returns
+        -------
+        Path
+            Path to the downloaded file.
+        """
         cache_dir = Path(kwargs["cache_dir"]) / "SRIRACHA"
+        cache_dir.mkdir(parents=True, exist_ok=True)
 
         file_name = self._construct_file_name(**kwargs)
         file_path = cache_dir / file_name
 
-        if file_path.exists():
-            return file_path
-
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        pup = _pooch_from_doi(self.doi, path=cache_dir)
-        _fetch(pup, file_name)
+        # Download if not exists
+        if not file_path.exists():
+            pup = _pooch_from_doi(self.doi, path=cache_dir)
+            _fetch(pup, file_name)
 
         return file_path
 
@@ -265,7 +464,7 @@ class SrirachaDataset(IstaBaseDataset):
         dataset_split = kwargs.get("dataset_split")
 
         # For non-dense scenarios without split, need to download and merge 4 files
-        if scenario[-1] != "D" and dataset_split is None:
+        if not scenario.endswith("-D") and dataset_split is None:
             return self._download_and_merge(scenario, cache_dir, export_dir, **kwargs)
 
         # For all other cases (dense, or with split), use normal flow
@@ -349,9 +548,5 @@ class SrirachaDataset(IstaBaseDataset):
             # delete split files
             for f in split_files.values():
                 f.unlink()
-
-        # Move to export_dir if specified
-        if export_dir is not None:
-            return _move_to_export_dir(output_path, export_dir)
 
         return output_path

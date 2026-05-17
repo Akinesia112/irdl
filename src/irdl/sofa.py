@@ -9,6 +9,7 @@ from typing import Any
 from zipfile import ZipFile
 
 import pooch as po
+import sofa as sf
 
 from irdl.base import BaseDataset
 from irdl.downloader import CACHE_DIR, _fetch, _pooch_from_doi
@@ -28,13 +29,18 @@ class FabianDataset(BaseDataset):
     name = "fabian"
     doi = "10.14279/depositonce-5718.5"
 
-    def validate_params(self, dataset_kwargs: dict) -> None:
+    def validate_params(self, **dataset_kwargs) -> None:
         """Validate FABIAN-specific parameters.
 
         Parameters
         ----------
-        dataset_kwargs : :class:`dict`
+        **dataset_kwargs
             Parameters to validate. Expected keys: kind, hato.
+
+        Raises
+        ------
+        ValueError
+            If kind or hato is out of range.
         """
         kind = dataset_kwargs["kind"]
         hato = dataset_kwargs["hato"]
@@ -43,6 +49,34 @@ class FabianDataset(BaseDataset):
             raise ValueError("kind must be either 'measured' or 'modeled'")
         if hato not in [0, 10, 20, 30, 40, 50, 310, 320, 330, 340, 350]:
             raise ValueError("hato must be one of [0, 10, 20, 30, 40, 50, 310, 320, 330, 340, 350]")
+
+    def _output_path(self, output_format: str, cache_dir: Path, export_dir: Path | None, **kwargs) -> Path | None:
+        """Construct the output path for a FABIAN file-based output.
+
+        Parameters
+        ----------
+        output_format : str
+            One of 'sofa', 'hdf5', 'raw'. Other formats return None.
+        cache_dir : Path
+            Cache directory.
+        export_dir : Path or None
+            Optional export directory; takes priority over cache_dir.
+        **kwargs
+            Must contain 'kind' and 'hato'.
+
+        Returns
+        -------
+        Path or None
+            Canonical output path under '<base>/FABIAN/', or None for in-memory formats.
+        """
+        if output_format not in ("sofa", "hdf5", "raw"):
+            return None
+        ext = ".sofa" if output_format == "sofa" else ".h5"
+        kind = kwargs["kind"]
+        hato = kwargs["hato"]
+        name = f"FABIAN_HRIR_{kind}_HATO_{hato}{ext}"
+        base = (export_dir if export_dir is not None else cache_dir) / "FABIAN"
+        return base / name
 
     def _construct_file_name(self, **kwargs) -> str:
         """Construct file name based on kind and hato parameters.
@@ -128,18 +162,29 @@ class FabianDataset(BaseDataset):
         cls,
         kind: str = "measured",
         hato: int = 0,
-        cache_dir: str = CACHE_DIR,
-        export_dir: str = None,
+        cache_dir: str | Path = CACHE_DIR,
+        export_dir: str | Path | None = None,
         output_format: str = "pyfar",
     ):
-        """kind : str
+        """Download FABIAN dataset.
 
-            Type of HRTF to download. Either 'measured' or 'modeled'.
+DOI: 10.14279/depositonce-5718.5
 
-        hato : int
-            Head-above-torso-rotation of HRTFs in degrees.
-            One of: 0, 10, 20, 30, 40, 50, 310, 320, 330, 340, 350.
-        """  # noqa: D400, D403
+Parameters
+----------
+cache_dir : str
+    Cache directory for downloads. Default: user cache directory.
+export_dir : str, optional
+    Directory for final output. Default: None (stays in cache_dir).
+output_format : str
+    Output format: 'pyfar', 'numpy', 'hdf5', 'sofa', or 'raw'.
+
+kind : str
+    Type of HRTF to download. Either 'measured' or 'modeled'.
+hato : int
+    Head-above-torso-rotation of HRTFs in degrees.
+    One of: 0, 10, 20, 30, 40, 50, 310, 320, 330, 340, 350.
+"""
         instance = cls()
         return instance._get(
             kind=kind,
@@ -149,7 +194,7 @@ class FabianDataset(BaseDataset):
             output_format=output_format,
         )
 
-    def ingest(self, file_path: Path) -> Any:
+    def ingest(self, file_path: Path) -> sf.Sofa:
         """Load SOFA file into :class:`sofar.Sofa` object.
 
         Parameters
@@ -162,6 +207,4 @@ class FabianDataset(BaseDataset):
         :class:`sofar.Sofa`
             SOFA object containing the dataset data.
         """
-        import sofar as sf
-
         return sf.read_sofa(str(file_path))
