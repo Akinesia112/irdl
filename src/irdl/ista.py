@@ -107,7 +107,6 @@ class MiracleDataset(IstaBaseDataset):
 
     name = "miracle"
     doi = "10.14279/depositonce-20837"
-    raw_format = "hdf5"
     room_volume = 830  # metadata needed for creation of sofa file
 
     @classmethod
@@ -158,8 +157,6 @@ class MiracleDataset(IstaBaseDataset):
         """
         if output_format not in ("sofa", "hdf5", "raw"):
             return None
-        if output_format == "raw":
-            output_format = self.raw_format
         ext = ".sofa" if output_format == "sofa" else ".h5"
         scenario = kwargs["scenario"]
         split = kwargs.get("dataset_split")
@@ -319,7 +316,6 @@ class SrirachaDataset(IstaBaseDataset):
 
     name = "sriracha"
     doi = "10.14279/depositonce-23943"
-    raw_format = "hdf5"
     room_volume = 73.5
 
     @classmethod
@@ -404,8 +400,6 @@ class SrirachaDataset(IstaBaseDataset):
         """
         if output_format not in ("sofa", "hdf5", "raw"):
             return None
-        if output_format == "raw":
-            output_format = self.raw_format
         ext = ".sofa" if output_format == "sofa" else ".h5"
         scenario = kwargs["scenario"]
         split = kwargs.get("dataset_split")
