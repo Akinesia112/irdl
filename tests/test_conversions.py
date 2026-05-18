@@ -17,15 +17,15 @@ class TestDataset(BaseDataset):
     name = "test"
     doi = "10.0000/test"
 
-    def validate_params(self, dataset_kwargs):
+    def _validate_params(self, dataset_kwargs):
         """No-op validation for test dataset."""
         pass
 
-    def download(self, **kwargs):
+    def _download(self, **kwargs):
         """No-op download for test dataset."""
         pass
 
-    def ingest(self, file_path):
+    def _ingest(self, file_path):
         """No-op ingest for test dataset."""
         pass
 

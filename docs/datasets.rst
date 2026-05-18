@@ -9,8 +9,8 @@ Room impulse responses
   :caption: Room impulse responses
   :toctree: _autosummary
 
-  get_miracle
-  get_sriracha
+  MiracleDataset
+  SrirachaDataset
 
 Head-related impulse responses
 ------------------------------
@@ -18,4 +18,4 @@ Head-related impulse responses
   :caption: Head-related impulse responses
   :toctree: _autosummary
 
-  get_fabian
+  FabianDataset

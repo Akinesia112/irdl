@@ -135,7 +135,7 @@ output_format : str
             raise ValueError("output_format must be one of 'pyfar', 'hdf5', 'numpy', 'sofa', 'raw'")
 
         # Validate dataset-specific parameters (including output_format)
-        self.validate_params(output_format=output_format, **dataset_kwargs)
+        self._validate_params(output_format=output_format, **dataset_kwargs)
 
         # Early exit if output file already exists
         output_path = self._output_path(output_format, cache_dir, export_dir, **dataset_kwargs)
@@ -145,7 +145,7 @@ output_format : str
         # path to cache file
         file_path = self._input_path(cache_dir, None, **dataset_kwargs)
         if not file_path.exists():
-            self.download(file_path, **dataset_kwargs)
+            self._download(file_path, **dataset_kwargs)
 
         # return raw file if requested
         if output_format == "raw":
@@ -158,13 +158,13 @@ output_format : str
             processed_path = self._process(file_path, **dataset_kwargs)
 
         # Ingest to SOFA (internal standard)
-        sofa = self.ingest(processed_path)
+        sofa = self._ingest(processed_path)
 
         # Convert to requested output format
         return self._to_output(sofa, output_format, output_path)
 
     @abstractmethod
-    def validate_params(self, **dataset_kwargs) -> None:
+    def _validate_params(self, **dataset_kwargs) -> None:
         """Validate dataset-specific parameters.
 
         Override in subclass. This method receives dataset-specific parameters
@@ -181,10 +181,9 @@ output_format : str
         ValueError
             If any parameter is invalid.
         """
-        raise NotImplementedError(f"{self.__class__.__name__} must implement validate_params()")
 
     @abstractmethod
-    def download(self, target_path: Path, **kwargs) -> Path:
+    def _download(self, target_path: Path, **kwargs) -> Path:
         """Download raw files and return Path to the primary file.
 
         Override in subclass.
@@ -202,10 +201,9 @@ output_format : str
         file_path : :class:`pathlib.Path`
             Path to the downloaded/processed file on disk.
         """
-        raise NotImplementedError(f"{self.__class__.__name__} must implement download()")
 
     @abstractmethod
-    def ingest(self, file_path: Path) -> sf.Sofa:
+    def _ingest(self, file_path: Path) -> sf.Sofa:
         """Convert raw file to sofar.Sofa object.
 
         Override in subclass.
@@ -220,7 +218,6 @@ output_format : str
         sofa : :class:`sofar.Sofa`
             SOFA object representing the Dataset data.
         """
-        raise NotImplementedError(f"{self.__class__.__name__} must implement ingest()")
 
     @abstractmethod
     def _source_filename(self, **kwargs) -> str:
@@ -239,7 +236,6 @@ output_format : str
             The raw input filename including extension (e.g., "A1.h5",
             "FABIAN_HRIR_measured_HATO_0.sofa").
         """
-        raise NotImplementedError(f"{self.__class__.__name__} must implement _source_filename()")
 
     def _input_path(self, cache_dir: Path, export_dir: Path | None, **kwargs) -> Path:
         """Return the full path to the raw input file.

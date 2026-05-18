@@ -28,7 +28,7 @@ class FabianDataset(BaseDataset):
     name = "fabian"
     doi = "10.14279/depositonce-5718.5"
 
-    def validate_params(self, **dataset_kwargs) -> None:
+    def _validate_params(self, **dataset_kwargs) -> None:
         """Validate FABIAN-specific parameters.
 
         Parameters
@@ -68,7 +68,7 @@ class FabianDataset(BaseDataset):
         hato = kwargs["hato"]
         return f"FABIAN_HRIR_{kind}_HATO_{hato}.sofa"
 
-    def download(self, target_path: Path, **kwargs) -> Path:
+    def _download(self, target_path: Path, **kwargs) -> Path:
         """Download FABIAN dataset and extract the requested SOFA file.
 
         Downloads the ZIP archive if needed, then extracts the specific SOFA file
@@ -121,6 +121,12 @@ class FabianDataset(BaseDataset):
         hato : int, optional
             Head-above-torso-rotation of HRTFs in degrees.
             One of: 0, 10, 20, 30, 40, 50, 310, 320, 330, 340, 350. Default is 0.
+
+        Returns
+        -------
+        dict or Path
+            For 'pyfar' / 'numpy': dict of in-memory objects.
+            For 'sofa' / 'hdf5' / 'raw': Path to file on disk.
         """  # noqa: D205, D403
         return cls()._get(
             kind=kind,
@@ -130,7 +136,7 @@ class FabianDataset(BaseDataset):
             output_format=output_format,
         )
 
-    def ingest(self, file_path: Path) -> sf.Sofa:
+    def _ingest(self, file_path: Path) -> sf.Sofa:
         """Load SOFA file into sofar.Sofa object.
 
         Parameters

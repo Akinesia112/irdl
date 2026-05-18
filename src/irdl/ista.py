@@ -46,7 +46,7 @@ class IstaBaseDataset(BaseDataset):
         split = kwargs.get("dataset_split")
         return f"{scenario}{('-' + split) if split else ''}.h5"
 
-    def ingest(self, file_path: Path) -> sf.Sofa:
+    def _ingest(self, file_path: Path) -> sf.Sofa:
         """Convert a MIRACLE/SRIRACHA HDF5 file into a SOFA object.
 
         Both datasets share an identical HDF5 layout, so this single
@@ -157,6 +157,12 @@ class MiracleDataset(IstaBaseDataset):
         dataset_split : str or None, optional
             Artificial dataset split. One of 'C1', 'C2', 'C3', 'C4' or None.
             Dense scenarios (D1) cannot be split.
+
+        Returns
+        -------
+        dict or Path
+            For 'pyfar' / 'numpy': dict of in-memory objects.
+            For 'sofa' / 'hdf5' / 'raw': Path to file on disk.
         """  # noqa: D205, D403
         return cls()._get(
             scenario=scenario,
@@ -166,7 +172,7 @@ class MiracleDataset(IstaBaseDataset):
             output_format=output_format,
         )
 
-    def validate_params(self, **dataset_kwargs) -> None:
+    def _validate_params(self, **dataset_kwargs) -> None:
         """Validate MIRACLE-specific parameters.
 
         Parameters
@@ -192,7 +198,7 @@ class MiracleDataset(IstaBaseDataset):
         if scenario == "D1" and dataset_split is not None:
             raise ValueError("scenario D1 cannot be split")
 
-    def download(self, target_path: Path, **kwargs) -> Path:
+    def _download(self, target_path: Path, **kwargs) -> Path:
         """Download MIRACLE dataset file.
 
         Downloads the full scenario HDF5 file. If a split is requested,
@@ -354,6 +360,12 @@ class SrirachaDataset(IstaBaseDataset):
             Optional dataset split for full-plane scenarios. One of 'C1',
             'C2', 'C3', 'C4' or None. Dense scenarios (ending in '-D') do not
             have splits. Default is None.
+
+        Returns
+        -------
+        dict or Path
+            For 'pyfar' / 'numpy': dict of in-memory objects.
+            For 'sofa' / 'hdf5' / 'raw': Path to file on disk.
         """  # noqa: D205, D403
         return cls()._get(
             scenario=scenario,
@@ -363,7 +375,7 @@ class SrirachaDataset(IstaBaseDataset):
             output_format=output_format,
         )
 
-    def validate_params(self, **dataset_kwargs) -> None:
+    def _validate_params(self, **dataset_kwargs) -> None:
         """Validate SRIRACHA-specific parameters.
 
         Parameters
@@ -395,7 +407,7 @@ class SrirachaDataset(IstaBaseDataset):
         if output_format == "raw" and scenario and scenario[-1] != "D" and dataset_split is None:
             raise ValueError("raw output_format not supported for non-dense SRIRACHA scenarios without split")
 
-    def download(self, target_path: Path, **kwargs) -> Path:
+    def _download(self, target_path: Path, **kwargs) -> Path:
         """Download SRIRACHA dataset file(s).
 
         For dense scenarios or explicit splits, downloads a single file.

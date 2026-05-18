@@ -48,11 +48,15 @@ autodoc_default_options = {
 
 autosummary_generate = True
 numpydoc_show_class_members = False
+numpydoc_xref_param_type = True
+numpydoc_xref_aliases = {
+    "Path": "pathlib.Path",
+}
+
 
 intersphinx_mapping = {
     "h5py": ("https://docs.h5py.org/en/stable/", None),
     "numpy": ("https://numpy.org/doc/stable", None),
-    "pathlib": ("https://docs.python.org/3/library/pathlib.html", None),
     "pooch": ("https://www.fatiando.org/pooch/latest", None),
     "pyfar": ("https://pyfar.readthedocs.io/en/stable", None),
     "python": ("https://docs.python.org/3/", None),
