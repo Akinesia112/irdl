@@ -18,6 +18,7 @@ extensions = [
 
 templates_path = ["_templates"]
 
+html_static_path = ['_static']
 html_theme = "pydata_sphinx_theme"
 html_theme_options = {
     "logo": {
@@ -29,6 +30,12 @@ html_theme_options = {
             "name": "GitHub",
             "url": "https://github.com/artpelling/irdl",
             "icon": "fa-brands fa-square-github",
+        },
+        {
+            "name": "PyPI",
+            "url": "https://pypi.org/project/irdl",
+            "icon": "_static/pypi.svg",
+            "type": "local",
         },
     ],
     "pygments_light_style": "tango",
