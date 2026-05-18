@@ -55,12 +55,12 @@ class IstaBaseDataset(BaseDataset):
 
         Parameters
         ----------
-        file_path : Path
+        file_path : :class:`pathlib.Path`
             Path to the HDF5 file.
 
         Returns
         -------
-        sofar.Sofa
+        :class:`sofar.Sofa`
             SOFA object in the SingleRoomMIMOSRIR convention.
         """
         with h5.File(file_path, "r") as f:
@@ -157,7 +157,7 @@ class MiracleDataset(IstaBaseDataset):
         dataset_split : str or None, optional
             Artificial dataset split. One of 'C1', 'C2', 'C3', 'C4' or None.
             Dense scenarios (D1) cannot be split.
-        """ # noqa: D205, D403
+        """  # noqa: D205, D403
         return cls()._get(
             scenario=scenario,
             dataset_split=dataset_split,
@@ -200,14 +200,14 @@ class MiracleDataset(IstaBaseDataset):
 
         Parameters
         ----------
-        target_path : Path
+        target_path : :class:`pathlib.Path`
             Target path where the file should be downloaded.
         **kwargs : dict
             Must contain 'scenario'. May contain 'dataset_split', 'cache_dir', 'export_dir'.
 
         Returns
         -------
-        Path
+        :class:`pathlib.Path`
             Path to the downloaded full scenario HDF5 file.
         """
         # Download the full scenario file (without split)
@@ -229,14 +229,14 @@ class MiracleDataset(IstaBaseDataset):
 
         Parameters
         ----------
-        file_path : Path
+        file_path : :class:`pathlib.Path`
             Path to the HDF5 file (may be full scenario or already split).
         **kwargs : dict
             Must contain 'scenario'. May contain 'dataset_split'.
 
         Returns
         -------
-        Path
+        :class:`pathlib.Path`
             Path to the processed file (split file if extraction was needed).
         """
         split = kwargs.get("dataset_split")
@@ -259,16 +259,16 @@ class MiracleDataset(IstaBaseDataset):
 
         Parameters
         ----------
-        file_path : Path
+        file_path : :class:`pathlib.Path`
             Path to the full HDF5 file.
         dataset_split : str
             Split to extract. One of 'C1', 'C2', 'C3', 'C4'.
-        cache_dir : Path
+        cache_dir : :class:`pathlib.Path`
             Directory where the extracted file is written.
 
         Returns
         -------
-        Path
+        :class:`pathlib.Path`
             Path to the extracted split HDF5 file.
         """
         cache_dir.mkdir(parents=True, exist_ok=True)
@@ -404,14 +404,14 @@ class SrirachaDataset(IstaBaseDataset):
 
         Parameters
         ----------
-        target_path : Path
+        target_path : :class:`pathlib.Path`
             Target path where the file should be downloaded.
         **kwargs : dict
             Must contain 'scenario'. May contain 'dataset_split', 'cache_dir', 'export_dir'.
 
         Returns
         -------
-        Path
+        :class:`pathlib.Path`
             Path to the downloaded file (or one of the split files for non-dense).
         """
         target_dir = target_path.parent

@@ -16,10 +16,10 @@ The BaseDataset class handles:
 - Output format conversion from SOFA
 """
 
+import warnings
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
-import warnings
 
 import numpy as np
 import pyfar as pf
@@ -98,9 +98,9 @@ output_format : str
 
         Parameters
         ----------
-        cache_dir : Path or str
+        cache_dir : :class:`pathlib.Path` or str
             Cache directory for downloads.
-        export_dir : Path or str or None
+        export_dir : :class:`pathlib.Path` or str or None
             Directory for final output. Default is None (stays in cache_dir).
         output_format : str
             Output format: 'pyfar', 'numpy', 'hdf5', 'sofa', or 'raw'.
@@ -109,9 +109,9 @@ output_format : str
 
         Returns
         -------
-        dict or Path
+        dict or :class:`pathlib.Path`
             For 'pyfar' / 'numpy': a dict of in-memory objects.
-            For 'sofa' / 'hdf5' / 'raw': a Path to the file on disk.
+            For 'sofa' / 'hdf5' / 'raw': a :class:`pathlib.Path` to the file on disk.
         """
         cache_dir = Path(cache_dir)
         export_dir = Path(export_dir) if export_dir else None
@@ -177,7 +177,7 @@ output_format : str
 
         Parameters
         ----------
-        target_path : Path
+        target_path : :class:`pathlib.Path`
             Target path where the file should be downloaded.
         **kwargs : dict
             Dataset-specific parameters (scenario, kind, hato, etc.).
@@ -185,7 +185,7 @@ output_format : str
 
         Returns
         -------
-        file_path : Path
+        file_path : :class:`pathlib.Path`
             Path to the downloaded/processed file on disk.
         """
         raise NotImplementedError(f"{self.__class__.__name__} must implement download()")
@@ -198,12 +198,12 @@ output_format : str
 
         Parameters
         ----------
-        file_path : Path
+        file_path : :class:`pathlib.Path`
             Path to the file returned by _get_file().
 
         Returns
         -------
-        sofa : sofar.Sofa
+        sofa : :class:`sofar.Sofa`
             SOFA object representing the Dataset data.
         """
         raise NotImplementedError(f"{self.__class__.__name__} must implement ingest()")
@@ -338,21 +338,21 @@ output_format : str
 
         Parameters
         ----------
-        sofa : sofar.Sofa
+        sofa : :class:`sofar.Sofa`
             SOFA object to convert.
         output_format : str
             One of "pyfar", "numpy", "hdf5", "sofa".
-        output_path : Path or None
+        output_path : :class:`pathlib.Path` or None
             Path where file-based outputs should be written.
 
         Returns
         -------
-        dict or Path
+        dict or :class:`pathlib.Path`
             Output depends on output_format:
-            - "pyfar" : dict of pyfar objects
-            - "numpy" : dict of numpy arrays
-            - "hdf5" : Path to .h5 file
-            - "sofa" : Path to .sofa file
+            - "pyfar" : dict of :class:`pyfar.Signal` and :class:`pyfar.Coordinates` objects
+            - "numpy" : dict of :class:`numpy.ndarray` arrays
+            - "hdf5" : :class:`pathlib.Path` to .h5 file
+            - "sofa" : :class:`pathlib.Path` to .sofa file
         """
         if output_format == "pyfar":
             return self._to_pyfar(sofa)
@@ -370,22 +370,22 @@ output_format : str
 
         Parameters
         ----------
-        sofa : sofar.Sofa
+        sofa : :class:`sofar.Sofa`
             SOFA object to convert.
 
         Returns
         -------
         dict
             Dictionary with keys:
-            - "impulse_response" : pyfar.Signal
-            - "source_coordinates" : pyfar.Coordinates
-            - "receiver_coordinates" : pyfar.Coordinates
+            - "impulse_response" : :class:`pyfar.Signal`
+            - "source_coordinates" : :class:`pyfar.Coordinates`
+            - "receiver_coordinates" : :class:`pyfar.Coordinates`
         """
         # Squeeze to remove singleton dimensions before transposing
         # This handles both 2D (N, 3) and 3D (N, 3, 1) coordinate arrays
         source_pos = np.squeeze(sofa.SourcePosition)
         receiver_pos = np.squeeze(sofa.ReceiverPosition)
-        
+
         # Extract scalar sampling rate (SOFA Data_SamplingRate can be scalar or array)
         sampling_rate = sofa.Data_SamplingRate
         if np.ndim(sampling_rate) > 0:
@@ -393,16 +393,16 @@ output_format : str
             flat_sr = sampling_rate.flatten()
             unique_sr = np.unique(flat_sr)
             sampling_rate = unique_sr[0]
-            
+
             # Warn if there are multiple different sampling rates
             if len(unique_sr) > 1:
                 warnings.warn(
                     f"Multiple sampling rates found in SOFA file: {unique_sr}. "
                     f"Using {sampling_rate} Hz for pyfar Signal.",
                     UserWarning,
-                    stacklevel=2
+                    stacklevel=2,
                 )
-        
+
         return {
             "impulse_response": pf.Signal(sofa.Data_IR, sampling_rate=sampling_rate),
             "source_coordinates": pf.Coordinates(*source_pos.T),
@@ -414,16 +414,16 @@ output_format : str
 
         Parameters
         ----------
-        sofa : sofar.Sofa
+        sofa : :class:`sofar.Sofa`
             SOFA object to convert.
 
         Returns
         -------
         dict
             Dictionary with keys:
-            - "impulse_response" : numpy.ndarray
-            - "source_coordinates" : numpy.ndarray
-            - "receiver_coordinates" : numpy.ndarray
+            - "impulse_response" : :class:`numpy.ndarray`
+            - "source_coordinates" : :class:`numpy.ndarray`
+            - "receiver_coordinates" : :class:`numpy.ndarray`
             - "sampling_rate" : float
         """
         return {
@@ -438,14 +438,14 @@ output_format : str
 
         Parameters
         ----------
-        sofa : sofar.Sofa
+        sofa : :class:`sofar.Sofa`
             SOFA object to write.
-        output_path : Path
+        output_path : :class:`pathlib.Path`
             Path where the .sofa file should be written.
 
         Returns
         -------
-        Path
+        :class:`pathlib.Path`
             Path to the written SOFA file.
         """
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -457,14 +457,14 @@ output_format : str
 
         Parameters
         ----------
-        sofa : sofar.Sofa
+        sofa : :class:`sofar.Sofa`
             SOFA object to convert.
-        output_path : Path
+        output_path : :class:`pathlib.Path`
             Path where the .h5 file should be written.
 
         Returns
         -------
-        Path
+        :class:`pathlib.Path`
             Path to the written HDF5 file.
         """
         import h5py as h5

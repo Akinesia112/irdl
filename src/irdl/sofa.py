@@ -76,14 +76,14 @@ class FabianDataset(BaseDataset):
 
         Parameters
         ----------
-        target_path : Path
+        target_path : :class:`pathlib.Path`
             Target path where the SOFA file should be extracted.
         **kwargs : dict
             Expected keys: kind, hato.
 
         Returns
         -------
-        Path
+        :class:`pathlib.Path`
             Path to the extracted SOFA file.
         """
         base_dir = target_path.parent
@@ -135,12 +135,12 @@ class FabianDataset(BaseDataset):
 
         Parameters
         ----------
-        file_path : Path
+        file_path : :class:`pathlib.Path`
             Path to the SOFA file.
 
         Returns
         -------
-        sofar.Sofa
+        :class:`sofar.Sofa`
             SOFA object containing the dataset data.
         """
         return sf.read_sofa(str(file_path))

@@ -196,49 +196,53 @@ class TestConversionEdgeCases:
 
     def test_pyfar_with_3d_receiver_position(self):
         """Test _to_pyfar with 3D ReceiverPosition array (like FABIAN dataset).
-        
+
         This would have caught the original bug where 3D coordinate arrays
         with shape (N, 3, 1) caused unpacking errors.
         """
         import pyfar as pf
-        
+
         # Create SOFA object with 3D ReceiverPosition (shape: N, 3, 1)
         sofa = sf.Sofa("GeneralFIR")
         sofa.Data_IR = np.random.randn(2, 2, 256).astype(np.float32)
         sofa.Data_SamplingRate = 44100
         sofa.SourcePosition = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]], dtype=np.float64)  # Shape: (2, 3)
-        sofa.ReceiverPosition = np.array([[[0.0], [0.5], [0.0]], [[0.0], [-0.5], [0.0]]], dtype=np.float64)  # Shape: (2, 3, 1)
+        sofa.ReceiverPosition = np.array(
+            [[[0.0], [0.5], [0.0]], [[0.0], [-0.5], [0.0]]], dtype=np.float64
+        )  # Shape: (2, 3, 1)
         sofa.Data_Delay = np.zeros(2, dtype=np.float32)
-        
+
         # This should not raise ValueError about shape mismatch
         result = test_dataset._to_pyfar(sofa)
-        
+
         assert isinstance(result["receiver_coordinates"], pf.Coordinates)
         assert result["receiver_coordinates"].cshape == (2,)  # Should have 2 receivers
 
     def test_pyfar_with_3d_source_position(self):
         """Test _to_pyfar with 3D SourcePosition array.
-        
+
         Ensures both source and receiver 3D arrays are handled.
         """
         import pyfar as pf
-        
+
         # Create SOFA object with 3D SourcePosition (shape: N, 3, 1)
         sofa = sf.Sofa("GeneralFIR")
         sofa.Data_IR = np.random.randn(2, 2, 256).astype(np.float32)
         sofa.Data_SamplingRate = 44100
-        sofa.SourcePosition = np.array([[[0.0], [0.0], [0.0]], [[1.0], [0.0], [0.0]]], dtype=np.float64)  # Shape: (2, 3, 1)
+        sofa.SourcePosition = np.array(
+            [[[0.0], [0.0], [0.0]], [[1.0], [0.0], [0.0]]], dtype=np.float64
+        )  # Shape: (2, 3, 1)
         sofa.ReceiverPosition = np.array([[0.0, 0.5, 0.0], [0.0, -0.5, 0.0]], dtype=np.float64)  # Shape: (2, 3)
         sofa.Data_Delay = np.zeros(2, dtype=np.float32)
-        
+
         result = test_dataset._to_pyfar(sofa)
-        
+
         assert isinstance(result["source_coordinates"], pf.Coordinates)
         assert result["source_coordinates"].cshape == (2,)  # Should have 2 sources
 
     def test_pyfar_with_2d_sampling_rate_array(self):
         """Test _to_pyfar with 2D Data_SamplingRate array (like MIRACLE/SRIRACHA datasets).
-        
+
         This would have caught the bug where multi-dimensional sampling rate
         arrays caused broadcasting errors in pyfar.Signal.
         """
@@ -249,20 +253,20 @@ class TestConversionEdgeCases:
         sofa.SourcePosition = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]], dtype=np.float64)
         sofa.ReceiverPosition = np.array([[0.0, 0.5, 0.0], [0.0, -0.5, 0.0]], dtype=np.float64)
         sofa.Data_Delay = np.zeros(2, dtype=np.float32)
-        
+
         # This should not raise ValueError about broadcasting
         result = test_dataset._to_pyfar(sofa)
-        
+
         # Should extract scalar sampling rate from the array
         assert result["impulse_response"].sampling_rate == 44100
 
     def test_pyfar_with_varying_sampling_rates_warns(self):
         """Test that _to_pyfar warns when multiple different sampling rates are found.
-        
+
         Ensures user is notified when data may be inconsistent.
         """
         import warnings
-        
+
         # Create SOFA object with varying sampling rates
         sofa = sf.Sofa("GeneralFIR")
         sofa.Data_IR = np.random.randn(2, 2, 256).astype(np.float32)
@@ -270,17 +274,17 @@ class TestConversionEdgeCases:
         sofa.SourcePosition = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]], dtype=np.float64)
         sofa.ReceiverPosition = np.array([[0.0, 0.5, 0.0], [0.0, -0.5, 0.0]], dtype=np.float64)
         sofa.Data_Delay = np.zeros(2, dtype=np.float32)
-        
+
         # Should raise UserWarning about multiple sampling rates
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             result = test_dataset._to_pyfar(sofa)
-            
+
             assert len(w) == 1
             assert issubclass(w[0].category, UserWarning)
             assert "Multiple sampling rates found" in str(w[0].message)
             assert "44100" in str(w[0].message) or "48000" in str(w[0].message)
             assert "Using 44100 Hz" in str(w[0].message)  # First unique value is used
-        
+
         # Should still use the first unique value
         assert result["impulse_response"].sampling_rate == 44100
