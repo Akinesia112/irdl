@@ -6,7 +6,7 @@ for all Dataset implementations. Each Dataset subclass must implement:
 - validate_params()
 - download()
 - ingest()
-- _construct_file_name()
+- _source_filename()
 
 The BaseDataset class handles:
 
@@ -16,6 +16,7 @@ The BaseDataset class handles:
 - Output format conversion from SOFA
 """
 
+import warnings
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
@@ -30,25 +31,25 @@ class BaseDataset(ABC):
 
     Subclasses must implement the following abstract methods:
 
-    - name : :class:`str`
+    Attributes
+    ----------
+    name : str
         Unique identifier for the Dataset.
-    - doi : :class:`str`
+    doi : str
         Digital Object Identifier for the Dataset.
-    - validate_params(dataset_kwargs: dict)
-        Validate dataset-specific parameters only (no common params).
-    - download(**kwargs) -> Path
-        Download and return :class:`pathlib.Path` to raw file.
-    - ingest(file_path: Path) -> sofar.Sofa
-        Convert raw file to :class:`sofar.Sofa` object.
-    - get() @classmethod
+
+    Methods
+    -------
+    validate_params(**dataset_kwargs)
+        Validate dataset-specific parameters (including output_format).
+    download(**kwargs) -> Path
+        Download and return Path to raw file.
+    ingest(file_path: Path) -> sofar.Sofa
+        Convert raw file to sofar.Sofa object.
+    _source_filename(**kwargs) -> str
+        Construct the raw input filename with extension.
+    get() @classmethod
         Public entry point with explicit type signature for CLI auto-generation.
-
-    Subclasses may override:
-
-    - validate_output_format(output_format: str, **dataset_kwargs)
-        Dataset-specific validation of output_format in context of dataset params.
-    - _get(**dataset_kwargs)
-        For datasets with special handling (e.g., FABIAN raw output).
     """
 
     name: str
@@ -56,8 +57,6 @@ class BaseDataset(ABC):
 
     # Default docstring prefix for all get() classmethods
     _get_doc_prefix = """Download {name} dataset.
-
-DOI: {doi}
 
 Parameters
 ----------
@@ -76,36 +75,57 @@ output_format : str
         if hasattr(cls, "get") and hasattr(cls, "name") and hasattr(cls, "doi"):
             # Get the underlying function of the classmethod
             get_func = cls.get.__func__
+            # Get the first line of the class docstring for the summary
+            class_doc = cls.__doc__ or ""
+            doc_lines = class_doc.strip().split("\n") if class_doc.strip() else []
+            summary_line = doc_lines[0] if doc_lines else ""
+            # Construct DOI line from cls.doi attribute
+            doi_url = f"https://doi.org/{cls.doi}"
+            doi_cli_line = f"DOI: {doi_url}"
             # Format prefix with class attributes
             prefix = BaseDataset._get_doc_prefix.format(name=cls.name, doi=cls.doi)
-            # Get subclass-specific docstring
+            # If class has a docstring with a summary, replace the first line of prefix
+            if summary_line:
+                # Split prefix into lines and replace the first line
+                prefix_lines = prefix.split("\n")
+                prefix_lines[0] = summary_line
+                # Insert DOI line after the summary
+                prefix_lines.insert(1, "")
+                prefix_lines.insert(2, doi_cli_line)
+                prefix = "\n".join(prefix_lines)
+            # Get subclass-specific docstring (from the base class _get method)
             suffix = get_func.__doc__ or ""
             # Combine: prefix + suffix
             full_doc = prefix
             if suffix:
-                if not full_doc.endswith("\n\n"):
-                    full_doc += "\n\n"
                 full_doc += suffix
             get_func.__doc__ = full_doc
 
-    def _get(self, *, cache_dir: str, export_dir: str | None, output_format: str, **dataset_kwargs) -> Any:
+    def _get(
+        self,
+        cache_dir: Path | str,
+        export_dir: Path | str | None,
+        output_format: str,
+        **dataset_kwargs,
+    ) -> Any:
         """Internal implementation of Dataset retrieval.
 
         Parameters
         ----------
-        cache_dir : str
+        cache_dir : :class:`pathlib.Path` or str
             Cache directory for downloads.
-        export_dir : str, optional
-            Directory for final output.
+        export_dir : :class:`pathlib.Path` or str or None
+            Directory for final output. Default is None (stays in cache_dir).
         output_format : str
             Output format: 'pyfar', 'numpy', 'hdf5', 'sofa', or 'raw'.
-        **dataset_kwargs
+        **dataset_kwargs : dict
             Dataset-specific parameters.
 
         Returns
         -------
-        data : dict or pathlib.Path
-            Returned data depends on output_format.
+        dict or :class:`pathlib.Path`
+            For 'pyfar' / 'numpy': a dict of in-memory objects.
+            For 'sofa' / 'hdf5' / 'raw': a :class:`pathlib.Path` to the file on disk.
         """
         cache_dir = Path(cache_dir)
         export_dir = Path(export_dir) if export_dir else None
@@ -114,69 +134,68 @@ output_format : str
         if output_format not in ("pyfar", "hdf5", "numpy", "sofa", "raw"):
             raise ValueError("output_format must be one of 'pyfar', 'hdf5', 'numpy', 'sofa', 'raw'")
 
-        # Validate dataset-specific parameters
-        self.validate_params(dataset_kwargs)
+        # Validate dataset-specific parameters (including output_format)
+        self.validate_params(output_format=output_format, **dataset_kwargs)
 
-        # Dataset-specific output_format validation (e.g., SRIRACHA raw restrictions)
-        self.validate_output_format(output_format, **dataset_kwargs)
+        # Early exit if output file already exists
+        output_path = self._output_path(output_format, cache_dir, export_dir, **dataset_kwargs)
+        if output_path is not None and output_path.exists():
+            return output_path
 
-        # Steps 2-3: Get the raw file (download if needed)
-        file_path = self._get_file(cache_dir=cache_dir, export_dir=export_dir, **dataset_kwargs)
+        # path to cache file
+        file_path = self._input_path(cache_dir, None, **dataset_kwargs)
+        if not file_path.exists():
+            self.download(file_path, **dataset_kwargs)
 
-        # For raw output, return the file directly without processing
+        # return raw file if requested
         if output_format == "raw":
-            return file_path
-
-        # For non-raw: process the file if needed, then ingest and convert
-        processed_path = self._process(file_path, **dataset_kwargs)
+            if export_dir is None:
+                return file_path
+            else:
+                return self._move_to_export(file_path, export_dir)
+        else:
+            # Process the file if needed (e.g., extraction, merging)
+            processed_path = self._process(file_path, **dataset_kwargs)
 
         # Ingest to SOFA (internal standard)
         sofa = self.ingest(processed_path)
 
         # Convert to requested output format
-        return self._to_output(sofa, output_format, cache_dir, export_dir)
-
-    def validate_output_format(self, output_format: str, **dataset_kwargs) -> None:  # noqa: B027
-        """Validate output_format in the context of dataset-specific parameters.
-
-        Override in subclasses that have output_format restrictions
-        (e.g., SRIRACHA blocks raw for non-dense scenarios).
-
-        Parameters
-        ----------
-        output_format : str
-            The output format to validate.
-        **dataset_kwargs
-            Dataset-specific parameters that may affect validation.
-        """
-        ...
+        return self._to_output(sofa, output_format, output_path)
 
     @abstractmethod
-    def validate_params(self, dataset_kwargs: dict) -> None:
-        """Validate dataset-specific parameters only.
+    def validate_params(self, **dataset_kwargs) -> None:
+        """Validate dataset-specific parameters.
 
-        Override in subclass. This method receives only dataset-specific
-        parameters (scenario, dataset_split, kind, hato, etc.) — common
-        parameters have already been extracted and validated.
+        Override in subclass. This method receives dataset-specific parameters
+        plus ``output_format`` (so subclasses can forbid invalid output_format /
+        dataset-parameter combinations).
 
         Parameters
         ----------
-        dataset_kwargs : dict
-            Dataset-specific parameters to validate.
+        **dataset_kwargs : dict
+            Dataset-specific parameters to validate, including ``output_format``.
+
+        Raises
+        ------
+        ValueError
+            If any parameter is invalid.
         """
         raise NotImplementedError(f"{self.__class__.__name__} must implement validate_params()")
 
     @abstractmethod
-    def download(self, **kwargs) -> Path:
-        """Download raw files and return :class:`pathlib.Path` to the primary file.
+    def download(self, target_path: Path, **kwargs) -> Path:
+        """Download raw files and return Path to the primary file.
 
         Override in subclass.
 
         Parameters
         ----------
-        **kwargs : :class:`dict`
+        target_path : :class:`pathlib.Path`
+            Target path where the file should be downloaded.
+        **kwargs : dict
             Dataset-specific parameters (scenario, kind, hato, etc.).
-            cache_dir and export_dir are NOT in kwargs (handled by get()).
+            cache_dir and export_dir are NOT in kwargs (handled by _get()).
 
         Returns
         -------
@@ -187,14 +206,14 @@ output_format : str
 
     @abstractmethod
     def ingest(self, file_path: Path) -> sf.Sofa:
-        """Convert raw file to :class:`sofar.Sofa` object.
+        """Convert raw file to sofar.Sofa object.
 
         Override in subclass.
 
         Parameters
         ----------
         file_path : :class:`pathlib.Path`
-            Path to the file returned by download().
+            Path to the file returned by _get_file().
 
         Returns
         -------
@@ -203,42 +222,83 @@ output_format : str
         """
         raise NotImplementedError(f"{self.__class__.__name__} must implement ingest()")
 
-    def _get_file(self, cache_dir: Path, export_dir: Path | None, **kwargs) -> Path:
-        """Check cache or download file.
+    @abstractmethod
+    def _source_filename(self, **kwargs) -> str:
+        """Construct the raw input filename with extension for the dataset.
+
+        Override in subclass.
 
         Parameters
         ----------
-        cache_dir : :class:`pathlib.Path`
-            Base cache directory.
-        export_dir : :class:`pathlib.Path` or :class:`None`
-            Optional export directory.
-        **kwargs : :class:`dict`
-            Dataset-specific parameters passed to download().
+        **kwargs : dict
+            Dataset-specific parameters used to construct the filename.
 
         Returns
         -------
-        file_path : :class:`pathlib.Path`
-            Path to the file on disk (either cached or newly downloaded).
+        str
+            The raw input filename including extension (e.g., "A1.h5",
+            "FABIAN_HRIR_measured_HATO_0.sofa").
         """
-        # Construct expected file name based on Dataset (subclass can override)
-        file_name = self._construct_file_name(**kwargs)
-        file_cache = cache_dir / file_name
-        file_export = Path(export_dir) / file_name if export_dir else None
+        raise NotImplementedError(f"{self.__class__.__name__} must implement _source_filename()")
 
-        # Check if file exists in export_dir or cache_dir
-        if file_export is not None and file_export.exists():
-            return file_export
-        if file_cache.exists():
-            return file_cache
+    def _input_path(self, cache_dir: Path, export_dir: Path | None, **kwargs) -> Path:
+        """Return the full path to the raw input file.
 
-        # File not cached - download it
-        downloaded_path = self.download(cache_dir=cache_dir, **kwargs)
+        Parameters
+        ----------
+        cache_dir : Path
+            Cache directory.
+        export_dir : Path or None
+            Optional export directory; takes priority over cache_dir.
+        **kwargs : dict
+            Dataset-specific parameters passed to _source_filename().
 
-        # Move to export_dir if specified
-        if export_dir is not None:
-            return self._move_to_export(downloaded_path, export_dir)
+        Returns
+        -------
+        Path
+            Full path to the raw input file under '<base>/<DATASET_NAME>/'.
+        """
+        base = (export_dir if export_dir is not None else cache_dir) / self.name.upper()
+        return base / self._source_filename(**kwargs)
 
-        return downloaded_path
+    def _output_path(self, output_format: str, cache_dir: Path, export_dir: Path | None, **kwargs) -> Path | None:
+        """Return the canonical Path where a file-based output would be written.
+
+        Returns None for in-memory formats ('pyfar', 'numpy'). Uses _source_filename
+        to construct the base filename, then replaces the extension based on output_format.
+
+        Parameters
+        ----------
+        output_format : str
+            One of 'pyfar', 'numpy', 'hdf5', 'sofa', 'raw'.
+        cache_dir : Path
+            Cache directory.
+        export_dir : Path or None
+            Optional export directory; takes priority over cache_dir.
+        **kwargs : dict
+            Dataset-specific parameters used to construct the filename.
+
+        Returns
+        -------
+        Path or None
+            Canonical output path under '<base>/<DATASET_NAME>/', or None for
+            in-memory formats.
+        """
+        source_filename = Path(self._source_filename(**kwargs))
+
+        # Determine extension based on output format
+        match output_format:
+            case "numpy" | "pyfar":
+                return None
+            case "sofa":
+                suff = ".sofa"
+            case "hdf5":
+                suff = ".h5"
+            case "raw":
+                suff = source_filename.suffix
+
+        base = (export_dir if export_dir is not None else cache_dir) / self.name.upper()
+        return (base / source_filename.stem).with_suffix(suff)
 
     def _process(self, file_path: Path, **kwargs) -> Path:
         """Post-process downloaded file if needed.
@@ -248,74 +308,63 @@ output_format : str
 
         Parameters
         ----------
-        file_path : :class:`pathlib.Path`
+        file_path : Path
             Path to the raw downloaded file.
-        **kwargs : :class:`dict`
+        **kwargs : dict
             Dataset-specific parameters (may be needed for processing decisions).
 
         Returns
         -------
-        file_path : :class:`pathlib.Path`
+        file_path : Path
             Path to the processed file (may be same as input if no processing needed).
         """
         return file_path
-
-    @abstractmethod
-    def _construct_file_name(self, **kwargs) -> str:
-        """Construct the file name for this Dataset.
-
-        Override in subclass if needed.
-
-        Parameters
-        ----------
-        **kwargs : :class:`dict`
-            Dataset-specific parameters used to construct the file name.
-
-        Returns
-        -------
-        :class:`str`
-            The constructed file name.
-        """
 
     def _move_to_export(self, source: Path, export_dir: Path) -> Path:
         """Move file from source to export_dir.
 
         Parameters
         ----------
-        source : :class:`pathlib.Path`
+        source : Path
             Source file path.
-        export_dir : :class:`pathlib.Path`
+        export_dir : Path
             Target export directory.
 
         Returns
         -------
-        :class:`pathlib.Path`
+        Path
             Path to the file in export_dir.
         """
-        from irdl.utils import _move_to_export_dir
+        import shutil
 
-        return _move_to_export_dir(source, str(export_dir))
+        target = Path(export_dir) / source.name
+        # file exists already in export_dir
+        if target.exists():
+            return target
+        # move file from source to export_dir
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(source, target)
 
-    def _to_output(self, sofa: sf.Sofa, output_format: str, cache_dir: Path, export_dir: Path | None) -> Any:
-        """Convert :class:`sofar.Sofa` to the requested output format.
+        return target
+
+    def _to_output(self, sofa: sf.Sofa, output_format: str, output_path: Path | None) -> Any:
+        """Convert sofar.Sofa to the requested output format.
 
         Parameters
         ----------
         sofa : :class:`sofar.Sofa`
             SOFA object to convert.
-        output_format : :class:`str`
+        output_format : str
             One of "pyfar", "numpy", "hdf5", "sofa".
-        cache_dir : :class:`pathlib.Path`
-            Cache directory for file-based outputs.
-        export_dir : :class:`pathlib.Path` or :class:`None`
-            Optional export directory for file-based outputs.
+        output_path : :class:`pathlib.Path` or None
+            Path where file-based outputs should be written.
 
         Returns
         -------
-        :class:`Any`
+        dict or :class:`pathlib.Path`
             Output depends on output_format:
-            - "pyfar" : :class:`dict` of pyfar objects
-            - "numpy" : :class:`dict` of numpy arrays
+            - "pyfar" : dict of :class:`pyfar.Signal` and :class:`pyfar.Coordinates` objects
+            - "numpy" : dict of :class:`numpy.ndarray` arrays
             - "hdf5" : :class:`pathlib.Path` to .h5 file
             - "sofa" : :class:`pathlib.Path` to .sofa file
         """
@@ -324,14 +373,14 @@ output_format : str
         elif output_format == "numpy":
             return self._to_numpy(sofa)
         elif output_format == "sofa":
-            return self._to_sofa(sofa, cache_dir, export_dir)
+            return self._to_sofa(sofa, output_path)
         elif output_format == "hdf5":
-            return self._to_hdf5(sofa, cache_dir, export_dir)
+            return self._to_hdf5(sofa, output_path)
         else:
             raise ValueError(f"Unknown output_format: {output_format}")
 
     def _to_pyfar(self, sofa: sf.Sofa) -> dict:
-        """Convert :class:`sofar.Sofa` to :class:`dict` of pyfar objects.
+        """Convert sofar.Sofa to dict of pyfar objects.
 
         Parameters
         ----------
@@ -340,20 +389,42 @@ output_format : str
 
         Returns
         -------
-        :class:`dict`
+        dict
             Dictionary with keys:
             - "impulse_response" : :class:`pyfar.Signal`
             - "source_coordinates" : :class:`pyfar.Coordinates`
             - "receiver_coordinates" : :class:`pyfar.Coordinates`
         """
+        # Squeeze to remove singleton dimensions before transposing
+        # This handles both 2D (N, 3) and 3D (N, 3, 1) coordinate arrays
+        source_pos = np.squeeze(sofa.SourcePosition)
+        receiver_pos = np.squeeze(sofa.ReceiverPosition)
+
+        # Extract scalar sampling rate (SOFA Data_SamplingRate can be scalar or array)
+        sampling_rate = sofa.Data_SamplingRate
+        if np.ndim(sampling_rate) > 0:
+            # Flatten and get unique values
+            flat_sr = sampling_rate.flatten()
+            unique_sr = np.unique(flat_sr)
+            sampling_rate = unique_sr[0]
+
+            # Warn if there are multiple different sampling rates
+            if len(unique_sr) > 1:
+                warnings.warn(
+                    f"Multiple sampling rates found in SOFA file: {unique_sr}. "
+                    f"Using {sampling_rate} Hz for pyfar Signal.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+
         return {
-            "impulse_response": pf.Signal(sofa.Data_IR, sampling_rate=sofa.Data_SamplingRate),
-            "source_coordinates": pf.Coordinates(*sofa.SourcePosition.T),
-            "receiver_coordinates": pf.Coordinates(*sofa.ReceiverPosition.T),
+            "impulse_response": pf.Signal(sofa.Data_IR, sampling_rate=sampling_rate),
+            "source_coordinates": pf.Coordinates(*source_pos.T),
+            "receiver_coordinates": pf.Coordinates(*receiver_pos.T),
         }
 
     def _to_numpy(self, sofa: sf.Sofa) -> dict:
-        """Convert :class:`sofar.Sofa` to :class:`dict` of numpy arrays.
+        """Convert sofar.Sofa to dict of numpy arrays.
 
         Parameters
         ----------
@@ -362,12 +433,12 @@ output_format : str
 
         Returns
         -------
-        :class:`dict`
+        dict
             Dictionary with keys:
             - "impulse_response" : :class:`numpy.ndarray`
             - "source_coordinates" : :class:`numpy.ndarray`
             - "receiver_coordinates" : :class:`numpy.ndarray`
-            - "sampling_rate" : :class:`float`
+            - "sampling_rate" : float
         """
         return {
             "impulse_response": np.array(sofa.Data_IR),
@@ -376,49 +447,34 @@ output_format : str
             "sampling_rate": float(sofa.Data_SamplingRate),
         }
 
-    def _to_sofa(self, sofa: sf.Sofa, cache_dir: Path, export_dir: Path | None) -> Path:
-        """Write :class:`sofar.Sofa` to file and return :class:`pathlib.Path`.
+    def _to_sofa(self, sofa: sf.Sofa, output_path: Path) -> Path:
+        """Write sofar.Sofa to file and return Path.
 
         Parameters
         ----------
         sofa : :class:`sofar.Sofa`
             SOFA object to write.
-        cache_dir : :class:`pathlib.Path`
-            Cache directory (used if export_dir is None).
-        export_dir : :class:`pathlib.Path` or :class:`None`
-            Optional export directory.
+        output_path : :class:`pathlib.Path`
+            Path where the .sofa file should be written.
 
         Returns
         -------
         :class:`pathlib.Path`
             Path to the written SOFA file.
         """
-        import sofar as sf
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        sf.write_sofa(str(output_path), sofa)
+        return output_path
 
-        # Generate unique file name
-        file_name = f"{self.name}.sofa"
-        if export_dir:
-            path = export_dir / file_name
-        else:
-            path = cache_dir / self.name / file_name
-        path.parent.mkdir(parents=True, exist_ok=True)
-        sf.write_sofa(str(path), sofa)
-        return path
-
-    def _to_hdf5(self, sofa: sf.Sofa, cache_dir: Path, export_dir: Path | None) -> Path:
-        """Convert :class:`sofar.Sofa` to HDF5 file and return :class:`pathlib.Path`.
-
-        TODO: Implement proper conversion to match MIRACLE/SRIRACHA structure.
-        For now, this is a placeholder that writes a basic HDF5 file.
+    def _to_hdf5(self, sofa: sf.Sofa, output_path: Path) -> Path:
+        """Convert sofar.Sofa to HDF5 file and return Path.
 
         Parameters
         ----------
         sofa : :class:`sofar.Sofa`
             SOFA object to convert.
-        cache_dir : :class:`pathlib.Path`
-            Cache directory (used if export_dir is None).
-        export_dir : :class:`pathlib.Path` or :class:`None`
-            Optional export directory.
+        output_path : :class:`pathlib.Path`
+            Path where the .h5 file should be written.
 
         Returns
         -------
@@ -427,14 +483,9 @@ output_format : str
         """
         import h5py as h5
 
-        file_name = f"{self.name}.h5"
-        if export_dir:
-            path = export_dir / file_name
-        else:
-            path = cache_dir / self.name / file_name
-        path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with h5.File(path, "w") as f:
+        with h5.File(output_path, "w") as f:
             # Create data group
             data_group = f.create_group("data")
             data_group.create_dataset("impulse_response", data=sofa.Data_IR)
@@ -449,9 +500,11 @@ output_format : str
             meta_group.create_dataset("sampling_rate", data=sofa.Data_SamplingRate)
 
             # Add other metadata if present
-            if hasattr(sofa, "Data_Temperature"):
+            if hasattr(sofa, "RoomTemperature"):
+                meta_group.create_dataset("temperature", data=sofa.RoomTemperature)
+            elif hasattr(sofa, "Data_Temperature"):
                 meta_group.create_dataset("temperature", data=sofa.Data_Temperature)
             if hasattr(sofa, "Data_Humidity"):
                 meta_group.create_dataset("humidity", data=sofa.Data_Humidity)
 
-        return path
+        return output_path

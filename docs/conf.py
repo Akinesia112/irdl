@@ -52,7 +52,11 @@ numpydoc_show_class_members = False
 intersphinx_mapping = {
     "h5py": ("https://docs.h5py.org/en/stable/", None),
     "numpy": ("https://numpy.org/doc/stable", None),
+    "pathlib": ("https://docs.python.org/3/library/pathlib.html", None),
     "pooch": ("https://www.fatiando.org/pooch/latest", None),
     "pyfar": ("https://pyfar.readthedocs.io/en/stable", None),
     "python": ("https://docs.python.org/3/", None),
+    "rich": ("https://rich.readthedocs.io/en/stable/", None),
+    "sofar": ("https://sofar.readthedocs.io/en/latest/", None),
+    "typer": ("https://typer.tiangolo.com/", None),
 }
