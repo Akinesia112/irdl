@@ -63,5 +63,4 @@ $ irdl --help
 │ sriracha  Download and extract the SRIRACHA database from DepositOnce.                                               │
 │ fabian    Download and extract the FABIAN HRTF Database from DepositOnce.                                            │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
-
 ```
