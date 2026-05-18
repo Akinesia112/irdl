@@ -1,9 +1,12 @@
+"""Utility functions for IRDL."""
+
 import warnings
+from pathlib import Path
 
 import psutil
 
 
-def _fits_in_memory(file_path):
+def _fits_in_memory(file_path: Path) -> bool:
     """Check if a file can be loaded into available RAM.
 
     Needed for pyfar or numpy output formats, which load the entire dataset into memory.
@@ -18,6 +21,10 @@ def _fits_in_memory(file_path):
     fits : bool
         True if the file fits into available RAM with headroom.
 
+    Warnings
+    --------
+    UserWarning
+        If the file does not fit into available RAM.
     """
     file_size = file_path.stat().st_size
     available = psutil.virtual_memory().available

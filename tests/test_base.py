@@ -17,7 +17,7 @@ class TestBaseDatasetAbstract:
     def test_abstract_methods_defined(self):
         """Verify BaseDataset has expected abstract methods."""
         expected_abstract = {
-            "_construct_file_name",
+            "_source_filename",
             "download",
             "ingest",
             "validate_params",
@@ -35,11 +35,9 @@ class TestIstaBaseDatasetAbstract:
 
     def test_inherits_abstract_methods(self):
         """Verify IstaBaseDataset inherits and adds abstract methods."""
-        # IstaBaseDataset should have all BaseDataset abstract methods plus its own
+        # IstaBaseDataset implements _source_filename and ingest, so only download and validate_params are abstract
         expected_abstract = {
-            "_construct_file_name",
             "download",
-            "ingest",
             "validate_params",
         }
         assert IstaBaseDataset.__abstractmethods__ == expected_abstract

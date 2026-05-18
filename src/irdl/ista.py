@@ -6,7 +6,6 @@
 """
 
 from pathlib import Path
-from typing import Any
 
 import h5py as h5
 import numpy as np
@@ -21,6 +20,11 @@ class IstaBaseDataset(BaseDataset):
 
     Both MIRACLE and SRIRACHA share identical HDF5 file structure and can use
     the same ingestion logic to convert HDF5 to SOFA format.
+
+    Attributes
+    ----------
+    room_volume : float
+        Room volume in cubic meters, used for SOFA metadata.
     """
 
     def _source_filename(self, **kwargs) -> str:
@@ -30,19 +34,19 @@ class IstaBaseDataset(BaseDataset):
 
         Parameters
         ----------
-        **kwargs : :class:`dict`
+        **kwargs : dict
             Must contain 'scenario'. May contain 'dataset_split'.
 
         Returns
         -------
-        :class:`str`
+        str
             Filename in format "{scenario}[-{split}].h5".
         """
         scenario = kwargs["scenario"]
         split = kwargs.get("dataset_split")
         return f"{scenario}{('-' + split) if split else ''}.h5"
 
-    def ingest(self, file_path: Path) -> Any:
+    def ingest(self, file_path: Path) -> sf.Sofa:
         """Convert a MIRACLE/SRIRACHA HDF5 file into a SOFA object.
 
         Both datasets share an identical HDF5 layout, so this single
@@ -122,7 +126,17 @@ class IstaBaseDataset(BaseDataset):
 
 
 class MiracleDataset(IstaBaseDataset):
-    """MIRACLE: Microphone Array Impulse Response Dataset for Acoustic Learning."""
+    """MIRACLE: Microphone Array Impulse Response Dataset for Acoustic Learning.
+
+    Attributes
+    ----------
+    name : str
+        Dataset name ("miracle").
+    doi : str
+        Digital Object Identifier ("10.14279/depositonce-20837").
+    room_volume : float
+        Room volume in cubic meters (830).
+    """
 
     name = "miracle"
     doi = "10.14279/depositonce-20837"
@@ -137,16 +151,14 @@ class MiracleDataset(IstaBaseDataset):
         export_dir: str | Path | None = None,
         output_format: str = "pyfar",
     ):
-        """Select a scenario and optional quadrant split.
-
+        """
         scenario : str
             Scenario to download. One of 'A1', 'A2', 'D1', 'R2'.
         dataset_split : str or None, optional
             Artificial dataset split. One of 'C1', 'C2', 'C3', 'C4' or None.
             Dense scenarios (D1) cannot be split.
-        """
-        instance = cls()
-        return instance._get(
+        """ # noqa: D205, D403
+        return cls()._get(
             scenario=scenario,
             dataset_split=dataset_split,
             cache_dir=cache_dir,
@@ -159,7 +171,7 @@ class MiracleDataset(IstaBaseDataset):
 
         Parameters
         ----------
-        **dataset_kwargs
+        **dataset_kwargs : dict
             Must contain 'scenario' (one of 'A1', 'A2', 'D1', 'R2'). May
             contain 'dataset_split' (one of 'C1', 'C2', 'C3', 'C4', or None).
             Scenario 'D1' cannot be split. ``output_format`` is also passed
@@ -168,8 +180,7 @@ class MiracleDataset(IstaBaseDataset):
         Raises
         ------
         ValueError
-            If scenario or split is out of range, or 'D1' is combined with a
-            split.
+            If scenario or split is out of range, or 'D1' is combined with a split.
         """
         scenario = dataset_kwargs["scenario"]
         dataset_split = dataset_kwargs.get("dataset_split")
@@ -181,52 +192,64 @@ class MiracleDataset(IstaBaseDataset):
         if scenario == "D1" and dataset_split is not None:
             raise ValueError("scenario D1 cannot be split")
 
-    def _get_file(self, cache_dir: Path, export_dir: Path | None, **kwargs) -> Path:
-        """Return the path to a MIRACLE HDF5 file, fetching and splitting as needed.
+    def download(self, target_path: Path, **kwargs) -> Path:
+        """Download MIRACLE dataset file.
 
-        Flow:
-
-        1. If the final (possibly split) file is already on disk, return it.
-        2. Otherwise download the full scenario file if missing.
-        3. If a split is requested, extract the corresponding quadrant.
+        Downloads the full scenario HDF5 file. If a split is requested,
+        the split will be extracted in _process().
 
         Parameters
         ----------
-        cache_dir : Path
-            Cache directory.
-        export_dir : Path or None
-            Optional export directory; takes priority over cache_dir for writes.
-        **kwargs
-            Must contain 'scenario'. May contain 'dataset_split'.
+        target_path : Path
+            Target path where the file should be downloaded.
+        **kwargs : dict
+            Must contain 'scenario'. May contain 'dataset_split', 'cache_dir', 'export_dir'.
 
         Returns
         -------
         Path
-            Path to the final HDF5 file, ready for ingest().
+            Path to the downloaded full scenario HDF5 file.
         """
-        scenario = kwargs["scenario"]
-        split = kwargs.get("dataset_split")
-
-        # 1. Final file already on disk? Use _input_path for consistent path construction
-        file_path = self._input_path(cache_dir, export_dir, **kwargs)
-        if file_path.exists():
-            return file_path
-
-        # 2. Need the full scenario file (reuse if present, else fetch)
-        # Construct path for full scenario file (without split)
+        # Download the full scenario file (without split)
         full_kwargs = {**kwargs, "dataset_split": None}
-        full_path = self._input_path(cache_dir, export_dir, **full_kwargs)
+        full_path = target_path.parent / self._source_filename(**full_kwargs)
+
         if not full_path.exists():
             full_path.parent.mkdir(parents=True, exist_ok=True)
             pup = _pooch_from_doi(self.doi, path=full_path.parent)
             _fetch(pup, full_path.name)
 
-        # 3. No split requested -> the full file is the final file
-        if not split:
-            return full_path
+        return full_path
 
-        # 4. Split the full file into the requested quadrant
-        return self._extract_split(full_path, split, full_path.parent)
+    def _process(self, file_path: Path, **kwargs) -> Path:
+        """Post-process MIRACLE file if needed.
+
+        If a dataset_split is requested and the file is the full scenario file,
+        extracts the corresponding quadrant split.
+
+        Parameters
+        ----------
+        file_path : Path
+            Path to the HDF5 file (may be full scenario or already split).
+        **kwargs : dict
+            Must contain 'scenario'. May contain 'dataset_split'.
+
+        Returns
+        -------
+        Path
+            Path to the processed file (split file if extraction was needed).
+        """
+        split = kwargs.get("dataset_split")
+
+        # If no split requested, return file as-is
+        if not split:
+            return file_path
+
+        # Extract the requested split from the full file
+        cache_dir = kwargs.get("cache_dir")
+        export_dir = kwargs.get("export_dir")
+        target_dir = (Path(export_dir) if export_dir else Path(cache_dir)) / self.name.upper()
+        return self._extract_split(file_path, split, target_dir)
 
     def _extract_split(self, file_path: Path, dataset_split: str, cache_dir: Path) -> Path:
         """Extract a dataset split from a full MIRACLE HDF5 file.
@@ -298,7 +321,17 @@ class MiracleDataset(IstaBaseDataset):
 
 
 class SrirachaDataset(IstaBaseDataset):
-    """SRIRACHA: Shoebox Room Impulse Response Archive with Varying Absorption."""
+    """SRIRACHA: Shoebox Room Impulse Response Archive with Varying Absorption.
+
+    Attributes
+    ----------
+    name : str
+        Dataset name ("sriracha").
+    doi : str
+        Digital Object Identifier ("10.14279/depositonce-23943").
+    room_volume : float
+        Room volume in cubic meters (73.5).
+    """
 
     name = "sriracha"
     doi = "10.14279/depositonce-23943"
@@ -313,18 +346,16 @@ class SrirachaDataset(IstaBaseDataset):
         export_dir: str | Path | None = None,
         output_format: str = "pyfar",
     ):
-        """Select a scenario and optional quadrant split.
-
-        scenario : str
+        """
+        scenario : str, optional
             Scenario to download. One of 'SR1', 'SRA1', 'SR1-D', 'SRA1-D',
-            'SR2', 'SRA2', 'SR2-D', 'SRA2-D'.
+            'SR2', 'SRA2', 'SR2-D', 'SRA2-D'. Default is 'SR1-D'.
         dataset_split : str or None, optional
             Optional dataset split for full-plane scenarios. One of 'C1',
             'C2', 'C3', 'C4' or None. Dense scenarios (ending in '-D') do not
-            have splits.
-        """
-        instance = cls()
-        return instance._get(
+            have splits. Default is None.
+        """  # noqa: D205, D403
+        return cls()._get(
             scenario=scenario,
             dataset_split=dataset_split,
             cache_dir=cache_dir,
@@ -337,7 +368,7 @@ class SrirachaDataset(IstaBaseDataset):
 
         Parameters
         ----------
-        **dataset_kwargs
+        **dataset_kwargs : dict
             Must contain 'scenario' (one of 'SR1', 'SRA1', 'SR1-D', 'SRA1-D',
             'SR2', 'SRA2', 'SR2-D', 'SRA2-D'). May contain 'dataset_split'
             (one of 'C1', 'C2', 'C3', 'C4', or None). Dense scenarios
@@ -364,53 +395,98 @@ class SrirachaDataset(IstaBaseDataset):
         if output_format == "raw" and scenario and scenario[-1] != "D" and dataset_split is None:
             raise ValueError("raw output_format not supported for non-dense SRIRACHA scenarios without split")
 
+    def download(self, target_path: Path, **kwargs) -> Path:
+        """Download SRIRACHA dataset file(s).
 
-
-    def _get_file(self, cache_dir: Path, export_dir: Path | None, **kwargs) -> Path:
-        """Return the path to a SRIRACHA HDF5 file, fetching and merging as needed.
-
-        Flow:
-
-        1. If the final file is already on disk, return it.
-        2. For dense scenarios or explicit splits, download a single file.
-        3. For non-dense full-plane scenarios, download the four quadrant
-           files and merge them into one.
+        For dense scenarios or explicit splits, downloads a single file.
+        For non-dense full-plane scenarios, downloads all 4 split files
+        and returns the path to one of them (merging happens in _process).
 
         Parameters
         ----------
-        cache_dir : Path
-            Cache directory.
-        export_dir : Path or None
-            Optional export directory; takes priority over cache_dir for writes.
-        **kwargs
-            Must contain 'scenario'. May contain 'dataset_split'.
+        target_path : Path
+            Target path where the file should be downloaded.
+        **kwargs : dict
+            Must contain 'scenario'. May contain 'dataset_split', 'cache_dir', 'export_dir'.
 
         Returns
         -------
         Path
-            Path to the final HDF5 file, ready for ingest().
+            Path to the downloaded file (or one of the split files for non-dense).
         """
+        target_dir = target_path.parent
+        final_name = target_path.name
         scenario = kwargs["scenario"]
         split = kwargs.get("dataset_split")
 
-        # 1. Final file already on disk? Use _input_path for consistent path construction
-        file_path = self._input_path(cache_dir, export_dir, **kwargs)
-        if file_path.exists():
-            return file_path
-
-        # 2. Need to download/merge
-        target_dir = file_path.parent
-        final_name = file_path.name
-
-        # 2a. Dense scenario or explicit split -> single-file download
+        # Dense scenario or explicit split -> single-file download
         if scenario.endswith("D") or split is not None:
             target_dir.mkdir(parents=True, exist_ok=True)
             pup = _pooch_from_doi(self.doi, path=target_dir)
             _fetch(pup, final_name)
             return target_dir / final_name
 
-        # 2b. Non-dense full plane -> download 4 split files and merge
+        # Non-dense full plane -> download 4 split files
+        # We'll return the path to the first split file; _process will merge all 4
+        return self._download_split_files(scenario, target_dir)
+
+    def _process(self, file_path: Path, **kwargs) -> Path:
+        """Post-process SRIRACHA file if needed.
+
+        For non-dense full-plane scenarios, merges the 4 downloaded split files
+        into a single file.
+
+        Parameters
+        ----------
+        file_path : Path
+            Path to one of the downloaded files.
+        **kwargs : dict
+            Must contain 'scenario'. May contain 'dataset_split', 'cache_dir', 'export_dir'.
+
+        Returns
+        -------
+        Path
+            Path to the processed file (merged file for non-dense, same file otherwise).
+        """
+        scenario = kwargs["scenario"]
+        split = kwargs.get("dataset_split")
+        cache_dir = kwargs.get("cache_dir")
+        export_dir = kwargs.get("export_dir")
+
+        # Dense scenarios and explicit splits don't need merging
+        if scenario.endswith("D") or split is not None:
+            return file_path
+
+        # Non-dense full plane -> merge all 4 split files
+        target_dir = (Path(export_dir) if export_dir else Path(cache_dir)) / self.name.upper()
         return self._download_and_merge(scenario, target_dir)
+
+    def _download_split_files(self, scenario: str, cache_dir: Path) -> Path:
+        """Download the 4 split files for a non-dense SRIRACHA scenario.
+
+        Parameters
+        ----------
+        scenario : str
+            Scenario name (e.g. 'SR1').
+        cache_dir : Path
+            Directory where split files are downloaded.
+
+        Returns
+        -------
+        Path
+            Path to the first split file (C1).
+        """
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        offsets = {"C1": (0, 0), "C2": (0, 1), "C3": (1, 0), "C4": (1, 1)}
+
+        split_files = {}
+        pup = _pooch_from_doi(self.doi, path=cache_dir)
+        for split_name in offsets:
+            fname = f"{scenario}-{split_name}.h5"
+            _fetch(pup, fname)
+            split_files[split_name] = cache_dir / fname
+
+        return split_files["C1"]
 
     def _download_and_merge(self, scenario: str, cache_dir: Path) -> Path:
         """Download four quadrant HDF5 files and merge them into a full-plane file.

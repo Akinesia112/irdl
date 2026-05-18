@@ -30,12 +30,8 @@ def sofa_object():
 
     # Set coordinates: shape (n_positions, 3) where each row is (x, y, z)
     # SOFA uses (M, C) or (I, C) where C=3 for (x, y, z)
-    sofa.SourcePosition = np.array(
-        [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]], dtype=np.float64
-    )  # Shape: (n_sources, 3)
-    sofa.ReceiverPosition = np.array(
-        [[0.0, 0.5, 0.0], [0.0, -0.5, 0.0]], dtype=np.float64
-    )  # Shape: (n_receivers, 3)
+    sofa.SourcePosition = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]], dtype=np.float64)  # Shape: (n_sources, 3)
+    sofa.ReceiverPosition = np.array([[0.0, 0.5, 0.0], [0.0, -0.5, 0.0]], dtype=np.float64)  # Shape: (n_receivers, 3)
 
     # Data_Delay is required for GeneralFIR convention
     sofa.Data_Delay = np.zeros(n_sources, dtype=np.float32)

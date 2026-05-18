@@ -10,7 +10,7 @@ CACHE_DIR = po.os_cache("irdl")
 
 
 class RichProgressBar:
-    """Wraps :class:`rich.progress.Progress` to satisfy the pooch progress bar interface.
+    """Wrap rich.progress.Progress to satisfy the pooch progress bar interface.
 
     Pooch expects an object with a ``total`` attribute and ``update``, ``reset``, and
     ``close`` methods. This class provides that interface backed by a Rich progress bar.
@@ -33,8 +33,14 @@ class RichProgressBar:
         self.total = 0
 
     @property
-    def total(self):
-        """Total download size in bytes."""
+    def total(self) -> int:
+        """Total download size in bytes.
+
+        Returns
+        -------
+        int
+            Total download size in bytes.
+        """
         return self._total
 
     @total.setter
@@ -45,19 +51,22 @@ class RichProgressBar:
             self._progress.update(self._task_id, total=self._total or None)
 
     def update(self, n: int) -> None:
-        """Advance the progress bar by *n* bytes."""
+        """Advance the progress bar by n bytes."""
         if self._task_id is None:
             self._progress.start()
             self._task_id = self._progress.add_task(self._description, total=self.total if self.total else None)
         self._progress.advance(self._task_id, n)
 
     def reset(self) -> None:
-        """Reset the completed byte count to zero (called by pooch before the final fill)."""
+        """Reset the completed byte count to zero.
+
+        Called by pooch before the final fill.
+        """
         if self._task_id is not None:
             self._progress.reset(self._task_id, total=self.total if self.total else None)
 
     def close(self) -> None:
-        """Fill to 100 % and stop the progress display."""
+        """Fill to 100% and stop the progress display."""
         if self._task_id is not None:
             if self.total:
                 self._progress.update(self._task_id, completed=self.total)
@@ -70,14 +79,14 @@ def _fetch(pup: po.Pooch, fname: str) -> str:
 
     Parameters
     ----------
-    pup : :class:`pooch.Pooch`
+    pup : pooch.Pooch
         The Pooch instance managing the registry.
-    fname : :class:`str`
-        The file name to fetch (must be registered in *pup*).
+    fname : str
+        The file name to fetch (must be registered in pup).
 
     Returns
     -------
-    full_path : :class:`str`
+    full_path : str
         The absolute path to the fetched file on disk.
 
     """
@@ -85,19 +94,19 @@ def _fetch(pup: po.Pooch, fname: str) -> str:
     return pup.fetch(fname, progressbar=RichProgressBar(fname, preset_total=preset_total))
 
 
-def _pooch_from_doi(doi, path=CACHE_DIR):
+def _pooch_from_doi(doi: str, path: str = CACHE_DIR) -> po.Pooch:
     """Create a Pooch instance from a DOI.
 
     Parameters
     ----------
-    doi : :class:`str`
+    doi : str
         The DOI of the archive.
-    path : :class:`str`
-        Path to the directory where the data should be stored.
+    path : str, optional
+        Path to the directory where the data should be stored. Default is CACHE_DIR.
 
     Returns
     -------
-    pup : :class:`pooch.Pooch`
+    pup : pooch.Pooch
         The Pooch instance.
 
     """

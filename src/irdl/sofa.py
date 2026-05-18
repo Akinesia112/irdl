@@ -5,11 +5,10 @@ architecture, along with legacy helper functions for backwards compatibility.
 """
 
 from pathlib import Path
-from typing import Any
 from zipfile import ZipFile
 
 import pooch as po
-import sofa as sf
+import sofar as sf
 
 from irdl.base import BaseDataset
 from irdl.downloader import CACHE_DIR, _fetch, _pooch_from_doi
@@ -20,9 +19,9 @@ class FabianDataset(BaseDataset):
 
     Attributes
     ----------
-    name : :class:`str`
+    name : str
         Dataset name ("fabian").
-    doi : :class:`str`
+    doi : str
         Digital Object Identifier ("10.14279/depositonce-5718.5").
     """
 
@@ -34,7 +33,7 @@ class FabianDataset(BaseDataset):
 
         Parameters
         ----------
-        **dataset_kwargs
+        **dataset_kwargs : dict
             Parameters to validate. Expected keys: kind, hato.
 
         Raises
@@ -57,45 +56,37 @@ class FabianDataset(BaseDataset):
 
         Parameters
         ----------
-        **kwargs : :class:`dict`
+        **kwargs : dict
             Expected keys: kind, hato.
 
         Returns
         -------
-        :class:`str`
+        str
             File name in format "FABIAN_HRIR_{kind}_HATO_{hato}.sofa".
         """
         kind = kwargs["kind"]
         hato = kwargs["hato"]
         return f"FABIAN_HRIR_{kind}_HATO_{hato}.sofa"
 
-    def _get_file(self, cache_dir: Path, export_dir: Path | None, **kwargs) -> Path:
-        """Return the path to a FABIAN SOFA file, extracting from ZIP if needed.
+    def download(self, target_path: Path, **kwargs) -> Path:
+        """Download FABIAN dataset and extract the requested SOFA file.
+
+        Downloads the ZIP archive if needed, then extracts the specific SOFA file
+        based on kind and hato parameters.
 
         Parameters
         ----------
-        cache_dir : :class:`pathlib.Path`
-            Base cache directory.
-        export_dir : :class:`pathlib.Path` or :class:`None`
-            Optional export directory; takes priority over cache_dir.
-        **kwargs : :class:`dict`
+        target_path : Path
+            Target path where the SOFA file should be extracted.
+        **kwargs : dict
             Expected keys: kind, hato.
 
         Returns
         -------
-        :class:`pathlib.Path`
-            Path to the SOFA file, ready for ingest().
+        Path
+            Path to the extracted SOFA file.
         """
-        # Get the expected SOFA file path
-        sofa_path = self._input_path(cache_dir, export_dir, **kwargs)
-
-        # Check if SOFA file already exists
-        if sofa_path.exists():
-            return sofa_path
-
-        # Need to download and extract from ZIP
-        base_dir = (export_dir if export_dir is not None else cache_dir) / self.name.upper()
-        base_dir.mkdir(parents=True, exist_ok=True)
+        base_dir = target_path.parent
 
         # Download ZIP if needed
         zipfile_name = "FABIAN_HRTF_DATABASE_v4.zip"
@@ -108,12 +99,12 @@ class FabianDataset(BaseDataset):
         logger = po.get_logger()
         with ZipFile(zip_path, "r") as zf:
             for name in zf.namelist():
-                if name.endswith(sofa_path.name):
+                if name.endswith(target_path.name):
                     zf.getinfo(name).filename = Path(name).name
-                    logger.info(f"Extracting {name} to {sofa_path}")
-                    zf.extract(name, path=sofa_path.parent)
+                    logger.info(f"Extracting {name} to {target_path}")
+                    zf.extract(name, path=base_dir)
 
-        return sofa_path
+        return target_path
 
     @classmethod
     def get(
@@ -124,27 +115,14 @@ class FabianDataset(BaseDataset):
         export_dir: str | Path | None = None,
         output_format: str = "pyfar",
     ):
-        """Download FABIAN dataset.
-
-DOI: 10.14279/depositonce-5718.5
-
-Parameters
-----------
-cache_dir : str
-    Cache directory for downloads. Default: user cache directory.
-export_dir : str, optional
-    Directory for final output. Default: None (stays in cache_dir).
-output_format : str
-    Output format: 'pyfar', 'numpy', 'hdf5', 'sofa', or 'raw'.
-
-kind : str
-    Type of HRTF to download. Either 'measured' or 'modeled'.
-hato : int
-    Head-above-torso-rotation of HRTFs in degrees.
-    One of: 0, 10, 20, 30, 40, 50, 310, 320, 330, 340, 350.
-"""
-        instance = cls()
-        return instance._get(
+        """
+        kind : str, optional
+            Type of HRTF to download. Either 'measured' or 'modeled'. Default is 'measured'.
+        hato : int, optional
+            Head-above-torso-rotation of HRTFs in degrees.
+            One of: 0, 10, 20, 30, 40, 50, 310, 320, 330, 340, 350. Default is 0.
+        """  # noqa: D205, D403
+        return cls()._get(
             kind=kind,
             hato=hato,
             cache_dir=cache_dir,
@@ -153,16 +131,16 @@ hato : int
         )
 
     def ingest(self, file_path: Path) -> sf.Sofa:
-        """Load SOFA file into :class:`sofar.Sofa` object.
+        """Load SOFA file into sofar.Sofa object.
 
         Parameters
         ----------
-        file_path : :class:`pathlib.Path`
+        file_path : Path
             Path to the SOFA file.
 
         Returns
         -------
-        :class:`sofar.Sofa`
+        sofar.Sofa
             SOFA object containing the dataset data.
         """
         return sf.read_sofa(str(file_path))
