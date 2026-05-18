@@ -50,18 +50,18 @@ Once installed, the package provides a convenient command line script which can 
 
 ``` shell
 $ irdl --help
+                                                                                                                        
+ Usage: irdl [OPTIONS] COMMAND [ARGS]...                                                                                
+                                                                                                                        
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ --install-completion          Install completion for the current shell.                                              │
+│ --show-completion             Show completion for the current shell, to copy it or customize the installation.       │
+│ --help                        Show this message and exit.                                                            │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Commands ───────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ miracle   Download and extract the MIRACLE database from DepositOnce.                                                │
+│ sriracha  Download and extract the SRIRACHA database from DepositOnce.                                               │
+│ fabian    Download and extract the FABIAN HRTF Database from DepositOnce.                                            │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 
- Usage: irdl [OPTIONS] COMMAND [ARGS]...                                                
-                                                                                        
-╭─ Options ────────────────────────────────────────────────────────────────────────────╮
-│ --install-completion          Install completion for the current shell.              │
-│ --show-completion             Show completion for the current shell, to copy it or   │
-│                               customize the installation.                            │
-│ --help                        Show this message and exit.                            │
-╰──────────────────────────────────────────────────────────────────────────────────────╯
-╭─ Commands ───────────────────────────────────────────────────────────────────────────╮
-│ fabian    Download and extract the FABIAN HRTF Database v4 from DepositOnce.         │
-│ miracle   Download and extract the MIRACLE database from DepositOnce.                │
-│ sriracha  Download and extract the SRIRACHA database from DepositOnce.               │
-╰──────────────────────────────────────────────────────────────────────────────────────╯
 ```

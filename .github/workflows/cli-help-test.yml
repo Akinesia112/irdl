@@ -22,7 +22,10 @@ jobs:
       - name: Test CLI help consistency
         run: |
           # Get the actual CLI help output from the current code
-          ACTUAL_HELP=$(uv run irdl --help 2>&1)
+          # Disable colors and set fixed width for consistent output
+          export NO_COLOR=1
+          export COLUMNS=120
+          ACTUAL_HELP=$(uv run irdl --help 2>&1 | sed 's/\x1b\[[0-9;]*m//g')
           
           # Extract the CLI help section from README.md
           # Look for the code block containing "Usage: irdl"
@@ -32,7 +35,7 @@ jobs:
           
           while IFS= read -r line; do
             # Check if we're entering a shell code block
-            if [[ "$line" == *'```'*" shell"* ]] || [[ "$line" == *'```'*"shell"* ]]; then
+            if [[ "$line" == *'```'" shell"* ]] || [[ "$line" == *'```'"shell"* ]]; then
               IN_BLOCK=1
               FOUND_CLI=0
               continue
