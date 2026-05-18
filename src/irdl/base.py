@@ -6,8 +6,7 @@ for all Dataset implementations. Each Dataset subclass must implement:
 - validate_params()
 - download()
 - ingest()
-- _construct_file_name()
-- _output_path()
+- _source_filename()
 
 The BaseDataset class handles:
 
@@ -41,10 +40,8 @@ class BaseDataset(ABC):
         Download and return :class:`pathlib.Path` to raw file.
     - ingest(file_path: Path) -> sofar.Sofa
         Convert raw file to :class:`sofar.Sofa` object.
-    - _construct_file_name(**kwargs) -> str
-        Construct the file name for raw input files.
-    - _output_path(output_format, cache_dir, export_dir, **kwargs) -> Path or None
-        Canonical path for output files; None for in-memory formats.
+    - _source_filename(**kwargs) -> str
+        Construct the raw input filename with extension.
     - get() @classmethod
         Public entry point with explicit type signature for CLI auto-generation.
     """
@@ -195,11 +192,49 @@ output_format : str
         raise NotImplementedError(f"{self.__class__.__name__} must implement ingest()")
 
     @abstractmethod
+    def _source_filename(self, **kwargs) -> str:
+        """Construct the raw input filename with extension for the dataset.
+
+        Override in subclass.
+
+        Parameters
+        ----------
+        **kwargs : :class:`dict`
+            Dataset-specific parameters used to construct the filename.
+
+        Returns
+        -------
+        :class:`str`
+            The raw input filename including extension (e.g., "A1.h5", "FABIAN_HRIR_measured_HATO_0.sofa").
+        """
+        raise NotImplementedError(f"{self.__class__.__name__} must implement _source_filename()")
+
+    def _input_path(self, cache_dir: Path, export_dir: Path | None, **kwargs) -> Path:
+        """Return the full path to the raw input file.
+
+        Parameters
+        ----------
+        cache_dir : :class:`pathlib.Path`
+            Cache directory.
+        export_dir : :class:`pathlib.Path` or :class:`None`
+            Optional export directory; takes priority over cache_dir.
+        **kwargs : :class:`dict`
+            Dataset-specific parameters passed to _source_filename().
+
+        Returns
+        -------
+        :class:`pathlib.Path`
+            Full path to the raw input file under '<base>/<DATASET_NAME>/'.
+        """
+        filename = self._source_filename(**kwargs)
+        base = (export_dir if export_dir is not None else cache_dir) / self.name.upper()
+        return base / filename
+
     def _output_path(self, output_format: str, cache_dir: Path, export_dir: Path | None, **kwargs) -> Path | None:
         """Return the canonical Path where a file-based output would be written.
 
-        Returns None for in-memory formats ('pyfar', 'numpy'). Subclasses
-        override to encode dataset-specific naming for file-based formats.
+        Returns None for in-memory formats ('pyfar', 'numpy'). Uses _source_filename
+        to construct the base filename, then replaces the extension based on output_format.
 
         Parameters
         ----------
@@ -210,14 +245,33 @@ output_format : str
         export_dir : Path or None
             Optional export directory; takes priority over cache_dir.
         **kwargs
-            Dataset-specific parameters used to construct the file name.
+            Dataset-specific parameters used to construct the filename.
 
         Returns
         -------
         Path or None
-            Canonical output path, or None for in-memory formats.
+            Canonical output path under '<base>/<DATASET_NAME>/', or None for
+            in-memory formats.
         """
-        raise NotImplementedError(f"{self.__class__.__name__} must implement _output_path()")
+        if output_format in ("pyfar", "numpy"):
+            return None
+
+        source_filename = self._source_filename(**kwargs)
+        stem = Path(source_filename).stem
+
+        # Determine extension based on output format
+        if output_format == "sofa":
+            ext = ".sofa"
+        elif output_format == "hdf5":
+            ext = ".h5"
+        elif output_format == "raw":
+            # Keep original extension for raw output
+            ext = Path(source_filename).suffix
+        else:
+            return None
+
+        base = (export_dir if export_dir is not None else cache_dir) / self.name.upper()
+        return base / f"{stem}{ext}"
 
     def _get_file(self, cache_dir: Path, export_dir: Path | None, **kwargs) -> Path:
         """Check cache or download file.
@@ -236,10 +290,10 @@ output_format : str
         file_path : :class:`pathlib.Path`
             Path to the file on disk (either cached or newly downloaded).
         """
-        # Construct expected file name based on Dataset (subclass must implement)
-        file_name = self._construct_file_name(**kwargs)
-        file_cache = cache_dir / file_name
-        file_export = Path(export_dir) / file_name if export_dir else None
+        # Get the full input path (subclass must implement _source_filename)
+        file_path = self._input_path(cache_dir, export_dir, **kwargs)
+        file_cache = file_path
+        file_export = file_path if export_dir is not None else None
 
         # Check if file exists in export_dir or cache_dir
         if file_export is not None and file_export.exists():
@@ -276,23 +330,7 @@ output_format : str
         """
         return file_path
 
-    @abstractmethod
-    def _construct_file_name(self, **kwargs) -> str:
-        """Construct the file name for raw input files.
 
-        Override in subclass.
-
-        Parameters
-        ----------
-        **kwargs : :class:`dict`
-            Dataset-specific parameters used to construct the file name.
-
-        Returns
-        -------
-        :class:`str`
-            The constructed file name.
-        """
-        raise NotImplementedError(f"{self.__class__.__name__} must implement _construct_file_name()")
 
     def _lookup(self, file_name: str, cache_dir: Path, export_dir: Path | None) -> Path | None:
         """Return the path if the file exists in export_dir or cache_dir, else None.

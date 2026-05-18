@@ -50,36 +50,10 @@ class FabianDataset(BaseDataset):
         if hato not in [0, 10, 20, 30, 40, 50, 310, 320, 330, 340, 350]:
             raise ValueError("hato must be one of [0, 10, 20, 30, 40, 50, 310, 320, 330, 340, 350]")
 
-    def _output_path(self, output_format: str, cache_dir: Path, export_dir: Path | None, **kwargs) -> Path | None:
-        """Construct the output path for a FABIAN file-based output.
+    def _source_filename(self, **kwargs) -> str:
+        """Construct the raw input filename with extension.
 
-        Parameters
-        ----------
-        output_format : str
-            One of 'sofa', 'hdf5', 'raw'. Other formats return None.
-        cache_dir : Path
-            Cache directory.
-        export_dir : Path or None
-            Optional export directory; takes priority over cache_dir.
-        **kwargs
-            Must contain 'kind' and 'hato'.
-
-        Returns
-        -------
-        Path or None
-            Canonical output path under '<base>/FABIAN/', or None for in-memory formats.
-        """
-        if output_format not in ("sofa", "hdf5", "raw"):
-            return None
-        ext = ".sofa" if output_format == "sofa" else ".h5"
-        kind = kwargs["kind"]
-        hato = kwargs["hato"]
-        name = f"FABIAN_HRIR_{kind}_HATO_{hato}{ext}"
-        base = (export_dir if export_dir is not None else cache_dir) / "FABIAN"
-        return base / name
-
-    def _construct_file_name(self, **kwargs) -> str:
-        """Construct file name based on kind and hato parameters.
+        For FABIAN, this is the SOFA file that gets extracted from the ZIP archive.
 
         Parameters
         ----------
@@ -95,65 +69,49 @@ class FabianDataset(BaseDataset):
         hato = kwargs["hato"]
         return f"FABIAN_HRIR_{kind}_HATO_{hato}.sofa"
 
-    def download(self, **kwargs) -> Path:
-        """Download FABIAN ZIP archive.
+    def _get_file(self, cache_dir: Path, export_dir: Path | None, **kwargs) -> Path:
+        """Return the path to a FABIAN SOFA file, extracting from ZIP if needed.
 
         Parameters
         ----------
-        **kwargs : :class:`dict`
-            Expected keys: kind, hato, cache_dir.
-
-        Returns
-        -------
-        :class:`pathlib.Path`
-            Path to the downloaded ZIP file.
-        """
-        cache_dir = Path(kwargs.get("cache_dir", CACHE_DIR)) / "FABIAN"
-        cache_dir.mkdir(parents=True, exist_ok=True)
-
-        zipfile_name = "FABIAN_HRTF_DATABASE_v4.zip"
-        zip_path = cache_dir / zipfile_name
-
-        # Download ZIP archive if not exists
-        if not zip_path.exists():
-            pup = _pooch_from_doi(self.doi, path=cache_dir)
-            _fetch(pup, zipfile_name)
-
-        return zip_path
-
-    def _process(self, file_path: Path, **kwargs) -> Path:
-        """Extract SOFA file from FABIAN ZIP archive.
-
-        Parameters
-        ----------
-        file_path : :class:`pathlib.Path`
-            Path to the ZIP file.
+        cache_dir : :class:`pathlib.Path`
+            Base cache directory.
+        export_dir : :class:`pathlib.Path` or :class:`None`
+            Optional export directory; takes priority over cache_dir.
         **kwargs : :class:`dict`
             Expected keys: kind, hato.
 
         Returns
         -------
         :class:`pathlib.Path`
-            Path to the extracted SOFA file.
+            Path to the SOFA file, ready for ingest().
         """
-        kind = kwargs["kind"]
-        hato = kwargs["hato"]
-        cache_dir = file_path.parent
-        base_name = f"FABIAN_HRIR_{kind}_HATO_{hato}"
-        sofa_path = cache_dir / f"{base_name}.sofa"
+        # Get the expected SOFA file path
+        sofa_path = self._input_path(cache_dir, export_dir, **kwargs)
 
         # Check if SOFA file already exists
         if sofa_path.exists():
             return sofa_path
 
+        # Need to download and extract from ZIP
+        base_dir = (export_dir if export_dir is not None else cache_dir) / self.name.upper()
+        base_dir.mkdir(parents=True, exist_ok=True)
+
+        # Download ZIP if needed
+        zipfile_name = "FABIAN_HRTF_DATABASE_v4.zip"
+        zip_path = base_dir / zipfile_name
+        if not zip_path.exists():
+            pup = _pooch_from_doi(self.doi, path=base_dir)
+            _fetch(pup, zipfile_name)
+
         # Extract SOFA file from ZIP
         logger = po.get_logger()
-        with ZipFile(file_path, "r") as zf:
+        with ZipFile(zip_path, "r") as zf:
             for name in zf.namelist():
                 if name.endswith(sofa_path.name):
                     zf.getinfo(name).filename = Path(name).name
                     logger.info(f"Extracting {name} to {sofa_path}")
-                    zf.extract(name, path=cache_dir)
+                    zf.extract(name, path=sofa_path.parent)
 
         return sofa_path
 

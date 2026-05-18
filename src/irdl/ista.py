@@ -23,6 +23,25 @@ class IstaBaseDataset(BaseDataset):
     the same ingestion logic to convert HDF5 to SOFA format.
     """
 
+    def _source_filename(self, **kwargs) -> str:
+        """Construct the raw input filename with extension.
+
+        Shared implementation for MIRACLE and SRIRACHA datasets.
+
+        Parameters
+        ----------
+        **kwargs : :class:`dict`
+            Must contain 'scenario'. May contain 'dataset_split'.
+
+        Returns
+        -------
+        :class:`str`
+            Filename in format "{scenario}[-{split}].h5".
+        """
+        scenario = kwargs["scenario"]
+        split = kwargs.get("dataset_split")
+        return f"{scenario}{('-' + split) if split else ''}.h5"
+
     def ingest(self, file_path: Path) -> Any:
         """Convert a MIRACLE/SRIRACHA HDF5 file into a SOFA object.
 
@@ -135,35 +154,6 @@ class MiracleDataset(IstaBaseDataset):
             output_format=output_format,
         )
 
-    def _output_path(self, output_format, cache_dir, export_dir, **kwargs):
-        """Construct the output path for a MIRACLE file-based output.
-
-        Parameters
-        ----------
-        output_format : str
-            One of 'sofa', 'hdf5', 'raw'. Other formats return None.
-        cache_dir : Path
-            Cache directory.
-        export_dir : Path or None
-            Optional export directory; takes priority over cache_dir.
-        **kwargs
-            Must contain 'scenario'. May contain 'dataset_split'.
-
-        Returns
-        -------
-        Path or None
-            Canonical output path under '<base>/MIRACLE/', or None for
-            in-memory formats.
-        """
-        if output_format not in ("sofa", "hdf5", "raw"):
-            return None
-        ext = ".sofa" if output_format == "sofa" else ".h5"
-        scenario = kwargs["scenario"]
-        split = kwargs.get("dataset_split")
-        name = f"{scenario}{('-' + split) if split else ''}{ext}"
-        base = (export_dir if export_dir is not None else cache_dir) / "MIRACLE"
-        return base / name
-
     def validate_params(self, **dataset_kwargs) -> None:
         """Validate MIRACLE-specific parameters.
 
@@ -214,33 +204,29 @@ class MiracleDataset(IstaBaseDataset):
         Path
             Path to the final HDF5 file, ready for ingest().
         """
-        cache_dir = cache_dir / "MIRACLE"
-        export_dir = export_dir / "MIRACLE" if export_dir is not None else None
-        target_dir = export_dir if export_dir is not None else cache_dir
         scenario = kwargs["scenario"]
         split = kwargs.get("dataset_split")
 
-        # 1. Final file already on disk?
-        final_name = f"{scenario}-{split}.h5" if split else f"{scenario}.h5"
-        cached = self._lookup(final_name, cache_dir, export_dir)
-        if cached is not None:
-            return cached
+        # 1. Final file already on disk? Use _input_path for consistent path construction
+        file_path = self._input_path(cache_dir, export_dir, **kwargs)
+        if file_path.exists():
+            return file_path
 
         # 2. Need the full scenario file (reuse if present, else fetch)
-        full_name = f"{scenario}.h5"
-        full_path = self._lookup(full_name, cache_dir, export_dir)
-        if full_path is None:
-            target_dir.mkdir(parents=True, exist_ok=True)
-            pup = _pooch_from_doi(self.doi, path=target_dir)
-            _fetch(pup, full_name)
-            full_path = target_dir / full_name
+        # Construct path for full scenario file (without split)
+        full_kwargs = {**kwargs, "dataset_split": None}
+        full_path = self._input_path(cache_dir, export_dir, **full_kwargs)
+        if not full_path.exists():
+            full_path.parent.mkdir(parents=True, exist_ok=True)
+            pup = _pooch_from_doi(self.doi, path=full_path.parent)
+            _fetch(pup, full_path.name)
 
         # 3. No split requested -> the full file is the final file
         if not split:
             return full_path
 
         # 4. Split the full file into the requested quadrant
-        return self._extract_split(full_path, split, target_dir)
+        return self._extract_split(full_path, split, full_path.parent)
 
     def _extract_split(self, file_path: Path, dataset_split: str, cache_dir: Path) -> Path:
         """Extract a dataset split from a full MIRACLE HDF5 file.
@@ -378,34 +364,7 @@ class SrirachaDataset(IstaBaseDataset):
         if output_format == "raw" and scenario and scenario[-1] != "D" and dataset_split is None:
             raise ValueError("raw output_format not supported for non-dense SRIRACHA scenarios without split")
 
-    def _output_path(self, output_format, cache_dir, export_dir, **kwargs):
-        """Construct the output path for a SRIRACHA file-based output.
 
-        Parameters
-        ----------
-        output_format : str
-            One of 'sofa', 'hdf5', 'raw'. Other formats return None.
-        cache_dir : Path
-            Cache directory.
-        export_dir : Path or None
-            Optional export directory; takes priority over cache_dir.
-        **kwargs
-            Must contain 'scenario'. May contain 'dataset_split'.
-
-        Returns
-        -------
-        Path or None
-            Canonical output path under '<base>/SRIRACHA/', or None for
-            in-memory formats.
-        """
-        if output_format not in ("sofa", "hdf5", "raw"):
-            return None
-        ext = ".sofa" if output_format == "sofa" else ".h5"
-        scenario = kwargs["scenario"]
-        split = kwargs.get("dataset_split")
-        name = f"{scenario}{('-' + split) if split else ''}{ext}"
-        base = (export_dir if export_dir is not None else cache_dir) / "SRIRACHA"
-        return base / name
 
     def _get_file(self, cache_dir: Path, export_dir: Path | None, **kwargs) -> Path:
         """Return the path to a SRIRACHA HDF5 file, fetching and merging as needed.
@@ -431,17 +390,17 @@ class SrirachaDataset(IstaBaseDataset):
         Path
             Path to the final HDF5 file, ready for ingest().
         """
-        cache_dir = cache_dir / "SRIRACHA"
-        export_dir = export_dir / "SRIRACHA" if export_dir is not None else None
-        target_dir = export_dir if export_dir is not None else cache_dir
         scenario = kwargs["scenario"]
         split = kwargs.get("dataset_split")
 
-        # 1. Final file already on disk?
-        final_name = f"{scenario}-{split}.h5" if split else f"{scenario}.h5"
-        cached = self._lookup(final_name, cache_dir, export_dir)
-        if cached is not None:
-            return cached
+        # 1. Final file already on disk? Use _input_path for consistent path construction
+        file_path = self._input_path(cache_dir, export_dir, **kwargs)
+        if file_path.exists():
+            return file_path
+
+        # 2. Need to download/merge
+        target_dir = file_path.parent
+        final_name = file_path.name
 
         # 2a. Dense scenario or explicit split -> single-file download
         if scenario.endswith("D") or split is not None:
