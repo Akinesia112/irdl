@@ -12,7 +12,7 @@ import numpy as np
 import sofar as sf
 
 from irdl.base import BaseDataset
-from irdl.downloader import CACHE_DIR, _fetch, _pooch_from_doi
+from irdl.downloader import IRDL_CACHE_DIR, _fetch, _pooch_from_doi
 
 
 class IstaBaseDataset(BaseDataset):
@@ -147,7 +147,7 @@ class MiracleDataset(IstaBaseDataset):
         cls,
         scenario: str = "A1",
         dataset_split: str | None = None,
-        cache_dir: str | Path = CACHE_DIR,
+        cache_dir: str | Path = IRDL_CACHE_DIR,
         export_dir: str | Path | None = None,
         output_format: str = "pyfar",
     ):
@@ -348,7 +348,7 @@ class SrirachaDataset(IstaBaseDataset):
         cls,
         scenario: str = "SR1-D",
         dataset_split: str | None = None,
-        cache_dir: str | Path = CACHE_DIR,
+        cache_dir: str | Path = IRDL_CACHE_DIR,
         export_dir: str | Path | None = None,
         output_format: str = "pyfar",
     ):

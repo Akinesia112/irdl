@@ -11,7 +11,7 @@ import pooch as po
 import sofar as sf
 
 from irdl.base import BaseDataset
-from irdl.downloader import CACHE_DIR, _fetch, _pooch_from_doi
+from irdl.downloader import IRDL_CACHE_DIR, _fetch, _pooch_from_doi
 
 
 class FabianDataset(BaseDataset):
@@ -111,7 +111,7 @@ class FabianDataset(BaseDataset):
         cls,
         kind: str = "measured",
         hato: int = 0,
-        cache_dir: str | Path = CACHE_DIR,
+        cache_dir: str | Path = IRDL_CACHE_DIR,
         export_dir: str | Path | None = None,
         output_format: str = "pyfar",
     ):

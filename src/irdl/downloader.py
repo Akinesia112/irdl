@@ -6,7 +6,7 @@ from rich.progress import BarColumn, DownloadColumn, Progress, TextColumn, TimeR
 from irdl.repositories import doi_to_repository
 
 #: The cache directory for storage of the temporary downloads. Defaults to the user cache directory.
-CACHE_DIR = po.os_cache("irdl")
+IRDL_CACHE_DIR = po.os_cache("irdl")
 
 
 class RichProgressBar:
@@ -94,7 +94,7 @@ def _fetch(pup: po.Pooch, fname: str) -> str:
     return pup.fetch(fname, progressbar=RichProgressBar(fname, preset_total=preset_total))
 
 
-def _pooch_from_doi(doi: str, path: str = CACHE_DIR) -> po.Pooch:
+def _pooch_from_doi(doi: str, path: str = IRDL_CACHE_DIR) -> po.Pooch:
     """Create a Pooch instance from a DOI.
 
     Parameters
@@ -102,7 +102,7 @@ def _pooch_from_doi(doi: str, path: str = CACHE_DIR) -> po.Pooch:
     doi : str
         The DOI of the archive.
     path : str, optional
-        Path to the directory where the data should be stored. Default is CACHE_DIR.
+        Path to the directory where the data should be stored. Default is IRDL_CACHE_DIR.
 
     Returns
     -------
