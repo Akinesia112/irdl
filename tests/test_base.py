@@ -35,7 +35,8 @@ class TestIstaBaseDatasetAbstract:
 
     def test_inherits_abstract_methods(self):
         """Verify IstaBaseDataset inherits and adds abstract methods."""
-        # IstaBaseDataset implements _source_filename and _ingest, so only _download and _validate_params are abstract
+        # IstaBaseDataset implements _source_filename and _ingest,
+        # so only _download and _validate_params are abstract
         expected_abstract = {
             "_download",
             "_validate_params",
