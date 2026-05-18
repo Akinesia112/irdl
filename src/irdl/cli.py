@@ -69,7 +69,7 @@ for name in irdl.__all__:
     # Set the modified signature on the underlying function
     get_method.__func__.__signature__ = sig.replace(parameters=new_params)
 
-    # Build help text (DOI already included in docstring via __init_subclass__)
+    # Build help text from docstring
     help_text = doc["Summary"][0] + "\n\n" + " ".join(doc["Extended Summary"])
 
     # Register subcommand using dataset_class.name for the command name

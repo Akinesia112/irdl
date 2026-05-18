@@ -58,8 +58,6 @@ class BaseDataset(ABC):
     # Default docstring prefix for all get() classmethods
     _get_doc_prefix = """Download {name} dataset.
 
-DOI: {doi}
-
 Parameters
 ----------
 cache_dir : str
@@ -77,9 +75,25 @@ output_format : str
         if hasattr(cls, "get") and hasattr(cls, "name") and hasattr(cls, "doi"):
             # Get the underlying function of the classmethod
             get_func = cls.get.__func__
+            # Get the first line of the class docstring for the summary
+            class_doc = cls.__doc__ or ""
+            doc_lines = class_doc.strip().split("\n") if class_doc.strip() else []
+            summary_line = doc_lines[0] if doc_lines else ""
+            # Construct DOI line from cls.doi attribute
+            doi_url = f"https://doi.org/{cls.doi}"
+            doi_cli_line = f"DOI: {doi_url}"
             # Format prefix with class attributes
             prefix = BaseDataset._get_doc_prefix.format(name=cls.name, doi=cls.doi)
-            # Get subclass-specific docstring
+            # If class has a docstring with a summary, replace the first line of prefix
+            if summary_line:
+                # Split prefix into lines and replace the first line
+                prefix_lines = prefix.split("\n")
+                prefix_lines[0] = summary_line
+                # Insert DOI line after the summary
+                prefix_lines.insert(1, "")
+                prefix_lines.insert(2, doi_cli_line)
+                prefix = "\n".join(prefix_lines)
+            # Get subclass-specific docstring (from the base class _get method)
             suffix = get_func.__doc__ or ""
             # Combine: prefix + suffix
             full_doc = prefix

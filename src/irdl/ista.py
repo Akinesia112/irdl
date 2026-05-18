@@ -126,7 +126,7 @@ class IstaBaseDataset(BaseDataset):
 
 
 class MiracleDataset(IstaBaseDataset):
-    """MIRACLE: Microphone Array Impulse Response Dataset for Acoustic Learning.
+    """Download and extract the MIRACLE database from DepositOnce.
 
     Attributes
     ----------
@@ -321,7 +321,7 @@ class MiracleDataset(IstaBaseDataset):
 
 
 class SrirachaDataset(IstaBaseDataset):
-    """SRIRACHA: Shoebox Room Impulse Response Archive with Varying Absorption.
+    """Download and extract the SRIRACHA database from DepositOnce.
 
     Attributes
     ----------

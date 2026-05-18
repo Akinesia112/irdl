@@ -15,7 +15,7 @@ from irdl.downloader import CACHE_DIR, _fetch, _pooch_from_doi
 
 
 class FabianDataset(BaseDataset):
-    """Implement FABIAN HRTF Database Dataset.
+    """Download and extract the FABIAN HRTF Database from DepositOnce.
 
     Attributes
     ----------
