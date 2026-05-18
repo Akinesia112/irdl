@@ -19,6 +19,7 @@ The BaseDataset class handles:
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
+import warnings
 
 import numpy as np
 import pyfar as pf
@@ -380,10 +381,32 @@ output_format : str
             - "source_coordinates" : pyfar.Coordinates
             - "receiver_coordinates" : pyfar.Coordinates
         """
+        # Squeeze to remove singleton dimensions before transposing
+        # This handles both 2D (N, 3) and 3D (N, 3, 1) coordinate arrays
+        source_pos = np.squeeze(sofa.SourcePosition)
+        receiver_pos = np.squeeze(sofa.ReceiverPosition)
+        
+        # Extract scalar sampling rate (SOFA Data_SamplingRate can be scalar or array)
+        sampling_rate = sofa.Data_SamplingRate
+        if np.ndim(sampling_rate) > 0:
+            # Flatten and get unique values
+            flat_sr = sampling_rate.flatten()
+            unique_sr = np.unique(flat_sr)
+            sampling_rate = unique_sr[0]
+            
+            # Warn if there are multiple different sampling rates
+            if len(unique_sr) > 1:
+                warnings.warn(
+                    f"Multiple sampling rates found in SOFA file: {unique_sr}. "
+                    f"Using {sampling_rate} Hz for pyfar Signal.",
+                    UserWarning,
+                    stacklevel=2
+                )
+        
         return {
-            "impulse_response": pf.Signal(sofa.Data_IR, sampling_rate=sofa.Data_SamplingRate),
-            "source_coordinates": pf.Coordinates(*sofa.SourcePosition.T),
-            "receiver_coordinates": pf.Coordinates(*sofa.ReceiverPosition.T),
+            "impulse_response": pf.Signal(sofa.Data_IR, sampling_rate=sampling_rate),
+            "source_coordinates": pf.Coordinates(*source_pos.T),
+            "receiver_coordinates": pf.Coordinates(*receiver_pos.T),
         }
 
     def _to_numpy(self, sofa: sf.Sofa) -> dict:
