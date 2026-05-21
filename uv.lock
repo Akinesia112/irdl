@@ -542,6 +542,7 @@ dependencies = [
     { name = "psutil" },
     { name = "pyfar" },
     { name = "rich" },
+    { name = "sofar" },
     { name = "typer" },
 ]
 
@@ -577,6 +578,7 @@ requires-dist = [
     { name = "psutil", specifier = ">=7.0.0" },
     { name = "pyfar", specifier = ">=0.7.3" },
     { name = "rich", specifier = ">=13.0.0" },
+    { name = "sofar", specifier = ">=1.2.3" },
     { name = "typer", specifier = ">=0.17.4" },
 ]
 
