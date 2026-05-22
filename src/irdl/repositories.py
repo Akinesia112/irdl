@@ -33,7 +33,6 @@ from time import sleep
 
 import pooch as po
 import requests
-from pooch import get_logger
 from pooch.downloaders import (
     DataRepository,
     DataverseRepository,
@@ -45,6 +44,8 @@ from pooch.utils import parse_url
 from requests.adapters import HTTPAdapter
 from requests.exceptions import ConnectionError, Timeout
 from urllib3.util.retry import Retry
+
+from irdl.logger import logger
 
 # Separate connect vs. read timeout: DepositOnce can be slow to accept connections.
 DEFAULT_TIMEOUT = (60, 30)  # (connect_timeout_s, read_timeout_s)
@@ -250,7 +251,6 @@ def doi_to_repository(doi: str) -> DataRepository:
     ]
 
     # Extract the DOI and the repository information
-    logger = get_logger()
     archive_url = None
     for attempt in range(MAX_RETRIES):
         try:
@@ -260,7 +260,7 @@ def doi_to_repository(doi: str) -> DataRepository:
             wait = BACKOFF_FACTOR * (2 ** attempt)
             if attempt == 0:
                 logger.warning("Server is slow to respond, retrying with exponential backoff...")
-            logger.debug(f"  Attempt {attempt + 1}/{MAX_RETRIES} failed ({type(e).__name__}), waiting {wait:.0f}s")
+            logger.debug(f"Attempt {attempt + 1}/{MAX_RETRIES} failed ({type(e).__name__}), waiting {wait:.0f}s")
             if attempt < MAX_RETRIES - 1:
                 sleep(wait)
 

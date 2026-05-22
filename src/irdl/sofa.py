@@ -10,6 +10,7 @@ from zipfile import ZipFile
 import pooch as po
 import sofar as sf
 
+from irdl.logger import logger
 from irdl.base import BaseDataset
 from irdl.downloader import IRDL_CACHE_DIR, _fetch, _pooch_from_doi
 
@@ -91,18 +92,22 @@ class FabianDataset(BaseDataset):
         # Download ZIP if needed
         zipfile_name = "FABIAN_HRTF_DATABASE_v4.zip"
         zip_path = base_dir / zipfile_name
-        if not zip_path.exists():
+        if zip_path.exists():
+            logger.info(f"FABIAN ZIP archive already cached at {zip_path}, skipping download")
+        else:
             pup = _pooch_from_doi(self.doi, path=base_dir)
             _fetch(pup, zipfile_name)
 
         # Extract SOFA file from ZIP
-        logger = po.get_logger()
-        with ZipFile(zip_path, "r") as zf:
-            for name in zf.namelist():
-                if name.endswith(target_path.name):
-                    zf.getinfo(name).filename = Path(name).name
-                    logger.info(f"Extracting {name} to {target_path}")
-                    zf.extract(name, path=base_dir)
+        if target_path.exists():
+            logger.info(f"FABIAN SOFA file already exists at {target_path}, skipping extraction")
+        else:
+            with ZipFile(zip_path, "r") as zf:
+                for name in zf.namelist():
+                    if name.endswith(target_path.name):
+                        zf.getinfo(name).filename = Path(name).name
+                        logger.info(f"Extracting {name} to {target_path}")
+                        zf.extract(name, path=base_dir)
 
         return target_path
 

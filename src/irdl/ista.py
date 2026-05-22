@@ -11,6 +11,7 @@ import h5py as h5
 import numpy as np
 import sofar as sf
 
+from irdl.logger import logger
 from irdl.base import BaseDataset
 from irdl.downloader import IRDL_CACHE_DIR, _fetch, _pooch_from_doi
 
@@ -220,7 +221,10 @@ class MiracleDataset(IstaBaseDataset):
         full_kwargs = {**kwargs, "dataset_split": None}
         full_path = target_path.parent / self._source_filename(**full_kwargs)
 
-        if not full_path.exists():
+        if full_path.exists():
+            logger.info(f"MIRACLE scenario {kwargs['scenario']} already cached at {full_path}, skipping download")
+        else:
+            logger.info(f"Downloading MIRACLE scenario {kwargs['scenario']}")
             full_path.parent.mkdir(parents=True, exist_ok=True)
             pup = _pooch_from_doi(self.doi, path=full_path.parent)
             _fetch(pup, full_path.name)
@@ -249,6 +253,7 @@ class MiracleDataset(IstaBaseDataset):
 
         # If no split requested, return file as-is
         if not split:
+            logger.debug(f"No split requested for {file_path.name}, returning as-is")
             return file_path
 
         # Extract the requested split from the full file
@@ -277,6 +282,7 @@ class MiracleDataset(IstaBaseDataset):
         :class:`pathlib.Path`
             Path to the extracted split HDF5 file.
         """
+        logger.info(f"Extracting split {dataset_split} from {file_path.name}")
         cache_dir.mkdir(parents=True, exist_ok=True)
         # Load full data from HDF5
         with h5.File(file_path, "r") as f:
@@ -433,13 +439,19 @@ class SrirachaDataset(IstaBaseDataset):
 
         # Dense scenario or explicit split -> single-file download
         if scenario.endswith("D") or split is not None:
-            target_dir.mkdir(parents=True, exist_ok=True)
-            pup = _pooch_from_doi(self.doi, path=target_dir)
-            _fetch(pup, final_name)
-            return target_dir / final_name
+            target_path_full = target_dir / final_name
+            if target_path_full.exists():
+                logger.info(f"SRIRACHA scenario {scenario} already cached at {target_path_full}, skipping download")
+            else:
+                logger.info(f"Downloading SRIRACHA scenario {scenario}")
+                target_dir.mkdir(parents=True, exist_ok=True)
+                pup = _pooch_from_doi(self.doi, path=target_dir)
+                _fetch(pup, final_name)
+            return target_path_full
 
         # Non-dense full plane -> download 4 split files
         # We'll return the path to the first split file; _process will merge all 4
+        logger.info(f"Downloading SRIRACHA scenario {scenario} (4 split files)")
         return self._download_split_files(scenario, target_dir)
 
     def _process(self, file_path: Path, **kwargs) -> Path:
@@ -467,6 +479,7 @@ class SrirachaDataset(IstaBaseDataset):
 
         # Dense scenarios and explicit splits don't need merging
         if scenario.endswith("D") or split is not None:
+            logger.debug(f"Scenario {scenario} with split={split} doesn't need merging, returning as-is")
             return file_path
 
         # Non-dense full plane -> merge all 4 split files

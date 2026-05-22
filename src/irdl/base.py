@@ -24,6 +24,8 @@ import numpy as np
 import pyfar as pf
 import sofar as sf
 
+from irdl.logger import logger
+
 
 class BaseDataset(ABC):
     """Abstract base class providing common interface for all Dataset implementations.
@@ -60,9 +62,9 @@ class BaseDataset(ABC):
 Parameters
 ----------
 cache_dir : str
-    Cache directory for downloads. Default: user cache directory.
+    Cache directory for downloads.
 export_dir : str, optional
-    Directory for final output. Default: None (stays in cache_dir).
+    Directory for final output. Stays in cache_dir if not specified.
 output_format : str
     Output format: 'pyfar', 'numpy', 'hdf5', 'sofa', or 'raw'.
 """
@@ -134,32 +136,52 @@ output_format : str
             raise ValueError("output_format must be one of 'pyfar', 'hdf5', 'numpy', 'sofa', 'raw'")
 
         # Validate dataset-specific parameters (including output_format)
+        logger.debug(f"Validating parameters for {self.name}")
         self._validate_params(output_format=output_format, **dataset_kwargs)
 
         # Early exit if output file already exists
         output_path = self._output_path(output_format, cache_dir, export_dir, **dataset_kwargs)
         if output_path is not None and output_path.exists():
+            logger.info(f"Output file already exists at {output_path}, skipping download and conversion.")
             return output_path
 
         # path to cache file
         file_path = self._input_path(cache_dir, None, **dataset_kwargs)
-        if not file_path.exists():
+        if file_path.exists():
+            logger.info(f"Cache file already exists at {file_path}, skipping download.")
+        else:
+            logger.info(f"Getting {self.name.upper()} dataset to {file_path}.")
             self._download(file_path, **dataset_kwargs)
 
         # return raw file if requested
         if output_format == "raw":
             if export_dir is None:
+                logger.debug(f"Returning raw file at {file_path}.")
                 return file_path
             else:
                 return self._move_to_export(file_path, export_dir)
         else:
             # Process the file if needed (e.g., extraction, merging)
+            logger.debug(f"Processing {file_path}")
             processed_path = self._process(file_path, **dataset_kwargs)
 
         # Ingest to SOFA (internal standard)
+        logger.debug(f"Ingesting {processed_path} to SOFA format. Nom nom ...")
         sofa = self._ingest(processed_path)
 
+        # We check for correctness here. This gives instant feedback when adding new datasets.
+        try:
+            sofa.verify(issue_handling="raise")
+            with logger.as_stdout:
+                sofa.upgrade_convention()
+        except ValueError as e:
+            logger.error(
+                f"SOFA convention not satisfied!\n{e}\nSee https://sofar.readthedocs.io/en/stable/resources/conventions.html#conventions for details."
+            )
+            return
+
         # Convert to requested output format
+        logger.debug(f"Converting to {output_format} format")
         return self._to_output(sofa, output_format, output_path)
 
     @abstractmethod
@@ -391,7 +413,11 @@ output_format : str
             - "receiver_coordinates" : :class:`pyfar.Coordinates`
         """
         return dict(
-            zip(("impulse_response", "source_coordinates", "receiver_coordinates"), pf.io.convert_sofa(sofa), strict=True)
+            zip(
+                ("impulse_response", "source_coordinates", "receiver_coordinates"),
+                pf.io.convert_sofa(sofa),
+                strict=True,
+            )
         )
 
     def _to_numpy(self, sofa: sf.Sofa) -> dict:

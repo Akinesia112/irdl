@@ -1,9 +1,10 @@
 """Utility functions for IRDL."""
 
-import warnings
 from pathlib import Path
 
 import psutil
+
+from irdl.logger import logger
 
 
 def _fits_in_memory(file_path: Path) -> bool:
@@ -31,11 +32,10 @@ def _fits_in_memory(file_path: Path) -> bool:
     if file_size < available * 0.9:  # Headroom
         return True
     else:
-        warnings.warn(
+        logger.warning(
             f"Dataset too large for available memory "
             f"({file_size / 1e9:.1f} GB needed, "
             f"{available / 1e9:.1f} GB available). "
-            f"Returning HDF5 file path instead.",
-            stacklevel=2,
+            f"Returning HDF5 file path instead."
         )
         return False

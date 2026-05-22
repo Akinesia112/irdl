@@ -2,13 +2,18 @@
 
 import pathlib
 import types
-from inspect import signature
+from inspect import isabstract, signature
 from typing import Annotated, Optional, Union, get_args, get_origin
 
 import typer
 from numpydoc.docscrape import FunctionDoc
 
 import irdl
+from irdl.base import BaseDataset
+from irdl.logger import configure_cli_logging, logger
+
+# Configure CLI logging
+configure_cli_logging()
 
 
 def _resolve_union_type(annotation):
@@ -34,49 +39,69 @@ def _resolve_union_type(annotation):
     return annotation
 
 
+def _get_dataset_classes():
+    """Auto-detect all concrete dataset classes that inherit from BaseDataset."""
+    dataset_classes = []
+    for name in dir(irdl):
+        obj = getattr(irdl, name)
+        if (
+            isinstance(obj, type)
+            and issubclass(obj, BaseDataset)
+            and not isabstract(obj)
+            and hasattr(obj, "name")
+            and hasattr(obj, "doi")
+        ):
+            dataset_classes.append(obj)
+    return dataset_classes
+
+
 # Typer app that can be invoked by calling ``irdl`` from the CLI.
 app = typer.Typer(no_args_is_help=True)
 
 # Automatically register all supported datasets as subcommands to the app.
-for name in irdl.__all__:
-    dataset_class = getattr(irdl, name)
+for dataset_class in _get_dataset_classes():
     get_method = dataset_class.get
 
     # Get docstring and signature from the classmethod
     doc = FunctionDoc(get_method)
-    # For classmethods, we need to get the signature from __func__ to include the cls parameter
-    # This ensures that when we set the modified signature back, it maintains the correct structure
     sig = signature(get_method.__func__)
 
     # Build Typer parameters with help text from docstring
-    # Match parameters by name to handle docstring composition ordering
     param_docs = {p.name: " ".join(p.desc).replace("`", "") for p in doc["Parameters"]}
-
-    # Build new parameters list, preserving cls for classmethods
-    new_params = []
-    for name, p in sig.parameters.items():
-        if name == "cls":
-            # Keep cls parameter as-is (no typer.Option annotation)
-            new_params.append(p)
-        else:
-            # Add typer.Option annotation to dataset-specific parameters
-            new_params.append(
-                p.replace(
-                    annotation=Annotated[_resolve_union_type(p.annotation), typer.Option(help=param_docs.get(name, ""))]
-                )
-            )
-
-    # Set the modified signature on the underlying function
-    get_method.__func__.__signature__ = sig.replace(parameters=new_params)
 
     # Build help text from docstring
     help_text = doc["Summary"][0] + "\n\n" + " ".join(doc["Extended Summary"])
+
+    # Create a wrapper function with proper Typer annotations
+    def make_wrapper(cls, method, params, help_text, dataset_name, param_docs):
+        def wrapper(**kwargs):
+            return method.__func__(cls, **kwargs)
+        
+        # Build the signature for the wrapper
+        new_params = []
+        for name, p in params.items():
+            if name == "cls":
+                continue
+            resolved_type = _resolve_union_type(p.annotation)
+            # Don't pass default to typer.Option - it's already in the parameter
+            new_params.append(
+                p.replace(
+                    annotation=Annotated[resolved_type, typer.Option(help=param_docs.get(name, ""))]
+                )
+            )
+        
+        wrapper.__signature__ = signature(wrapper).replace(parameters=new_params)
+        wrapper.__doc__ = help_text
+        wrapper.__name__ = f"{dataset_name}_wrapper"
+        return wrapper
+    
+    wrapper = make_wrapper(dataset_class, get_method, sig.parameters, help_text, dataset_class.name, param_docs)
 
     # Register subcommand using dataset_class.name for the command name
     app.command(
         name=dataset_class.name,
         help=help_text,
-    )(get_method)
+    )(wrapper)
 
 # expose click object for sphinx_click autodoc feature.
 typer_click_object = typer.main.get_command(app)
