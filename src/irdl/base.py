@@ -151,7 +151,7 @@ output_format : str
             logger.info(f"Cache file already exists at {file_path}, skipping download.")
         else:
             logger.info(f"Getting {self.name.upper()} dataset to {file_path}.")
-            file_path  = self._download(file_path, **dataset_kwargs)
+            file_path = self._download(file_path, **dataset_kwargs)
 
         # return raw file if requested
         if output_format == "raw":
@@ -163,7 +163,7 @@ output_format : str
         else:
             # Process the file if needed (e.g., extraction, merging)
             logger.debug(f"Processing {file_path}")
-            processed_path = self._process(file_path, **dataset_kwargs)
+            processed_path = self._process(file_path, cache_dir=cache_dir, export_dir=export_dir, **dataset_kwargs)
 
         # Ingest to SOFA (internal standard)
         logger.debug(f"Ingesting {processed_path} to SOFA format. Nom nom ...")
