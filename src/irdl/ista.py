@@ -195,7 +195,7 @@ class MiracleDataset(IstaBaseDataset):
         if scenario not in ["A1", "A2", "D1", "R2"]:
             raise ValueError("scenario must be one of ['A1', 'A2', 'D1', 'R2']")
         if dataset_split not in [None, "C1", "C2", "C3", "C4"]:
-            raise ValueError("dataset_split must be None or in [C1, C2, C3, C4]")
+            raise ValueError("dataset_split must be None or one ['C1', 'C2', 'C3', 'C4']")
         if scenario == "D1" and dataset_split is not None:
             raise ValueError("scenario D1 cannot be split")
 
@@ -221,14 +221,10 @@ class MiracleDataset(IstaBaseDataset):
         full_kwargs = {**kwargs, "dataset_split": None}
         full_path = target_path.parent / self._source_filename(**full_kwargs)
 
-        if full_path.exists():
-            logger.info(f"MIRACLE scenario {kwargs['scenario']} already cached at {full_path}, skipping download")
-        else:
-            logger.info(f"Downloading MIRACLE scenario {kwargs['scenario']}")
-            full_path.parent.mkdir(parents=True, exist_ok=True)
-            pup = _pooch_from_doi(self.doi, path=full_path.parent)
-            _fetch(pup, full_path.name)
-
+        logger.info(f"Downloading MIRACLE scenario {kwargs['scenario']}")
+        full_path.parent.mkdir(parents=True, exist_ok=True)
+        pup = _pooch_from_doi(self.doi, path=full_path.parent)
+        _fetch(pup, full_path.name)
         return full_path
 
     def _process(self, file_path: Path, **kwargs) -> Path:
@@ -440,19 +436,16 @@ class SrirachaDataset(IstaBaseDataset):
         # Dense scenario or explicit split -> single-file download
         if scenario.endswith("D") or split is not None:
             target_path_full = target_dir / final_name
-            if target_path_full.exists():
-                logger.info(f"SRIRACHA scenario {scenario} already cached at {target_path_full}, skipping download")
-            else:
-                logger.info(f"Downloading SRIRACHA scenario {scenario}")
-                target_dir.mkdir(parents=True, exist_ok=True)
-                pup = _pooch_from_doi(self.doi, path=target_dir)
-                _fetch(pup, final_name)
+            logger.info(f"Downloading SRIRACHA scenario {scenario}")
+            target_dir.mkdir(parents=True, exist_ok=True)
+            pup = _pooch_from_doi(self.doi, path=target_dir)
+            _fetch(pup, final_name)
             return target_path_full
-
         # Non-dense full plane -> download 4 split files
         # We'll return the path to the first split file; _process will merge all 4
-        logger.info(f"Downloading SRIRACHA scenario {scenario} (4 split files)")
-        return self._download_split_files(scenario, target_dir)
+        else:
+            logger.info(f"Downloading SRIRACHA scenario {scenario} (4 split files)")
+            return self._download_split_files(scenario, target_dir)
 
     def _process(self, file_path: Path, **kwargs) -> Path:
         """Post-process SRIRACHA file if needed.
@@ -481,10 +474,10 @@ class SrirachaDataset(IstaBaseDataset):
         if scenario.endswith("D") or split is not None:
             logger.debug(f"Scenario {scenario} with split={split} doesn't need merging, returning as-is")
             return file_path
-
         # Non-dense full plane -> merge all 4 split files
-        target_dir = (Path(export_dir) if export_dir else Path(cache_dir)) / self.name.upper()
-        return self._download_and_merge(scenario, target_dir)
+        else:
+            target_dir = (Path(export_dir) if export_dir else Path(cache_dir)) / self.name.upper()
+            return self._download_and_merge(scenario, target_dir)
 
     def _download_split_files(self, scenario: str, cache_dir: Path) -> Path:
         """Download the 4 split files for a non-dense SRIRACHA scenario.
@@ -502,11 +495,9 @@ class SrirachaDataset(IstaBaseDataset):
             Path to the first split file (C1).
         """
         cache_dir.mkdir(parents=True, exist_ok=True)
-        offsets = {"C1": (0, 0), "C2": (0, 1), "C3": (1, 0), "C4": (1, 1)}
-
         split_files = {}
         pup = _pooch_from_doi(self.doi, path=cache_dir)
-        for split_name in offsets:
+        for split_name in ["C1", "C2", "C3", "C4"]:
             fname = f"{scenario}-{split_name}.h5"
             _fetch(pup, fname)
             split_files[split_name] = cache_dir / fname
