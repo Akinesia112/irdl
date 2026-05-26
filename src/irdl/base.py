@@ -151,7 +151,7 @@ output_format : str
             logger.info(f"Cache file already exists at {file_path}, skipping download.")
         else:
             logger.info(f"Getting {self.name.upper()} dataset to {file_path}.")
-            self._download(file_path, **dataset_kwargs)
+            file_path  = self._download(file_path, **dataset_kwargs)
 
         # return raw file if requested
         if output_format == "raw":
