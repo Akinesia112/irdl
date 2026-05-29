@@ -56,3 +56,4 @@ The supported datasets are available as subcommands, i.e.
    Available Datasets <datasets>
    CLI Reference <cli_ref>
    API Reference <api_ref>
+   Changelog <https://github.com/artpelling/irdl/blob/main/CHANGELOG.md>

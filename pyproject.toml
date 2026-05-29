@@ -8,7 +8,8 @@ authors = [
     { name = "Siavash Zaid", email = "siavash.zaid@campus.tu-berlin.de" },
 ]
 requires-python = ">=3.11"
-license = {file = "LICENSE"}
+license = "MIT"
+license-files = ["LICENSE"]
 keywords = [
     "impulse response",
     "downloader",
@@ -17,11 +18,11 @@ keywords = [
     "acoustics",
     "benchmark",
 ]
+
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Education",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -64,26 +65,17 @@ irdl = "irdl.cli:app"
 
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["uv-build>=0.11.17,<0.12"]
+build-backend = "uv_build"
 
-[tool.hatch.build.targets.sdist]
-include = ["irdl"]
-
-[tool.hatch.build.targets.wheel]
-package = ["irdl"]
-
+[tool.uv.build-backend]
+source-include = ["CHANGELOG.md", "LICENSE", "README.md"]
 
 [[tool.uv.index]]
 name = "pypi"
 url = "https://pypi.org/simple/"
 publish-url = "https://upload.pypi.org/legacy/"
 explicit = true
-
-
-[tool.basedpyright]
-venv = ".venv"
-typeCheckingMode = 'off'
 
 
 [tool.ruff]
