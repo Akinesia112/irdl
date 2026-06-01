@@ -10,9 +10,9 @@ The package can be included in a Python script as simple as:
 
 .. code-block:: python
 
-  from irdl import get_fabian
+  from irdl import FabianDataset
 
-  data = get_fabian(kind='measured', hato=10)
+  data = FabianDataset.get(kind='measured', hato=10)
   print(data)
 
 

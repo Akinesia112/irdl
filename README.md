@@ -18,6 +18,7 @@ Python package to download, unpack and process impulse response datasets in a un
 ## Links
 - [Documentation](https://artpelling.github.io/irdl/)
 - [Installation instructions](https://artpelling.github.io/irdl/installation.html)
+- [Tutorial: Adding a Dataset](https://artpelling.github.io/irdl/tutorial.html)
 - [Available datasets](https://artpelling.github.io/irdl/datasets.html)
 - [CLI-Reference](https://artpelling.github.io/irdl/cli_ref.html)
 - [Changelog](https://github.com/artpelling/irdl/blob/main/CHANGELOG.md)
@@ -27,9 +28,9 @@ Python package to download, unpack and process impulse response datasets in a un
 The package can be included in a Python script as simple as:
 
 ``` python
-from irdl import get_fabian
+from irdl import FabianDataset
 
-data = get_fabian(kind='measured', hato=10)
+data = FabianDataset.get(kind='measured', hato=10)
 print(data)
 ```
 
