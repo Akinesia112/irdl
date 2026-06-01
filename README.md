@@ -20,7 +20,7 @@ Python package to download, unpack and process impulse response datasets in a un
 - [Installation instructions](https://artpelling.github.io/irdl/installation.html)
 - [Tutorial: Adding a Dataset](https://artpelling.github.io/irdl/tutorial.html)
 - [Available datasets](https://artpelling.github.io/irdl/datasets.html)
-- [CLI-Reference](https://artpelling.github.io/irdl/cli_ref.html)
+- [Reference (CLI & API)](https://artpelling.github.io/irdl/reference.html)
 - [Changelog](https://github.com/artpelling/irdl/blob/main/CHANGELOG.md)
 
 ## Usage (Python API)

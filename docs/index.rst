@@ -37,6 +37,7 @@ Once installed, the package provides a convenient command line script which can 
 .. literalinclude:: cli-help.txt
   :caption: Output:
   :language: bash
+  :encoding: utf-8
 
 The supported datasets are available as subcommands, i.e.
 
@@ -47,6 +48,7 @@ The supported datasets are available as subcommands, i.e.
 .. literalinclude:: cli-miracle-help.txt
   :caption: Output:
   :language: bash
+  :encoding: utf-8
 
 
 .. toctree::
@@ -54,6 +56,5 @@ The supported datasets are available as subcommands, i.e.
 
    Installation <installation>
    Available Datasets <datasets>
-   CLI Reference <cli_ref>
-   API Reference <api_ref>
+   Reference <reference>
    Changelog <https://github.com/artpelling/irdl/blob/main/CHANGELOG.md>
