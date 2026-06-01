@@ -29,6 +29,36 @@ class FabianDataset(BaseDataset):
     name = "fabian"
     doi = "10.14279/depositonce-5718.5"
 
+    @classmethod
+    def get(
+        cls,
+        kind: str = "measured",
+        hato: int = 0,
+        cache_dir: str | Path = IRDL_CACHE_DIR,
+        export_dir: str | Path | None = None,
+        output_format: str = "pyfar",
+    ):
+        """
+        kind : str, optional
+            Type of HRTF to download. Either 'measured' or 'modeled'. Default is 'measured'.
+        hato : int, optional
+            Head-above-torso-rotation of HRTFs in degrees.
+            One of: 0, 10, 20, 30, 40, 50, 310, 320, 330, 340, 350. Default is 0.
+
+        Returns
+        -------
+        dict or Path
+            For 'pyfar' / 'numpy': dict of in-memory objects.
+            For 'sofa' / 'hdf5' / 'raw': Path to file on disk.
+        """  # noqa: D205, D403
+        return cls()._get(
+            kind=kind,
+            hato=hato,
+            cache_dir=cache_dir,
+            export_dir=export_dir,
+            output_format=output_format,
+        )
+
     def _validate_params(self, **dataset_kwargs) -> None:
         """Validate FABIAN-specific parameters.
 
@@ -110,36 +140,6 @@ class FabianDataset(BaseDataset):
                         zf.extract(name, path=base_dir)
 
         return target_path
-
-    @classmethod
-    def get(
-        cls,
-        kind: str = "measured",
-        hato: int = 0,
-        cache_dir: str | Path = IRDL_CACHE_DIR,
-        export_dir: str | Path | None = None,
-        output_format: str = "pyfar",
-    ):
-        """
-        kind : str, optional
-            Type of HRTF to download. Either 'measured' or 'modeled'. Default is 'measured'.
-        hato : int, optional
-            Head-above-torso-rotation of HRTFs in degrees.
-            One of: 0, 10, 20, 30, 40, 50, 310, 320, 330, 340, 350. Default is 0.
-
-        Returns
-        -------
-        dict or Path
-            For 'pyfar' / 'numpy': dict of in-memory objects.
-            For 'sofa' / 'hdf5' / 'raw': Path to file on disk.
-        """  # noqa: D205, D403
-        return cls()._get(
-            kind=kind,
-            hato=hato,
-            cache_dir=cache_dir,
-            export_dir=export_dir,
-            output_format=output_format,
-        )
 
     def _ingest(self, file_path: Path) -> sf.Sofa:
         """Load SOFA file into sofar.Sofa object.
