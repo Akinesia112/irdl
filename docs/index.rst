@@ -6,6 +6,9 @@ Python package to download, unpack and process impulse response datasets in a un
 Usage (Python API)
 ------------------
 
+.. _python-api-reference:
+
+
 The package can be included in a Python script as simple as:
 
 .. code-block:: python
@@ -15,6 +18,7 @@ The package can be included in a Python script as simple as:
   data = FabianDataset.get(kind='measured', hato=10)
   print(data)
 
+Will output:
 
 .. code-block:: bash
 
@@ -25,10 +29,15 @@ The package can be included in a Python script as simple as:
    'source_coordinates': 1D Coordinates object with 11950 points of cshape (11950,)
   Does not contain sampling weights}
 
+For more details, see the :ref:`python-api-reference` section.
+
+
 Usage (CLI)
 -----------
 
 Once installed, the package provides a convenient command line script which can be invoked with ``irdl``.
+
+.. _cli-reference:
 
 .. code-block:: bash
 
@@ -50,6 +59,7 @@ The supported datasets are available as subcommands, i.e.
   :language: bash
   :encoding: utf-8
 
+For more details, see the :ref:`cli-reference` section.
 
 .. toctree::
    :hidden:
@@ -57,4 +67,5 @@ The supported datasets are available as subcommands, i.e.
    Installation <installation>
    Available Datasets <datasets>
    Reference <reference>
+   Contributing <contributing>
    Changelog <https://github.com/artpelling/irdl/blob/main/CHANGELOG.md>

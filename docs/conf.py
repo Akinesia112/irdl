@@ -44,7 +44,6 @@ html_theme_options = {
 }
 html_sidebars = {
     "installation": [],
-    "cli_ref": [],
 }
 
 # sphinx_copybutton config
@@ -54,7 +53,7 @@ copybutton_prompt_is_regexp = True
 autodoc_default_options = {
     "members": True,
     "undoc-members": False,
-    "exclude-members": "make_wrapper,wrapper",
+    "exclude-members": "make_wrapper,wrapper,_abc_impl",
     "private-members": True,
     "show-inheritance": True,
 }

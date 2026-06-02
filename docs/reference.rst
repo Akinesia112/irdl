@@ -1,10 +1,16 @@
 Reference
 =========
 
+.. _reference:
+
+.. _python-api-reference:
+
 Python API
 ----------
 
 .. currentmodule:: irdl
+
+.. _dataset-modules-ref:
 
 Dataset modules
 ~~~~~~~~~~~~~~~
@@ -15,6 +21,8 @@ Dataset modules
    base
    ista
    sofa
+
+.. _internal-modules-ref:
 
 Internal modules
 ~~~~~~~~~~~~~~~~
@@ -28,6 +36,8 @@ Internal modules
   repositories
   utils
 
+
+.. _cli-reference:
 
 Command Line Interface
 ------------------------

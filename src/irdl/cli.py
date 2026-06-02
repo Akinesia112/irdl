@@ -1,4 +1,4 @@
-"""Automatic generation of a Typer script for all datasets that can be used for download."""
+"""Automagic generation of a Typer script for all dataset downloads."""
 
 import pathlib
 import types

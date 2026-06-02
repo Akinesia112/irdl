@@ -1,6 +1,10 @@
 Available Datasets
 ==================
 
+.. admonition:: Your favourite dataset is not listed?
+
+         Have a look at the guide to :doc:`adding_dataset` !
+
 .. currentmodule:: irdl
 
 Room impulse responses
