@@ -53,7 +53,8 @@ copybutton_prompt_is_regexp = True
 
 autodoc_default_options = {
     "members": True,
-    "undoc-members": True,
+    "undoc-members": False,
+    "exclude-members": "make_wrapper,wrapper",
     "private-members": True,
     "show-inheritance": True,
 }

@@ -7,12 +7,11 @@ architecture, along with legacy helper functions for backwards compatibility.
 from pathlib import Path
 from zipfile import ZipFile
 
-import pooch as po
 import sofar as sf
 
-from irdl.logger import logger
 from irdl.base import BaseDataset
 from irdl.downloader import IRDL_CACHE_DIR, _fetch, _pooch_from_doi
+from irdl.logging import logger
 
 
 class FabianDataset(BaseDataset):

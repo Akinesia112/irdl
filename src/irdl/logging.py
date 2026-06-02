@@ -6,8 +6,6 @@ This module provides centralized logging setup for the irdl package using Rich.
 import io
 import logging
 import sys
-from contextlib import contextmanager
-from typing import Generator, Optional
 
 from rich.console import Console
 from rich.logging import RichHandler
@@ -40,16 +38,16 @@ logger.setLevel(logging.INFO)
 
 class StdoutCapture:
     """Context manager to capture stdout and log it."""
-    
+
     def __init__(self, logger_instance: logging.Logger = logger):
         self.logger = logger_instance
-    
+
     def __enter__(self) -> io.StringIO:
         self.old_stdout = sys.stdout
         self.capture_buffer = io.StringIO()
         sys.stdout = self.capture_buffer
         return self.capture_buffer
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         sys.stdout = self.old_stdout
         output = self.capture_buffer.getvalue()
@@ -75,24 +73,26 @@ def configure_cli_logging():
 # Make pooch use irdl's logger
 try:
     import pooch as po
+
     pooch_logger = po.get_logger()
-    
+
     # Remove pooch's existing handlers
     for handler in pooch_logger.handlers[:]:
         pooch_logger.removeHandler(handler)
-    
+
     # Add a handler that forwards to irdl's logger
     class LoggerForwarder(logging.Handler):
         """Forward log records to a target logger."""
+
         def __init__(self, target_logger):
             super().__init__()
             self.target_logger = target_logger
-        
+
         def emit(self, record):
             # Re-emit the record with the target logger's name
             record.name = self.target_logger.name
             self.target_logger.handle(record)
-    
+
     pooch_logger.addHandler(LoggerForwarder(logger))
     pooch_logger.propagate = False  # Don't propagate to root
     pooch_logger.setLevel(logging.DEBUG)

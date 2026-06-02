@@ -4,7 +4,7 @@ from pathlib import Path
 
 import psutil
 
-from irdl.logger import logger
+from irdl.logging import logger
 
 
 def _fits_in_memory(file_path: Path) -> bool:
@@ -21,11 +21,6 @@ def _fits_in_memory(file_path: Path) -> bool:
     -------
     fits : bool
         True if the file fits into available RAM with headroom.
-
-    Warnings
-    --------
-    UserWarning
-        If the file does not fit into available RAM.
     """
     file_size = file_path.stat().st_size
     available = psutil.virtual_memory().available

@@ -45,7 +45,7 @@ from requests.adapters import HTTPAdapter
 from requests.exceptions import ConnectionError, Timeout
 from urllib3.util.retry import Retry
 
-from irdl.logger import logger
+from irdl.logging import logger
 
 # Separate connect vs. read timeout: DepositOnce can be slow to accept connections.
 DEFAULT_TIMEOUT = (60, 30)  # (connect_timeout_s, read_timeout_s)

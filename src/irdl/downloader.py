@@ -2,7 +2,7 @@
 
 import pooch as po
 
-from irdl.logger import RichProgressBar, logger
+from irdl.logging import RichProgressBar, logger
 from irdl.repositories import doi_to_repository
 
 #: The cache directory for storage of the temporary downloads. Defaults to the user cache directory.

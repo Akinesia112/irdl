@@ -11,9 +11,9 @@ import h5py as h5
 import numpy as np
 import sofar as sf
 
-from irdl.logger import logger
 from irdl.base import BaseDataset
 from irdl.downloader import IRDL_CACHE_DIR, _fetch, _pooch_from_doi
+from irdl.logging import logger
 
 
 class IstaBaseDataset(BaseDataset):

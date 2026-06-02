@@ -24,7 +24,7 @@ import numpy as np
 import pyfar as pf
 import sofar as sf
 
-from irdl.logger import logger
+from irdl.logging import logger
 
 
 class BaseDataset(ABC):

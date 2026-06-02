@@ -24,7 +24,7 @@ Internal modules
 
   cli
   downloader
-  logger
+  logging
   repositories
   utils
 
