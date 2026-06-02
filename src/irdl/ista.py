@@ -428,24 +428,27 @@ class SrirachaDataset(IstaBaseDataset):
         :class:`pathlib.Path`
             Path to the downloaded file (or one of the split files for non-dense).
         """
-        target_dir = target_path.parent
-        final_name = target_path.name
+        cache_dir = target_path.parent
         scenario = kwargs["scenario"]
         split = kwargs.get("dataset_split")
 
         # Dense scenario or explicit split -> single-file download
         if scenario.endswith("D") or split is not None:
-            target_path_full = target_dir / final_name
             logger.info(f"Downloading SRIRACHA scenario {scenario}")
-            target_dir.mkdir(parents=True, exist_ok=True)
-            pup = _pooch_from_doi(self.doi, path=target_dir)
-            _fetch(pup, final_name)
-            return target_path_full
-        # Non-dense full plane -> download 4 split files
-        # We'll return the path to the first split file; _process will merge all 4
+            fname = target_path.name
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            pup = _pooch_from_doi(self.doi, path=cache_dir)
+            _fetch(pup, fname)
+            return target_path
+        # Non-dense full plane -> download 4 split files; process will then merge them
         else:
             logger.info(f"Downloading SRIRACHA scenario {scenario} (4 split files)")
-            return self._download_split_files(scenario, target_dir)
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            pup = _pooch_from_doi(self.doi, path=cache_dir)
+            for split_file in ["C1", "C2", "C3", "C4"]:
+                fname = f"{scenario}-{split_file}.h5"
+                _fetch(pup, fname)
+            return cache_dir
 
     def _process(self, file_path: Path, **kwargs) -> Path:
         """Post-process SRIRACHA file if needed.
@@ -468,7 +471,6 @@ class SrirachaDataset(IstaBaseDataset):
         scenario = kwargs["scenario"]
         split = kwargs.get("dataset_split")
         cache_dir = kwargs.get("cache_dir")
-        export_dir = kwargs.get("export_dir")
 
         # Dense scenarios and explicit splits don't need merging
         if scenario.endswith("D") or split is not None:
@@ -476,36 +478,12 @@ class SrirachaDataset(IstaBaseDataset):
             return file_path
         # Non-dense full plane -> merge all 4 split files
         else:
-            target_dir = (Path(export_dir) if export_dir else Path(cache_dir)) / self.name.upper()
-            return self._download_and_merge(scenario, target_dir)
+            source_dir = Path(cache_dir) / self.name.upper()
+            logger.debug("Merging split files")
+            return self._merge_split_files(scenario, source_dir)
 
-    def _download_split_files(self, scenario: str, cache_dir: Path) -> Path:
-        """Download the 4 split files for a non-dense SRIRACHA scenario.
-
-        Parameters
-        ----------
-        scenario : str
-            Scenario name (e.g. 'SR1').
-        cache_dir : Path
-            Directory where split files are downloaded.
-
-        Returns
-        -------
-        Path
-            Path to the first split file (C1).
-        """
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        split_files = {}
-        pup = _pooch_from_doi(self.doi, path=cache_dir)
-        for split_name in ["C1", "C2", "C3", "C4"]:
-            fname = f"{scenario}-{split_name}.h5"
-            _fetch(pup, fname)
-            split_files[split_name] = cache_dir / fname
-
-        return split_files["C1"]
-
-    def _download_and_merge(self, scenario: str, cache_dir: Path) -> Path:
-        """Download four quadrant HDF5 files and merge them into a full-plane file.
+    def _merge_split_files(self, scenario: str, source_dir: Path) -> Path:
+        """Merges four quadrant HDF5 files into a full-plane file.
 
         Reads metadata from the first split, allocates output datasets with the
         full source-grid shape, copies each split's measurements into the
@@ -515,7 +493,7 @@ class SrirachaDataset(IstaBaseDataset):
         ----------
         scenario : str
             Scenario name (e.g. 'SR1').
-        cache_dir : Path
+        source_dir : Path
             Directory where split files are downloaded and the merged file is
             written.
 
@@ -524,18 +502,14 @@ class SrirachaDataset(IstaBaseDataset):
         Path
             Path to the merged HDF5 file.
         """
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        output_path = cache_dir / f"{scenario}.h5"
-
+        output_path = source_dir / f"{scenario}.h5"
         offsets = {"C1": (0, 0), "C2": (0, 1), "C3": (1, 0), "C4": (1, 1)}
 
-        # download split files
+        # find split files
         split_files = {}
-        pup = _pooch_from_doi(self.doi, path=cache_dir)
         for split in offsets:
             fname = f"{scenario}-{split}.h5"
-            _fetch(pup, fname)
-            split_files[split] = cache_dir / fname
+            split_files[split] = source_dir / fname
 
         # read shapes and shared metadata from the first split
         with h5.File(split_files["C1"], "r") as f:
@@ -595,5 +569,7 @@ class SrirachaDataset(IstaBaseDataset):
             # delete split files
             for f in split_files.values():
                 f.unlink()
+
+        logger.debug("Split files merged")
 
         return output_path

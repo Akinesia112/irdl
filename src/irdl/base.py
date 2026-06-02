@@ -16,6 +16,7 @@ The BaseDataset class handles:
 - Output format conversion from SOFA
 """
 
+import shutil
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
@@ -38,14 +39,14 @@ class BaseDataset(ABC):
         Unique identifier for the Dataset.
     doi : str
         Digital Object Identifier for the Dataset.
-
+    
     Methods
     -------
-    validate_params(**dataset_kwargs)
+    _validate_params(**dataset_kwargs)
         Validate dataset-specific parameters (including output_format).
-    download(**kwargs) -> Path
+    _download(**kwargs) -> Path
         Download and return Path to raw file.
-    ingest(file_path: Path) -> sofar.Sofa
+    _ingest(file_path: Path) -> sofar.Sofa
         Convert raw file to sofar.Sofa object.
     _source_filename(**kwargs) -> str
         Construct the raw input filename with extension.
@@ -138,7 +139,7 @@ output_format : str
         # Validate dataset-specific parameters (including output_format)
         logger.debug(f"Validating parameters for {self.name}")
         self._validate_params(output_format=output_format, **dataset_kwargs)
-
+ 
         # Early exit if output file already exists
         output_path = self._output_path(output_format, cache_dir, export_dir, **dataset_kwargs)
         if output_path is not None and output_path.exists():
@@ -148,10 +149,14 @@ output_format : str
         # path to cache file
         file_path = self._input_path(cache_dir, None, **dataset_kwargs)
         if file_path.exists():
-            logger.info(f"Cache file already exists at {file_path}, skipping download.")
+            logger.info(f"Cache file already exists at {file_path}, skipping download and processing.")
         else:
             logger.info(f"Getting {self.name.upper()} dataset to {file_path}.")
             file_path = self._download(file_path, **dataset_kwargs)
+            # Process the downloaded file if needed (e.g., extraction, merging)
+            if output_format != "raw":
+                logger.debug(f"Processing {file_path}")
+                file_path = self._process(file_path, cache_dir=cache_dir, export_dir=export_dir, **dataset_kwargs)
 
         # return raw file if requested
         if output_format == "raw":
@@ -160,14 +165,10 @@ output_format : str
                 return file_path
             else:
                 return self._move_to_export(file_path, export_dir)
-        else:
-            # Process the file if needed (e.g., extraction, merging)
-            logger.debug(f"Processing {file_path}")
-            processed_path = self._process(file_path, cache_dir=cache_dir, export_dir=export_dir, **dataset_kwargs)
-
+ 
         # Ingest to SOFA (internal standard)
-        logger.debug(f"Ingesting {processed_path} to SOFA format. Nom nom ...")
-        sofa = self._ingest(processed_path)
+        logger.debug(f"Ingesting {file_path} to SOFA format. Nom nom ...")
+        sofa = self._ingest(file_path)
 
         # We check for correctness here. This gives instant feedback when adding new datasets.
         try:
@@ -246,6 +247,13 @@ output_format : str
 
         Override in subclass.
 
+        This name is canonical: ``_input_path`` is built from it, and ``_get``
+        treats the existence of that path as proof that download *and*
+        processing are already done (if so it skips both and ingests the file
+        directly). The name therefore must match the file that actually 
+        ends up on disk after ``_download`` + ``_process``: i.e. the *processed* 
+        file (merged/extracted), which is not necessarily the raw download.
+
         Parameters
         ----------
         **kwargs : dict
@@ -254,7 +262,7 @@ output_format : str
         Returns
         -------
         str
-            The raw input filename including extension (e.g., "A1.h5",
+            The ingest-ready filename including extension (e.g., "A1.h5",
             "FABIAN_HRIR_measured_HATO_0.sofa").
         """
 
@@ -301,39 +309,44 @@ output_format : str
             Canonical output path under '<base>/<DATASET_NAME>/', or None for
             in-memory formats.
         """
+        base = (export_dir if export_dir is not None else cache_dir) / self.name.upper()
         source_filename = Path(self._source_filename(**kwargs))
 
         # Determine extension based on output format
         match output_format:
             case "numpy" | "pyfar":
                 return None
+            case "raw":
+                return base / source_filename
             case "sofa":
                 suff = ".sofa"
             case "hdf5":
                 suff = ".h5"
-            case "raw":
-                suff = source_filename.suffix
-
-        base = (export_dir if export_dir is not None else cache_dir) / self.name.upper()
-        return (base / source_filename.stem).with_suffix(suff)
+        
+        return (base / output_format / source_filename.stem).with_suffix(suff)
 
     def _process(self, file_path: Path, **kwargs) -> Path:
         """Post-process downloaded file if needed.
 
-        Override in subclass to extract, transform, or otherwise process
-        the raw downloaded file before ingestion.
+        Override in subclass to extract, merge, or otherwise transform the
+        downloaded data. Write the processed, ingest-ready file to ``_input_path`` 
+        (the path named by ``_source_filename``) and return it. Only called 
+        right after a fresh download (on a cache hit ``_get`` skips this 
+        step entirely).
 
         Parameters
         ----------
         file_path : Path
-            Path to the raw downloaded file.
+            Path to the freshly downloaded file (or download directory).
         **kwargs : dict
             Dataset-specific parameters (may be needed for processing decisions).
 
         Returns
         -------
         file_path : Path
-            Path to the processed file (may be same as input if no processing needed).
+            The processed, ingest-ready file at ``_input_path`` (may be the
+            input unchanged when no processing is needed).
+
         """
         return file_path
 
@@ -352,8 +365,6 @@ output_format : str
         Path
             Path to the file in export_dir.
         """
-        import shutil
-
         target = Path(export_dir) / source.name
         # file exists already in export_dir
         if target.exists():
