@@ -39,7 +39,7 @@ class BaseDataset(ABC):
         Unique identifier for the Dataset.
     doi : str
         Digital Object Identifier for the Dataset.
-    
+
     Methods
     -------
     _validate_params(**dataset_kwargs)
@@ -139,7 +139,7 @@ output_format : str
         # Validate dataset-specific parameters (including output_format)
         logger.debug(f"Validating parameters for {self.name}")
         self._validate_params(output_format=output_format, **dataset_kwargs)
- 
+
         # Early exit if output file already exists
         output_path = self._output_path(output_format, cache_dir, export_dir, **dataset_kwargs)
         if output_path is not None and output_path.exists():
@@ -165,7 +165,7 @@ output_format : str
                 return file_path
             else:
                 return self._move_to_export(file_path, export_dir)
- 
+
         # Ingest to SOFA (internal standard)
         logger.debug(f"Ingesting {file_path} to SOFA format. Nom nom ...")
         sofa = self._ingest(file_path)
@@ -177,7 +177,8 @@ output_format : str
                 sofa.upgrade_convention()
         except ValueError as e:
             logger.error(
-                f"SOFA convention not satisfied!\n{e}\nSee https://sofar.readthedocs.io/en/stable/resources/conventions.html#conventions for details."
+                f"SOFA convention not satisfied!\n{e}\n"
+                "See https://sofar.readthedocs.io/en/stable/resources/conventions.html#conventions for details."
             )
             return
 
@@ -250,8 +251,8 @@ output_format : str
         This name is canonical: ``_input_path`` is built from it, and ``_get``
         treats the existence of that path as proof that download *and*
         processing are already done (if so it skips both and ingests the file
-        directly). The name therefore must match the file that actually 
-        ends up on disk after ``_download`` + ``_process``: i.e. the *processed* 
+        directly). The name therefore must match the file that actually
+        ends up on disk after ``_download`` + ``_process``: i.e. the *processed*
         file (merged/extracted), which is not necessarily the raw download.
 
         Parameters
@@ -322,16 +323,16 @@ output_format : str
                 suff = ".sofa"
             case "hdf5":
                 suff = ".h5"
-        
+
         return (base / output_format / source_filename.stem).with_suffix(suff)
 
     def _process(self, file_path: Path, **kwargs) -> Path:
         """Post-process downloaded file if needed.
 
         Override in subclass to extract, merge, or otherwise transform the
-        downloaded data. Write the processed, ingest-ready file to ``_input_path`` 
-        (the path named by ``_source_filename``) and return it. Only called 
-        right after a fresh download (on a cache hit ``_get`` skips this 
+        downloaded data. Write the processed, ingest-ready file to ``_input_path``
+        (the path named by ``_source_filename``) and return it. Only called
+        right after a fresh download (on a cache hit ``_get`` skips this
         step entirely).
 
         Parameters
