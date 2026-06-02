@@ -11,6 +11,7 @@ extensions = [
     "numpydoc",
     "sphinx_click",
     "sphinx_copybutton",
+    "sphinx_design",
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
     "sphinx.ext.intersphinx",
@@ -45,6 +46,10 @@ html_sidebars = {
     "installation": [],
     "cli_ref": [],
 }
+
+# sphinx_copybutton config
+copybutton_prompt_text = r">>> |\.\.\. |\$ |In \[\d*\]: | {2,5}\.\.\.: | {5,8}: "  # strips prompts
+copybutton_prompt_is_regexp = True
 
 autodoc_default_options = {
     "members": True,
