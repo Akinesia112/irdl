@@ -175,6 +175,3 @@ class TestConversionToHdf5:
             with h5py.File(result, "r") as f:
                 assert "temperature" in f["metadata"]
                 assert "humidity" in f["metadata"]
-
-
-
