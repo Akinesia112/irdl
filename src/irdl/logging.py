@@ -43,12 +43,14 @@ class StdoutCapture:
         self.logger = logger_instance
 
     def __enter__(self) -> io.StringIO:
+        """Enter the context manager and start capturing stdout."""
         self.old_stdout = sys.stdout
         self.capture_buffer = io.StringIO()
         sys.stdout = self.capture_buffer
         return self.capture_buffer
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Exit the context manager and restore stdout."""
         sys.stdout = self.old_stdout
         output = self.capture_buffer.getvalue()
         if output:
@@ -89,6 +91,7 @@ try:
             self.target_logger = target_logger
 
         def emit(self, record):
+            """Forward log records to the target logger."""
             # Re-emit the record with the target logger's name
             record.name = self.target_logger.name
             self.target_logger.handle(record)

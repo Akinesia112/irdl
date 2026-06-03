@@ -55,6 +55,27 @@ def _get_dataset_classes():
     return dataset_classes
 
 
+def _make_wrapper(cls, method, params, help_text, dataset_name, param_docs):  # noqa: D103
+    def wrapper(**kwargs):
+        return method.__func__(cls, **kwargs)
+
+    # Build the signature for the wrapper
+    new_params = []
+    for name, p in params.items():
+        if name == "cls":
+            continue
+        resolved_type = _resolve_union_type(p.annotation)
+        # Don't pass default to typer.Option - it's already in the parameter
+        new_params.append(
+            p.replace(annotation=Annotated[resolved_type, typer.Option(help=param_docs.get(name, ""))])
+        )
+
+    wrapper.__signature__ = signature(wrapper).replace(parameters=new_params)
+    wrapper.__doc__ = help_text
+    wrapper.__name__ = f"{dataset_name}_wrapper"
+    return wrapper
+
+
 #: Typer app that can be invoked by calling ``irdl`` from the CLI.
 app = typer.Typer(no_args_is_help=True)
 
@@ -72,28 +93,7 @@ for dataset_class in _get_dataset_classes():
     # Build help text from docstring
     help_text = doc["Summary"][0] + "\n\n" + " ".join(doc["Extended Summary"])
 
-    # Create a wrapper function with proper Typer annotations
-    def make_wrapper(cls, method, params, help_text, dataset_name, param_docs):
-        def wrapper(**kwargs):
-            return method.__func__(cls, **kwargs)
-
-        # Build the signature for the wrapper
-        new_params = []
-        for name, p in params.items():
-            if name == "cls":
-                continue
-            resolved_type = _resolve_union_type(p.annotation)
-            # Don't pass default to typer.Option - it's already in the parameter
-            new_params.append(
-                p.replace(annotation=Annotated[resolved_type, typer.Option(help=param_docs.get(name, ""))])
-            )
-
-        wrapper.__signature__ = signature(wrapper).replace(parameters=new_params)
-        wrapper.__doc__ = help_text
-        wrapper.__name__ = f"{dataset_name}_wrapper"
-        return wrapper
-
-    wrapper = make_wrapper(dataset_class, get_method, sig.parameters, help_text, dataset_class.name, param_docs)
+    wrapper = _make_wrapper(dataset_class, get_method, sig.parameters, help_text, dataset_class.name, param_docs)
 
     # Register subcommand using dataset_class.name for the command name
     app.command(

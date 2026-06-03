@@ -324,7 +324,7 @@ output_format : str
             case "hdf5":
                 suff = ".h5"
 
-        return (base / output_format / source_filename.stem).with_suffix(suff)
+        return (base / source_filename.stem).with_suffix(suff)
 
     def _process(self, file_path: Path, **kwargs) -> Path:
         """Post-process downloaded file if needed.
