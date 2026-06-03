@@ -64,7 +64,7 @@ as_stdout = StdoutCapture()
 logger.as_stdout = as_stdout
 
 
-def configure_cli_logging():
+def configure_cli_logging() -> logging.Logger:
     """Configure logging for CLI usage with Rich handler."""
     # Logger is already configured with RichHandler above
     # Just ensure it has the right level
@@ -86,11 +86,11 @@ try:
     class LoggerForwarder(logging.Handler):
         """Forward log records to a target logger."""
 
-        def __init__(self, target_logger):
+        def __init__(self, target_logger: logging.Logger) -> None:
             super().__init__()
             self.target_logger = target_logger
 
-        def emit(self, record):
+        def emit(self, record: logging.LogRecord) -> None:
             """Forward log records to the target logger."""
             # Re-emit the record with the target logger's name
             record.name = self.target_logger.name
@@ -140,7 +140,7 @@ class RichProgressBar:
         return self._total
 
     @total.setter
-    def total(self, value):
+    def total(self, value: int) -> None:
         # Use the API-supplied size when the server omits Content-Length (value == 0).
         self._total = value or self._preset_total
         if self._task_id is not None:

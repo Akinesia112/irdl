@@ -28,14 +28,14 @@ class IstaBaseDataset(BaseDataset):
         Room volume in cubic meters, used for SOFA metadata.
     """
 
-    def _source_filename(self, **kwargs) -> str:
+    def _source_filename(self, **dataset_kwargs) -> str:
         """Construct the raw input filename with extension.
 
         Shared implementation for MIRACLE and SRIRACHA datasets.
 
         Parameters
         ----------
-        **kwargs : dict
+        **dataset_kwargs : dict
             Must contain 'scenario'. May contain 'dataset_split'.
 
         Returns
@@ -43,11 +43,11 @@ class IstaBaseDataset(BaseDataset):
         str
             Filename in format "{scenario}[-{split}].h5".
         """
-        scenario = kwargs["scenario"]
-        split = kwargs.get("dataset_split")
+        scenario = dataset_kwargs["scenario"]
+        split = dataset_kwargs.get("dataset_split")
         return f"{scenario}{('-' + split) if split else ''}.h5"
 
-    def _ingest(self, file_path: Path) -> sf.Sofa:
+    def _ingest(self, ingest_path: Path) -> sf.Sofa:
         """Convert a MIRACLE/SRIRACHA HDF5 file into a SOFA object.
 
         Both datasets share an identical HDF5 layout, so this single
@@ -56,7 +56,7 @@ class IstaBaseDataset(BaseDataset):
 
         Parameters
         ----------
-        file_path : :class:`pathlib.Path`
+        ingest_path : :class:`pathlib.Path`
             Path to the HDF5 file.
 
         Returns
@@ -64,7 +64,7 @@ class IstaBaseDataset(BaseDataset):
         :class:`sofar.Sofa`
             SOFA object in the SingleRoomMIMOSRIR convention.
         """
-        with h5.File(file_path, "r") as f:
+        with h5.File(ingest_path, "r") as f:
             ir = f["data"]["impulse_response"][()]
             receiver_pos = f["data"]["location"]["receiver"][()]
             source_pos = f["data"]["location"]["source"][()]
@@ -86,7 +86,7 @@ class IstaBaseDataset(BaseDataset):
         sofa.GLOBAL_License = "CC BY-NC-SA 4.0"
         sofa.GLOBAL_References = self.doi
         sofa.GLOBAL_DatabaseName = self.name.upper()
-        sofa.GLOBAL_RoomLocation = "TU Berlin, Einsteinufer 25"
+        sofa.GLOBAL_RoomLocation = "TU Berlin, Einsteinufer 25, 10587 Berlin"
         sofa.GLOBAL_ListenerShortName = "Custom planar microphone array"
         sofa.GLOBAL_ListenerDescription = (
             "64-channel planar microphone array "
@@ -165,7 +165,7 @@ class MiracleDataset(IstaBaseDataset):
         cache_dir: str | Path | None = None,
         export_dir: str | Path | None = None,
         output_format: str = "pyfar",
-    ):
+    ) -> dict | Path | None:
         """
         scenario : str
             Scenario to download. One of 'A1', 'A2', 'D1', 'R2'.
@@ -213,7 +213,7 @@ class MiracleDataset(IstaBaseDataset):
         if scenario == "D1" and dataset_split is not None:
             raise ValueError("scenario D1 cannot be split")
 
-    def _download(self, target_path: Path, **kwargs) -> Path:
+    def _download(self, provider_dir: Path, **dataset_kwargs) -> Path:
         """Download MIRACLE dataset file.
 
         Downloads the full scenario HDF5 file. If a split is requested,
@@ -221,9 +221,9 @@ class MiracleDataset(IstaBaseDataset):
 
         Parameters
         ----------
-        target_path : :class:`pathlib.Path`
+        provider_dir : :class:`pathlib.Path`
             Provider directory (e.g., ``cache/MIRACLE/provider/``).
-        **kwargs : dict
+        **dataset_kwargs : dict
             Must contain 'scenario'. May contain 'dataset_split'.
 
         Returns
@@ -232,16 +232,13 @@ class MiracleDataset(IstaBaseDataset):
             Path to the downloaded full scenario HDF5 file inside the
             provider directory.
         """
-        full_kwargs = {**kwargs, "dataset_split": None}
-        full_path = target_path / self._source_filename(**full_kwargs)
-
-        logger.info(f"Downloading MIRACLE scenario {kwargs['scenario']}")
-        target_path.mkdir(parents=True, exist_ok=True)
-        pup = _pooch_from_doi(self.doi, path=target_path)
+        full_path = provider_dir / self._source_filename(**{**dataset_kwargs, "dataset_split": None})
+        logger.info(f"Downloading MIRACLE scenario {dataset_kwargs['scenario']}")
+        pup = _pooch_from_doi(self.doi, path=provider_dir)
         _fetch(pup, full_path.name)
         return full_path
 
-    def _process(self, provider_artifact: Path, ingest_path: Path, **kwargs) -> Path:
+    def _process(self, provider_artifact: Path, ingest_path: Path, **dataset_kwargs) -> Path:
         """Post-process MIRACLE file if needed.
 
         If a dataset_split is requested and the file is the full scenario file,
@@ -250,9 +247,11 @@ class MiracleDataset(IstaBaseDataset):
 
         Parameters
         ----------
-        file_path : :class:`pathlib.Path`
+        provider_artifact : :class:`pathlib.Path`
             Path to the provider file (full scenario HDF5).
-        **kwargs : dict
+        ingest_path : :class:`pathlib.Path`
+            Path to the HDF5 file in the ingest directory.
+        **dataset_kwargs : dict
             Must contain 'scenario'. May contain 'dataset_split'.
 
         Returns
@@ -260,15 +259,15 @@ class MiracleDataset(IstaBaseDataset):
         :class:`pathlib.Path`
             Path to the processed file in the ingest directory.
         """
-        split = kwargs.get("dataset_split")
+        split = dataset_kwargs.get("dataset_split")
 
         # If no split requested, promote to ingest stage
         if not split:
-            return super()._process(provider_artifact, ingest_path, **kwargs)
+            return super()._process(provider_artifact, ingest_path, **dataset_kwargs)
         else:
             return self._extract_split(provider_artifact, split, ingest_path)
 
-    def _extract_split(self, file_path: Path, dataset_split: str, output_path: Path) -> Path:
+    def _extract_split(self, ingest_path: Path, dataset_split: str, output_path: Path) -> Path:
         """Extract a dataset split from a full MIRACLE HDF5 file.
 
         Reads the full file, indexes the requested quadrant of the source
@@ -276,7 +275,7 @@ class MiracleDataset(IstaBaseDataset):
 
         Parameters
         ----------
-        file_path : :class:`pathlib.Path`
+        ingest_path : :class:`pathlib.Path`
             Path to the full HDF5 file in the provider directory.
         dataset_split : str
             Split to extract. One of 'C1', 'C2', 'C3', 'C4'.
@@ -288,10 +287,10 @@ class MiracleDataset(IstaBaseDataset):
         :class:`pathlib.Path`
             Path to the extracted split HDF5 file.
         """
-        logger.info(f"Extracting split {dataset_split} from {file_path.name}")
+        logger.info(f"Extracting split {dataset_split} from {ingest_path.name}")
         output_path.parent.mkdir(parents=True, exist_ok=True)
         # Load full data from HDF5
-        with h5.File(file_path, "r") as f:
+        with h5.File(ingest_path, "r") as f:
             data = {
                 "impulse_response": f["data"]["impulse_response"][()],
                 "receiver_coordinates": f["data"]["location"]["receiver"][()],
@@ -363,7 +362,7 @@ class SrirachaDataset(IstaBaseDataset):
         cache_dir: str | Path | None = None,
         export_dir: str | Path | None = None,
         output_format: str = "pyfar",
-    ):
+    ) -> dict | Path | None:
         """
         scenario : str, optional
             Scenario to download. One of 'SR1', 'SRA1', 'SR1-D', 'SRA1-D',
@@ -419,7 +418,7 @@ class SrirachaDataset(IstaBaseDataset):
         if output_format == "raw" and scenario and scenario[-1] != "D" and dataset_split is None:
             raise ValueError("raw output_format not supported for non-dense SRIRACHA scenarios without split")
 
-    def _download(self, target_path: Path, **kwargs) -> Path:
+    def _download(self, provider_dir: Path, **dataset_kwargs) -> Path:
         """Download SRIRACHA dataset file(s) to the provider directory.
 
         For dense scenarios or explicit splits, downloads a single file.
@@ -428,9 +427,9 @@ class SrirachaDataset(IstaBaseDataset):
 
         Parameters
         ----------
-        target_path : :class:`pathlib.Path`
+        provider_dir : :class:`pathlib.Path`
             Provider directory (e.g., ``cache/SRIRACHA/provider/``).
-        **kwargs : dict
+        **dataset_kwargs : dict
             Must contain 'scenario'. May contain 'dataset_split'.
 
         Returns
@@ -439,29 +438,27 @@ class SrirachaDataset(IstaBaseDataset):
             Path to the downloaded file (inside provider) or the provider
             directory (for non-dense full-plane scenarios).
         """
-        scenario = kwargs["scenario"]
-        split = kwargs.get("dataset_split")
+        scenario = dataset_kwargs["scenario"]
+        split = dataset_kwargs.get("dataset_split")
 
         # Dense scenario or explicit split -> single-file download
         if scenario.endswith("D") or split is not None:
-            fname = self._source_filename(**kwargs)
-            target_file = target_path / fname
+            fname = self._source_filename(**dataset_kwargs)
+            target_file = provider_dir / fname
             logger.info(f"Downloading SRIRACHA scenario {scenario}")
-            target_path.mkdir(parents=True, exist_ok=True)
-            pup = _pooch_from_doi(self.doi, path=target_path)
+            pup = _pooch_from_doi(self.doi, path=provider_dir)
             _fetch(pup, fname)
             return target_file
         # Non-dense full plane -> download 4 split files; process will then merge them
         else:
             logger.info(f"Downloading SRIRACHA scenario {scenario} (4 split files)")
-            target_path.mkdir(parents=True, exist_ok=True)
-            pup = _pooch_from_doi(self.doi, path=target_path)
+            pup = _pooch_from_doi(self.doi, path=provider_dir)
             for split_file in ["C1", "C2", "C3", "C4"]:
                 fname = f"{scenario}-{split_file}.h5"
                 _fetch(pup, fname)
-            return target_path
+            return provider_dir
 
-    def _process(self, provider_artifact: Path, ingest_path: Path, **kwargs) -> Path:
+    def _process(self, provider_artifact: Path, ingest_path: Path, **dataset_kwargs) -> Path:
         """Post-process SRIRACHA file if needed.
 
         For non-dense full-plane scenarios, merges the 4 downloaded split files
@@ -470,9 +467,11 @@ class SrirachaDataset(IstaBaseDataset):
 
         Parameters
         ----------
-        file_path : Path
+        provider_artifact : Path
             Path to the downloaded file or the provider directory.
-        **kwargs : dict
+        ingest_path : :class:`pathlib.Path`
+            Path to the ingest directory.
+        **dataset_kwargs : dict
             Must contain 'scenario'. May contain 'dataset_split'.
 
         Returns
@@ -480,18 +479,18 @@ class SrirachaDataset(IstaBaseDataset):
         Path
             Path to the processed file in the ingest directory.
         """
-        scenario = kwargs["scenario"]
-        split = kwargs.get("dataset_split")
+        scenario = dataset_kwargs["scenario"]
+        split = dataset_kwargs.get("dataset_split")
 
         # Dense scenarios and explicit splits don't need merging
         if scenario.endswith("D") or split is not None:
-            return super()._process(provider_artifact, **kwargs)
+            return super()._process(provider_artifact, ingest_path, **dataset_kwargs)
         # Non-dense full plane -> merge all 4 split files
         else:
             logger.debug("Merging split files")
             return self._merge_split_files(scenario, provider_artifact, ingest_path)
 
-    def _merge_split_files(self, scenario: str, source_dir: Path, output_path: Path) -> Path:
+    def _merge_split_files(self, scenario: str, provider_artifact: Path, ingest_path: Path) -> Path:
         """Merges four quadrant HDF5 files into a full-plane file.
 
         Reads metadata from the first split file in the provider directory,
@@ -503,9 +502,9 @@ class SrirachaDataset(IstaBaseDataset):
         ----------
         scenario : str
             Scenario name (e.g. 'SR1').
-        source_dir : Path
+        provider_artifact : Path
             Provider directory where split files are downloaded.
-        output_path : Path
+        ingest_path : Path
             Target path in the ingest directory for the merged file.
 
         Returns
@@ -519,7 +518,7 @@ class SrirachaDataset(IstaBaseDataset):
         split_files = {}
         for split in offsets:
             fname = f"{scenario}-{split}.h5"
-            split_files[split] = source_dir / fname
+            split_files[split] = provider_artifact / fname
 
         # read shapes and shared metadata from the first split
         with h5.File(split_files["C1"], "r") as f:
@@ -535,8 +534,8 @@ class SrirachaDataset(IstaBaseDataset):
         n_full_grid = int(np.sqrt(n_sources))
         n_split_grid = n_full_grid // 2
 
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        with h5.File(output_path, "w") as out:
+        ingest_path.parent.mkdir(parents=True, exist_ok=True)
+        with h5.File(ingest_path, "w") as out:
             # create groups and datasets
             data_grp = out.create_group("data")
             ir_ds = data_grp.create_dataset("impulse_response", shape=(n_sources, *ir_shape[1:]), dtype=ir_dtype)
@@ -583,4 +582,4 @@ class SrirachaDataset(IstaBaseDataset):
 
         logger.debug("Split files merged")
 
-        return output_path
+        return ingest_path

@@ -57,7 +57,7 @@ class FabianDataset(SofaBaseDataset):
         cache_dir: str | Path | None = None,
         export_dir: str | Path | None = None,
         output_format: str = "pyfar",
-    ):
+    ) -> dict | Path | None:
         """
         kind : str, optional
             Type of HRTF to download. Either 'measured' or 'modeled'. Default is 'measured'.
@@ -100,12 +100,12 @@ class FabianDataset(SofaBaseDataset):
         if hato not in [0, 10, 20, 30, 40, 50, 310, 320, 330, 340, 350]:
             raise ValueError("hato must be one of [0, 10, 20, 30, 40, 50, 310, 320, 330, 340, 350]")
 
-    def _source_filename(self, **kwargs) -> str:
+    def _source_filename(self, **dataset_kwargs) -> str:
         """Construct the ingest-ready (SOFA) filename.
 
         Parameters
         ----------
-        **kwargs : dict
+        **dataset_kwargs : dict
             Expected keys: kind, hato.
 
         Returns
@@ -113,9 +113,9 @@ class FabianDataset(SofaBaseDataset):
         str
             File name in format "FABIAN_HRIR_{kind}_HATO_{hato}.sofa".
         """
-        return f"FABIAN_HRIR_{kwargs['kind']}_HATO_{kwargs['hato']}.sofa"
+        return f"FABIAN_HRIR_{dataset_kwargs['kind']}_HATO_{dataset_kwargs['hato']}.sofa"
 
-    def _download(self, target_path: Path, **kwargs) -> Path:
+    def _download(self, provider_dir: Path, **dataset_kwargs) -> Path:
         """Download FABIAN ZIP archive to the provider directory.
 
         Only downloads the archive if it is not already cached in the provider
@@ -124,9 +124,9 @@ class FabianDataset(SofaBaseDataset):
 
         Parameters
         ----------
-        target_path : :class:`pathlib.Path`
+        provider_dir : :class:`pathlib.Path`
             Provider directory (e.g., ``cache/FABIAN/provider/``).
-        **kwargs : dict
+        **dataset_kwargs : dict
             Expected keys: kind, hato (unused here because the ZIP contains all
             variants).
 
@@ -136,23 +136,24 @@ class FabianDataset(SofaBaseDataset):
             Path to the downloaded ZIP archive.
         """
         zipfile_name = "FABIAN_HRTF_DATABASE_v4.zip"
-        zip_path = target_path / zipfile_name
+        zip_path = provider_dir / zipfile_name
         if zip_path.exists():
             logger.info(f"FABIAN ZIP archive already cached at {zip_path}, skipping download")
         else:
-            target_path.mkdir(parents=True, exist_ok=True)
-            pup = _pooch_from_doi(self.doi, path=target_path)
+            pup = _pooch_from_doi(self.doi, path=provider_dir)
             _fetch(pup, zipfile_name)
         return zip_path
 
-    def _process(self, provider_artifact: Path, ingest_path: Path, **kwargs) -> Path:
+    def _process(self, provider_artifact: Path, ingest_path: Path, **dataset_kwargs) -> Path:
         """Extract the requested SOFA file from the ZIP into the ingest directory.
 
         Parameters
         ----------
-        file_path : :class:`pathlib.Path`
+        provider_artifact : :class:`pathlib.Path`
             Path to the ZIP archive in the provider directory.
-        **kwargs : dict
+        ingest_path : :class:`pathlib.Path`
+            Path to the SOFA file in the ingest directory.
+        **dataset_kwargs : dict
             Expected keys: kind, hato.
 
         Returns
@@ -177,12 +178,12 @@ class FabianDataset(SofaBaseDataset):
 
         return ingest_path
 
-    def _ingest(self, file_path: Path) -> sf.Sofa:
+    def _ingest(self, ingest_path: Path) -> sf.Sofa:
         """Load SOFA file into sofar.Sofa object.
 
         Parameters
         ----------
-        file_path : :class:`pathlib.Path`
+        ingest_path : :class:`pathlib.Path`
             Path to the SOFA file in the ingest directory.
 
         Returns
@@ -190,4 +191,4 @@ class FabianDataset(SofaBaseDataset):
         :class:`sofar.Sofa`
             SOFA object containing the dataset data.
         """
-        return sf.read_sofa(str(file_path))
+        return sf.read_sofa(str(ingest_path))

@@ -20,7 +20,6 @@ import os
 import shutil
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 import pyfar as pf
@@ -45,11 +44,11 @@ class BaseDataset(ABC):
     -------
     _validate_params(**dataset_kwargs)
         Validate dataset-specific parameters (including output_format).
-    _download(**kwargs) -> Path
+    _download(**dataset_kwargs) -> Path
         Download and return Path to raw file.
-    _ingest(file_path: Path) -> sofar.Sofa
+    _ingest(ingest_path: Path) -> sofar.Sofa
         Convert raw file to sofar.Sofa object.
-    _source_filename(**kwargs) -> str
+    _source_filename(**dataset_kwargs) -> str
         Construct the raw input filename with extension.
     get() @classmethod
         Public entry point. Uses explicit type signature for CLI auto-generation.
@@ -74,9 +73,9 @@ output_format : str
     Output format: 'pyfar', 'numpy', 'hdf5', 'sofa', or 'raw'.
 """
 
-    def __init_subclass__(cls, **kwargs):
+    def __init_subclass__(cls, **dataset_kwargs) -> None:
         """Initialize subclass with automatic docstring composition for get() classmethod."""
-        super().__init_subclass__(**kwargs)
+        super().__init_subclass__(**dataset_kwargs)
         # Automatically compose docstrings for get() classmethod
         if hasattr(cls, "get") and hasattr(cls, "name") and hasattr(cls, "doi"):
             # Get the underlying function of the classmethod
@@ -108,11 +107,20 @@ output_format : str
             get_func.__doc__ = full_doc
 
     @property
-    def cache_dir(self):
+    def cache_dir(self) -> Path:
+        """Cache directory for downloads.
+
+        Returns the cache directory path, defaulting to IRDL_CACHE_DIR if not explicitly set.
+
+        Returns
+        -------
+        Path
+            Path to the cache directory for storing downloaded and processed files.
+        """
         return IRDL_CACHE_DIR if self._cache_dir is None else self._cache_dir
 
     @cache_dir.setter
-    def cache_dir(self, value):
+    def cache_dir(self, value: Path | str | None) -> None:
         if value is not None:
             self._cache_dir = Path(value)
 
@@ -122,7 +130,7 @@ output_format : str
         export_dir: Path | str | None,
         output_format: str,
         **dataset_kwargs,
-    ) -> Any:
+    ) -> dict | Path | None:
         """Internal implementation of Dataset retrieval.
 
         Parameters
@@ -166,7 +174,13 @@ output_format : str
         # raw: skip processing entirely, return the provider artifact
         if output_format == "raw":
             provider_artifact = self._download(provider_dir, **dataset_kwargs)
-            return provider_artifact if export_dir is None else self._copy_to_export(provider_artifact, export_dir)
+            if export_dir is None:
+                return provider_artifact
+            else:
+                if not output_path.exists():
+                    output_path.parent.mkdir(exist_ok=True, parents=True)
+                    shutil.copy2(provider_artifact, output_path)
+                return output_path
 
         # Check if ingest-ready file already exists
         if ingest_path.exists():
@@ -182,7 +196,7 @@ output_format : str
             logger.debug(f"Ingesting {ingest_path} to SOFA format. Nom nom ...")
             sofa = self._ingest(ingest_path)
         else:
-            logger.warning(f'Not enough memory for conversion, returning {ingest_path} instead ...')
+            logger.warning(f"Not enough memory for conversion, returning {ingest_path} instead ...")
             return ingest_path
 
         # Check for correct SOFA conventions. This gives instant feedback when adding new datasets.
@@ -220,37 +234,39 @@ output_format : str
             If any parameter is invalid.
         """
 
-    @abstractmethod
-    def _download(self, target_path: Path, **kwargs) -> Path:
+    def download(self, provider_dir: Path, **dataset_kwargs) -> Path:
         """Download raw files and return Path to the primary artifact.
-
-        Override in subclass.
 
         Parameters
         ----------
-        target_path : :class:`pathlib.Path`
-            Target path where the file(s) should be downloaded.
+        provider_dir : :class:`pathlib.Path`
+            Target path where the file(s) should be downloaded to.
             For single-file providers, this may be the file path itself.
             For multi-file providers, this may be a directory where files are placed.
-        **kwargs : dict
-            Dataset-specific parameters (scenario, kind, hato, etc.).
-            cache_dir and export_dir are NOT in kwargs (handled by _get()).
+        **dataset_kwargs : dict
+            Dataset-specific parameters.
 
         Returns
         -------
-        file_path : :class:`pathlib.Path`
+        provider_artifact : :class:`pathlib.Path`
             Path to the downloaded artifact on disk (file or directory).
         """
+        provider_dir.mkdir(exist_ok=True, parents=True)
+        self._download(provider_dir, **dataset_kwargs)
 
     @abstractmethod
-    def _ingest(self, file_path: Path) -> sf.Sofa:
+    def _download(self, provider_dir: Path, **dataset_kwargs) -> Path:
+        """Concrete download logic. Override in subclass."""
+
+    @abstractmethod
+    def _ingest(self, ingest_path: Path) -> sf.Sofa:
         """Convert raw file to sofar.Sofa object.
 
         Override in subclass.
 
         Parameters
         ----------
-        file_path : :class:`pathlib.Path`
+        ingest_path : :class:`pathlib.Path`
             Path to the ingest-ready file in the ``ingest/`` subdirectory.
 
         Returns
@@ -260,7 +276,7 @@ output_format : str
         """
 
     @abstractmethod
-    def _source_filename(self, **kwargs) -> str:
+    def _source_filename(self, **dataset_kwargs) -> str:
         """Construct the ingest-ready filename with extension for the dataset.
 
         Override in subclass.
@@ -274,7 +290,7 @@ output_format : str
 
         Parameters
         ----------
-        **kwargs : dict
+        **dataset_kwargs : dict
             Dataset-specific parameters used to construct the filename.
 
         Returns
@@ -284,7 +300,7 @@ output_format : str
             "FABIAN_HRIR_measured_HATO_0.sofa").
         """
 
-    def _output_path(self, output_format: str, export_dir: Path | None, **kwargs) -> Path | None:
+    def _output_path(self, output_format: str, export_dir: Path | None, **dataset_kwargs) -> Path | None:
         """Return the canonical Path where a file-based output would be written.
 
         Returns None for in-memory formats ('pyfar', 'numpy'). Uses _source_filename
@@ -299,7 +315,7 @@ output_format : str
             One of 'pyfar', 'numpy', 'hdf5', 'sofa', 'raw'.
         export_dir : Path or None
             Optional export directory; determines whether cache subdirectories are used.
-        **kwargs : dict
+        **dataset_kwargs : dict
             Dataset-specific parameters used to construct the filename.
 
         Returns
@@ -307,26 +323,25 @@ output_format : str
         Path or None
             Canonical output path, or None for in-memory formats.
         """
-        base = (self.cache_dir / "output" if export_dir is None else export_dir) / self.name.upper()
-        source_filename = Path(self._source_filename(**kwargs))
+        base = (self.cache_dir / "output" if export_dir is None else Path(export_dir)) / self.name.upper()
+        source_filename = Path(self._source_filename(**dataset_kwargs))
 
         match output_format:
             case "numpy" | "pyfar":
                 return None
             case "raw":
-                return base / source_filename
+                return base / 'raw' / source_filename
             case "sofa":
                 suff = ".sofa"
             case "hdf5":
                 suff = ".h5"
         return (base / source_filename.stem).with_suffix(suff)
 
-    def _process(self, provider_artifact: Path, ingest_path: Path, **kwargs) -> Path:
+    def _process(self, provider_artifact: Path, ingest_path: Path, **dataset_kwargs) -> Path:
         """Post-process downloaded file if needed.
 
-        Override in subclass to extract, merge, or otherwise transform the
-        downloaded data. Write the processed, ingest-ready file to
-        ``_ingest_path`` and return it.
+        Override in subclass to extract, merge, or otherwise transform the downloaded data. Write the processed,
+        ingest-ready file to ``ingest_path`` and return it.
 
         The default implementation promotes the provider file to the ingest
         stage. If the provider path is a file and differs from the ingest path,
@@ -335,15 +350,17 @@ output_format : str
 
         Parameters
         ----------
-        file_path : Path
+        provider artifact : Path
             Path to the freshly downloaded file (or download directory).
-        **kwargs : dict
+        ingest_path : :class:`pathlib.Path`
+            Path to the ingestible file in the ingest directory.
+        **dataset_kwargs : dict
             Dataset-specific parameters.
 
         Returns
         -------
-        file_path : Path
-            The processed, ingest-ready file at ``_ingest_path``.
+        ingest_path : Path
+            The processed, ingest-ready file at ``ingest_path``.
         """
         ingest_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -360,32 +377,7 @@ output_format : str
         # For directories or other cases, subclass should override
         raise NotImplementedError(f"_process() cannot handle {provider_artifact}. Subclass must override.")
 
-    def _copy_to_export(self, source: Path, export_dir: Path) -> Path:
-        """Copy file from source to export_dir.
-
-        Parameters
-        ----------
-        source : Path
-            Source file path.
-        export_dir : Path
-            Target export directory.
-
-        Returns
-        -------
-        Path
-            Path to the file in export_dir.
-        """
-        target = Path(export_dir) / self.name.upper() / source.name
-        # file exists already in export_dir
-        if target.exists():
-            return target
-        # copy file from source to export_dir
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, target)
-
-        return target
-
-    def _to_output(self, sofa: sf.Sofa, output_format: str, output_path: Path | None) -> Any:
+    def _to_output(self, sofa: sf.Sofa, output_format: str, output_path: Path | None) -> dict | Path:
         """Convert sofar.Sofa to the requested output format.
 
         Parameters

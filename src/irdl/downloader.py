@@ -1,12 +1,15 @@
 """Implements download and post-processing based on pooch."""
 
+import os
+from pathlib import Path
+
 import pooch as po
 
 from irdl.logging import RichProgressBar, logger
 from irdl.repositories import doi_to_repository
 
 #: The cache directory for storage of the temporary downloads. Defaults to the user cache directory.
-IRDL_CACHE_DIR = po.os_cache("irdl")
+IRDL_CACHE_DIR = Path(os.getenv("IRDL_CACHE_DIR")) if "IRDL_CACHE_DIR" in os.environ else po.os_cache("irdl")
 
 
 def _fetch(pup: po.Pooch, fname: str) -> str:
@@ -46,7 +49,7 @@ def _pooch_from_doi(doi: str, path: str = IRDL_CACHE_DIR) -> po.Pooch:
         The Pooch instance.
 
     """
-    pup = po.create(path=path, base_url=doi, retry_if_failed=2, env="IRDL_CACHE_DIR")
+    pup = po.create(path=path, base_url=doi, retry_if_failed=2)
     repository = doi_to_repository(doi)
     repository.populate_registry(pup)
     for file in pup.registry.keys():

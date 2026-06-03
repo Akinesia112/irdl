@@ -89,7 +89,7 @@ class DSpaceRepository(DataRepository):
         Cached API response from the repository.
     """
 
-    def __init__(self, doi: str, archive_url: str):
+    def __init__(self, doi: str, archive_url: str) -> None:
         self.archive_url = archive_url
         self.doi = doi
         self._api_response = None
