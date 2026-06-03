@@ -67,6 +67,11 @@ class TestConversionToPyFar:
         result = test_dataset._to_pyfar(sofa_object)
         assert result["impulse_response"].sampling_rate == sofa_object.Data_SamplingRate
 
+    def test_conversion_to_pyfar_shape(self, sofa_object):
+        """Verify _to_pyfar preserves IR data shape."""
+        result = test_dataset._to_pyfar(sofa_object)
+        assert result["impulse_response"].time.shape == sofa_object.Data_IR.shape
+
 
 class TestConversionToNumpy:
     """Tests for _to_numpy conversion method."""
@@ -172,16 +177,4 @@ class TestConversionToHdf5:
                 assert "humidity" in f["metadata"]
 
 
-class TestConversionRoundtrip:
-    """Tests for roundtrip conversion (SOFA -> conversion -> SOFA)."""
 
-    def test_pyfar_roundtrip(self, sofa_object):
-        """Verify SOFA -> pyfar -> SOFA preserves data."""
-        # Convert to pyfar
-        pyfar_result = test_dataset._to_pyfar(sofa_object)
-
-        # Convert back to SOFA via pyfar
-        # Note: pyfar.Signal can be converted back to numpy, but not directly to SOFA
-        # This test verifies the data is preserved in the pyfar representation
-        assert pyfar_result["impulse_response"].time.shape == sofa_object.Data_IR.shape
-        assert pyfar_result["impulse_response"].sampling_rate == sofa_object.Data_SamplingRate
