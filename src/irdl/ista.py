@@ -99,18 +99,27 @@ class IstaBaseDataset(BaseDataset):
         )
 
         sofa.RoomVolume = self.room_volume  # #Dim. 1, M => so add a dimension upfront
+        sofa.MeasurementDate = np.full(m, self.measurement_date)  # (M,)
 
-        # --- environmental, per-measurement ------------------------------------
-        sofa.RoomTemperature = temperature[np.newaxis, ...]  # dim spec is (I, M)
-        sofa.RoomTemperature_Units = "celsius"
+        # --- environmental  ----------------------------------------------------
+        sofa.RoomTemperature = temperature[np.newaxis, ...] + 273.15  # C to K
+        sofa.RoomTemperature_Units = "kelvin"
 
         # --- geometry ----------------------------------------------------------
-        # Receiver: fixed microphone array
+        # Listener: whole array
+        sofa.ListenerPosition = np.zeros((m, c))  # fixed array origin, one row per measurement (M, C)
+        sofa.ListenerPosition_Type = "cartesian"
+        sofa.ListenerPosition_Units = "metre"
+
+        # Receiver: microphones
         sofa.ReceiverPosition = receiver_pos.reshape(r, c, i)
         sofa.ReceiverPosition_Type = "cartesian"
         sofa.ReceiverPosition_Units = "metre"
+        sofa.ReceiverDescriptions = np.array(["GRAS 40PL-1 Short CCP"] * r)  # (R, S)
+        sofa.ReceiverView = np.tile([1.0, 0.0, 0.0], (r, 1))[..., np.newaxis]  # look +x, (R, C, I)
+        sofa.ReceiverUp = np.tile([0.0, 0.0, 1.0], (r, 1))[..., np.newaxis]  # up +z,  (R, C, I)
 
-        # Source: one cartesian position per measurement
+        # Source: source frame; one cartesian position per measurement
         sofa.SourcePosition = source_pos  ##dim spec is (M, C)
 
         # Emitter: single point source, co-located with the source frame origin
@@ -137,11 +146,16 @@ class MiracleDataset(IstaBaseDataset):
         Digital Object Identifier ("10.14279/depositonce-20837").
     room_volume : float
         Room volume in cubic meters (830).
+    measurement_date : float
+        Release date in POSIX seconds, used as the SOFA MeasurementDate
+        (no per-measurement date is available).
     """
 
     name = "miracle"
     doi = "10.14279/depositonce-20837"
-    room_volume = 830  # metadata needed for creation of sofa file
+    # metadata needed for creation of sofa file
+    room_volume = 830
+    measurement_date = 1697068800.0
 
     @classmethod
     def get(
@@ -339,11 +353,15 @@ class SrirachaDataset(IstaBaseDataset):
         Digital Object Identifier ("10.14279/depositonce-23943").
     room_volume : float
         Room volume in cubic meters (73.5).
+    measurement_date : float
+        Release date in POSIX seconds, used as the SOFA MeasurementDate
+        (no per-measurement date is available).
     """
 
     name = "sriracha"
     doi = "10.14279/depositonce-23943"
     room_volume = 73.5
+    measurement_date = 1755648000.0
 
     @classmethod
     def get(
