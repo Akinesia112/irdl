@@ -161,16 +161,11 @@ class FabianDataset(SofaBaseDataset):
         :class:`pathlib.Path`
             Path to the extracted SOFA file in the ingest directory.
         """
-        if ingest_path.exists():
-            logger.info(f"FABIAN SOFA file already exists at {ingest_path}, skipping extraction")
-            return ingest_path
-
         ingest_path.parent.mkdir(parents=True, exist_ok=True)
-        target_name = ingest_path.name
 
         with ZipFile(provider_artifact, "r") as zf:
             for name in zf.namelist():
-                if name.endswith(target_name):
+                if name.endswith(ingest_path.name):
                     # Flatten the extraction (strip any nested ZIP directory)
                     zf.getinfo(name).filename = Path(name).name
                     logger.info(f"Extracting {name} to {ingest_path.parent}")
