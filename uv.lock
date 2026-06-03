@@ -533,7 +533,7 @@ wheels = [
 
 [[package]]
 name = "irdl"
-version = "1.0.0b1"
+version = "1.0.0b2"
 source = { editable = "." }
 dependencies = [
     { name = "h5py" },
