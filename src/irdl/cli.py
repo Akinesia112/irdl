@@ -66,9 +66,7 @@ def _make_wrapper(cls, method, params, help_text, dataset_name, param_docs):  # 
             continue
         resolved_type = _resolve_union_type(p.annotation)
         # Don't pass default to typer.Option - it's already in the parameter
-        new_params.append(
-            p.replace(annotation=Annotated[resolved_type, typer.Option(help=param_docs.get(name, ""))])
-        )
+        new_params.append(p.replace(annotation=Annotated[resolved_type, typer.Option(help=param_docs.get(name, ""))]))
 
     wrapper.__signature__ = signature(wrapper).replace(parameters=new_params)
     wrapper.__doc__ = help_text
