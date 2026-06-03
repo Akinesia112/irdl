@@ -1,20 +1,41 @@
 """Impulse response datasets in SOFA format.
 
-This module provides the FABIAN Dataset implementation using the BaseDataset
-architecture, along with legacy helper functions for backwards compatibility.
+This module provides the SofaBaseDataset class (for datasets whose provider
+format is already SOFA or archived SOFA) and the FABIAN Dataset implementation,
+along with legacy helper functions for backwards compatibility.
 """
 
 from pathlib import Path
+from typing import Any
 from zipfile import ZipFile
 
 import sofar as sf
 
 from irdl.base import BaseDataset
-from irdl.downloader import IRDL_CACHE_DIR, _fetch, _pooch_from_doi
+from irdl.downloader import _fetch, _pooch_from_doi
 from irdl.logging import logger
 
 
-class FabianDataset(BaseDataset):
+class SofaBaseDataset(BaseDataset):
+    """Base class for datasets whose ingest-ready format is already SOFA.
+
+    The primary distinction is that ``output_format='sofa'`` can directly
+    return the ingest-ready file, avoiding a redundant copy to the ``output/``
+    cache subdirectory.
+    """
+
+    def _to_output(self, sofa: sf.Sofa, output_format: str, output_path: Path | None) -> Any:
+        """Convert sofar.Sofa to the requested output format.
+
+        For ``output_format='sofa'``, the ingest-ready file is already a valid
+        SOFA file, so we simply return the path instead of re-writing.
+        """
+        if output_format == "sofa":
+            return output_path
+        return super()._to_output(sofa, output_format, output_path)
+
+
+class FabianDataset(SofaBaseDataset):
     """Download and extract the FABIAN HRTF Database from DepositOnce.
 
     Attributes
@@ -33,7 +54,7 @@ class FabianDataset(BaseDataset):
         cls,
         kind: str = "measured",
         hato: int = 0,
-        cache_dir: str | Path = IRDL_CACHE_DIR,
+        cache_dir: str | Path | None = None,
         export_dir: str | Path | None = None,
         output_format: str = "pyfar",
     ):
@@ -80,9 +101,7 @@ class FabianDataset(BaseDataset):
             raise ValueError("hato must be one of [0, 10, 20, 30, 40, 50, 310, 320, 330, 340, 350]")
 
     def _source_filename(self, **kwargs) -> str:
-        """Construct the raw input filename with extension.
-
-        For FABIAN, this is the SOFA file that gets extracted from the ZIP archive.
+        """Construct the ingest-ready (SOFA) filename.
 
         Parameters
         ----------
@@ -94,51 +113,69 @@ class FabianDataset(BaseDataset):
         str
             File name in format "FABIAN_HRIR_{kind}_HATO_{hato}.sofa".
         """
-        kind = kwargs["kind"]
-        hato = kwargs["hato"]
-        return f"FABIAN_HRIR_{kind}_HATO_{hato}.sofa"
+        return f"FABIAN_HRIR_{kwargs['kind']}_HATO_{kwargs['hato']}.sofa"
 
     def _download(self, target_path: Path, **kwargs) -> Path:
-        """Download FABIAN dataset and extract the requested SOFA file.
+        """Download FABIAN ZIP archive to the provider directory.
 
-        Downloads the ZIP archive if needed, then extracts the specific SOFA file
-        based on kind and hato parameters.
+        Only downloads the archive if it is not already cached in the provider
+        directory. Returns the ZIP path so that ``_process`` can extract the
+        requested SOFA file into the ingest directory.
 
         Parameters
         ----------
         target_path : :class:`pathlib.Path`
-            Target path where the SOFA file should be extracted.
+            Provider directory (e.g., ``cache/FABIAN/provider/``).
+        **kwargs : dict
+            Expected keys: kind, hato (unused here because the ZIP contains all
+            variants).
+
+        Returns
+        -------
+        :class:`pathlib.Path`
+            Path to the downloaded ZIP archive.
+        """
+        zipfile_name = "FABIAN_HRTF_DATABASE_v4.zip"
+        zip_path = target_path / zipfile_name
+        if zip_path.exists():
+            logger.info(f"FABIAN ZIP archive already cached at {zip_path}, skipping download")
+        else:
+            target_path.mkdir(parents=True, exist_ok=True)
+            pup = _pooch_from_doi(self.doi, path=target_path)
+            _fetch(pup, zipfile_name)
+        return zip_path
+
+    def _process(self, provider_artifact: Path, ingest_path: Path, **kwargs) -> Path:
+        """Extract the requested SOFA file from the ZIP into the ingest directory.
+
+        Parameters
+        ----------
+        file_path : :class:`pathlib.Path`
+            Path to the ZIP archive in the provider directory.
         **kwargs : dict
             Expected keys: kind, hato.
 
         Returns
         -------
         :class:`pathlib.Path`
-            Path to the extracted SOFA file.
+            Path to the extracted SOFA file in the ingest directory.
         """
-        base_dir = target_path.parent
+        if ingest_path.exists():
+            logger.info(f"FABIAN SOFA file already exists at {ingest_path}, skipping extraction")
+            return ingest_path
 
-        # Download ZIP if needed
-        zipfile_name = "FABIAN_HRTF_DATABASE_v4.zip"
-        zip_path = base_dir / zipfile_name
-        if zip_path.exists():
-            logger.info(f"FABIAN ZIP archive already cached at {zip_path}, skipping download")
-        else:
-            pup = _pooch_from_doi(self.doi, path=base_dir)
-            _fetch(pup, zipfile_name)
+        ingest_path.parent.mkdir(parents=True, exist_ok=True)
+        target_name = ingest_path.name
 
-        # Extract SOFA file from ZIP
-        if target_path.exists():
-            logger.info(f"FABIAN SOFA file already exists at {target_path}, skipping extraction")
-        else:
-            with ZipFile(zip_path, "r") as zf:
-                for name in zf.namelist():
-                    if name.endswith(target_path.name):
-                        zf.getinfo(name).filename = Path(name).name
-                        logger.info(f"Extracting {name} to {target_path}")
-                        zf.extract(name, path=base_dir)
+        with ZipFile(provider_artifact, "r") as zf:
+            for name in zf.namelist():
+                if name.endswith(target_name):
+                    # Flatten the extraction (strip any nested ZIP directory)
+                    zf.getinfo(name).filename = Path(name).name
+                    logger.info(f"Extracting {name} to {ingest_path.parent}")
+                    zf.extract(name, path=ingest_path.parent)
 
-        return target_path
+        return ingest_path
 
     def _ingest(self, file_path: Path) -> sf.Sofa:
         """Load SOFA file into sofar.Sofa object.
@@ -146,7 +183,7 @@ class FabianDataset(BaseDataset):
         Parameters
         ----------
         file_path : :class:`pathlib.Path`
-            Path to the SOFA file.
+            Path to the SOFA file in the ingest directory.
 
         Returns
         -------

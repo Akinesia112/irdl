@@ -12,7 +12,7 @@ import numpy as np
 import sofar as sf
 
 from irdl.base import BaseDataset
-from irdl.downloader import IRDL_CACHE_DIR, _fetch, _pooch_from_doi
+from irdl.downloader import _fetch, _pooch_from_doi
 from irdl.logging import logger
 
 
@@ -162,7 +162,7 @@ class MiracleDataset(IstaBaseDataset):
         cls,
         scenario: str = "A1",
         dataset_split: str | None = None,
-        cache_dir: str | Path = IRDL_CACHE_DIR,
+        cache_dir: str | Path | None = None,
         export_dir: str | Path | None = None,
         output_format: str = "pyfar",
     ):
@@ -222,57 +222,53 @@ class MiracleDataset(IstaBaseDataset):
         Parameters
         ----------
         target_path : :class:`pathlib.Path`
-            Target path where the file should be downloaded.
-        **kwargs : dict
-            Must contain 'scenario'. May contain 'dataset_split', 'cache_dir', 'export_dir'.
-
-        Returns
-        -------
-        :class:`pathlib.Path`
-            Path to the downloaded full scenario HDF5 file.
-        """
-        # Download the full scenario file (without split)
-        full_kwargs = {**kwargs, "dataset_split": None}
-        full_path = target_path.parent / self._source_filename(**full_kwargs)
-
-        logger.info(f"Downloading MIRACLE scenario {kwargs['scenario']}")
-        full_path.parent.mkdir(parents=True, exist_ok=True)
-        pup = _pooch_from_doi(self.doi, path=full_path.parent)
-        _fetch(pup, full_path.name)
-        return full_path
-
-    def _process(self, file_path: Path, **kwargs) -> Path:
-        """Post-process MIRACLE file if needed.
-
-        If a dataset_split is requested and the file is the full scenario file,
-        extracts the corresponding quadrant split.
-
-        Parameters
-        ----------
-        file_path : :class:`pathlib.Path`
-            Path to the HDF5 file (may be full scenario or already split).
+            Provider directory (e.g., ``cache/MIRACLE/provider/``).
         **kwargs : dict
             Must contain 'scenario'. May contain 'dataset_split'.
 
         Returns
         -------
         :class:`pathlib.Path`
-            Path to the processed file (split file if extraction was needed).
+            Path to the downloaded full scenario HDF5 file inside the
+            provider directory.
+        """
+        full_kwargs = {**kwargs, "dataset_split": None}
+        full_path = target_path / self._source_filename(**full_kwargs)
+
+        logger.info(f"Downloading MIRACLE scenario {kwargs['scenario']}")
+        target_path.mkdir(parents=True, exist_ok=True)
+        pup = _pooch_from_doi(self.doi, path=target_path)
+        _fetch(pup, full_path.name)
+        return full_path
+
+    def _process(self, provider_artifact: Path, ingest_path: Path, **kwargs) -> Path:
+        """Post-process MIRACLE file if needed.
+
+        If a dataset_split is requested and the file is the full scenario file,
+        extracts the corresponding quadrant split into the ingest directory.
+        Otherwise promotes the provider file to the ingest stage.
+
+        Parameters
+        ----------
+        file_path : :class:`pathlib.Path`
+            Path to the provider file (full scenario HDF5).
+        **kwargs : dict
+            Must contain 'scenario'. May contain 'dataset_split'.
+
+        Returns
+        -------
+        :class:`pathlib.Path`
+            Path to the processed file in the ingest directory.
         """
         split = kwargs.get("dataset_split")
 
-        # If no split requested, return file as-is
+        # If no split requested, promote to ingest stage
         if not split:
-            logger.debug(f"No split requested for {file_path.name}, returning as-is")
-            return file_path
+            return super()._process(provider_artifact, ingest_path, **kwargs)
+        else:
+            return self._extract_split(provider_artifact, split, ingest_path)
 
-        # Extract the requested split from the full file
-        cache_dir = kwargs.get("cache_dir")
-        export_dir = kwargs.get("export_dir")
-        target_dir = (Path(export_dir) if export_dir else Path(cache_dir)) / self.name.upper()
-        return self._extract_split(file_path, split, target_dir)
-
-    def _extract_split(self, file_path: Path, dataset_split: str, cache_dir: Path) -> Path:
+    def _extract_split(self, file_path: Path, dataset_split: str, output_path: Path) -> Path:
         """Extract a dataset split from a full MIRACLE HDF5 file.
 
         Reads the full file, indexes the requested quadrant of the source
@@ -281,11 +277,11 @@ class MiracleDataset(IstaBaseDataset):
         Parameters
         ----------
         file_path : :class:`pathlib.Path`
-            Path to the full HDF5 file.
+            Path to the full HDF5 file in the provider directory.
         dataset_split : str
             Split to extract. One of 'C1', 'C2', 'C3', 'C4'.
-        cache_dir : :class:`pathlib.Path`
-            Directory where the extracted file is written.
+        output_path : :class:`pathlib.Path`
+            Target path in the ingest directory.
 
         Returns
         -------
@@ -293,7 +289,7 @@ class MiracleDataset(IstaBaseDataset):
             Path to the extracted split HDF5 file.
         """
         logger.info(f"Extracting split {dataset_split} from {file_path.name}")
-        cache_dir.mkdir(parents=True, exist_ok=True)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
         # Load full data from HDF5
         with h5.File(file_path, "r") as f:
             data = {
@@ -322,11 +318,7 @@ class MiracleDataset(IstaBaseDataset):
         if "humidity" in data:
             data["humidity"] = data["humidity"].reshape(n, n)[row::2, column::2].reshape(-1)
 
-        # Save split data to a new HDF5 file
-        split_file_name = file_path.stem + f"-{dataset_split}{file_path.suffix}"
-        split_path = Path(cache_dir) / split_file_name
-
-        with h5.File(split_path, "w") as f:
+        with h5.File(output_path, "w") as f:
             data_group = f.create_group("data")
             data_group.create_dataset("impulse_response", data=data["impulse_response"])
             location_group = data_group.create_group("location")
@@ -339,7 +331,7 @@ class MiracleDataset(IstaBaseDataset):
             if "humidity" in data:
                 metadata_group.create_dataset("humidity", data=data["humidity"])
 
-        return split_path
+        return output_path
 
 
 class SrirachaDataset(IstaBaseDataset):
@@ -368,7 +360,7 @@ class SrirachaDataset(IstaBaseDataset):
         cls,
         scenario: str = "SR1-D",
         dataset_split: str | None = None,
-        cache_dir: str | Path = IRDL_CACHE_DIR,
+        cache_dir: str | Path | None = None,
         export_dir: str | Path | None = None,
         output_format: str = "pyfar",
     ):
@@ -428,99 +420,99 @@ class SrirachaDataset(IstaBaseDataset):
             raise ValueError("raw output_format not supported for non-dense SRIRACHA scenarios without split")
 
     def _download(self, target_path: Path, **kwargs) -> Path:
-        """Download SRIRACHA dataset file(s).
+        """Download SRIRACHA dataset file(s) to the provider directory.
 
         For dense scenarios or explicit splits, downloads a single file.
         For non-dense full-plane scenarios, downloads all 4 split files
-        and returns the path to one of them (merging happens in _process).
+        and returns the provider directory path.
 
         Parameters
         ----------
         target_path : :class:`pathlib.Path`
-            Target path where the file should be downloaded.
+            Provider directory (e.g., ``cache/SRIRACHA/provider/``).
         **kwargs : dict
-            Must contain 'scenario'. May contain 'dataset_split', 'cache_dir', 'export_dir'.
+            Must contain 'scenario'. May contain 'dataset_split'.
 
         Returns
         -------
         :class:`pathlib.Path`
-            Path to the downloaded file (or one of the split files for non-dense).
+            Path to the downloaded file (inside provider) or the provider
+            directory (for non-dense full-plane scenarios).
         """
-        cache_dir = target_path.parent
         scenario = kwargs["scenario"]
         split = kwargs.get("dataset_split")
 
         # Dense scenario or explicit split -> single-file download
         if scenario.endswith("D") or split is not None:
+            fname = self._source_filename(**kwargs)
+            target_file = target_path / fname
             logger.info(f"Downloading SRIRACHA scenario {scenario}")
-            fname = target_path.name
-            cache_dir.mkdir(parents=True, exist_ok=True)
-            pup = _pooch_from_doi(self.doi, path=cache_dir)
+            target_path.mkdir(parents=True, exist_ok=True)
+            pup = _pooch_from_doi(self.doi, path=target_path)
             _fetch(pup, fname)
-            return target_path
+            return target_file
         # Non-dense full plane -> download 4 split files; process will then merge them
         else:
             logger.info(f"Downloading SRIRACHA scenario {scenario} (4 split files)")
-            cache_dir.mkdir(parents=True, exist_ok=True)
-            pup = _pooch_from_doi(self.doi, path=cache_dir)
+            target_path.mkdir(parents=True, exist_ok=True)
+            pup = _pooch_from_doi(self.doi, path=target_path)
             for split_file in ["C1", "C2", "C3", "C4"]:
                 fname = f"{scenario}-{split_file}.h5"
                 _fetch(pup, fname)
-            return cache_dir
+            return target_path
 
-    def _process(self, file_path: Path, **kwargs) -> Path:
+    def _process(self, provider_artifact: Path, ingest_path: Path, **kwargs) -> Path:
         """Post-process SRIRACHA file if needed.
 
         For non-dense full-plane scenarios, merges the 4 downloaded split files
-        into a single file.
+        from the provider directory into a single file in the ingest directory.
+        Otherwise promotes the single file to the ingest stage.
 
         Parameters
         ----------
         file_path : Path
-            Path to one of the downloaded files.
+            Path to the downloaded file or the provider directory.
         **kwargs : dict
-            Must contain 'scenario'. May contain 'dataset_split', 'cache_dir', 'export_dir'.
+            Must contain 'scenario'. May contain 'dataset_split'.
 
         Returns
         -------
         Path
-            Path to the processed file (merged file for non-dense, same file otherwise).
+            Path to the processed file in the ingest directory.
         """
         scenario = kwargs["scenario"]
         split = kwargs.get("dataset_split")
-        cache_dir = kwargs.get("cache_dir")
 
         # Dense scenarios and explicit splits don't need merging
         if scenario.endswith("D") or split is not None:
-            logger.debug(f"Scenario {scenario} with split={split} doesn't need merging, returning as-is")
-            return file_path
+            return super()._process(provider_artifact, **kwargs)
         # Non-dense full plane -> merge all 4 split files
         else:
-            source_dir = Path(cache_dir) / self.name.upper()
             logger.debug("Merging split files")
-            return self._merge_split_files(scenario, source_dir)
+            return self._merge_split_files(scenario, provider_artifact, ingest_path)
 
-    def _merge_split_files(self, scenario: str, source_dir: Path) -> Path:
+    def _merge_split_files(self, scenario: str, source_dir: Path, output_path: Path) -> Path:
         """Merges four quadrant HDF5 files into a full-plane file.
 
-        Reads metadata from the first split, allocates output datasets with the
-        full source-grid shape, copies each split's measurements into the
-        interleaved grid positions, and deletes the split files afterwards.
+        Reads metadata from the first split file in the provider directory,
+        allocates output datasets with the full source-grid shape, copies each
+        split's measurements into the interleaved grid positions, and deletes
+        the provider split files afterwards.
 
         Parameters
         ----------
         scenario : str
             Scenario name (e.g. 'SR1').
         source_dir : Path
-            Directory where split files are downloaded and the merged file is
-            written.
+            Provider directory where split files are downloaded.
+        output_path : Path
+            Target path in the ingest directory for the merged file.
 
         Returns
         -------
         Path
             Path to the merged HDF5 file.
         """
-        output_path = source_dir / f"{scenario}.h5"
         offsets = {"C1": (0, 0), "C2": (0, 1), "C3": (1, 0), "C4": (1, 1)}
 
         # find split files
@@ -543,6 +535,7 @@ class SrirachaDataset(IstaBaseDataset):
         n_full_grid = int(np.sqrt(n_sources))
         n_split_grid = n_full_grid // 2
 
+        output_path.parent.mkdir(parents=True, exist_ok=True)
         with h5.File(output_path, "w") as out:
             # create groups and datasets
             data_grp = out.create_group("data")
@@ -584,7 +577,7 @@ class SrirachaDataset(IstaBaseDataset):
                 for fh in handles.values():
                     fh.close()
 
-            # delete split files
+            # delete split files from provider directory
             for f in split_files.values():
                 f.unlink()
 
