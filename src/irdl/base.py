@@ -330,7 +330,7 @@ output_format : str
             case "numpy" | "pyfar":
                 return None
             case "raw":
-                return base / 'raw' / source_filename
+                return base / "raw" / source_filename
             case "sofa":
                 suff = ".sofa"
             case "hdf5":
@@ -340,8 +340,8 @@ output_format : str
     def _process(self, provider_artifact: Path, ingest_path: Path, **dataset_kwargs) -> Path:
         """Post-process downloaded file if needed.
 
-        Override in subclass to extract, merge, or otherwise transform the downloaded data. Write the processed,
-        ingest-ready file to ``ingest_path`` and return it.
+        Override in subclass to extract, merge, or otherwise transform the downloaded data. Write
+        the processed, ingest-ready file to ``ingest_path`` and return it.
 
         The default implementation promotes the provider file to the ingest
         stage. If the provider path is a file and differs from the ingest path,
