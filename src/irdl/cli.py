@@ -1,31 +1,103 @@
-"""Automatic generation of a Typer script for all datasets that can be used for download."""
+"""Automagic generation of a Typer script for all dataset downloads."""
 
-from inspect import signature
-from typing import Annotated
+import pathlib
+import types
+from inspect import isabstract, signature
+from typing import Annotated, Optional, Union, get_args, get_origin
 
 import typer
 from numpydoc.docscrape import FunctionDoc
 
 import irdl
+from irdl.base import BaseDataset
+from irdl.logging import configure_cli_logging
 
-# Typer app that can be invoked by calling ``irdl`` from the CLI.
+# Configure CLI logging
+configure_cli_logging()
+
+
+def _resolve_union_type(annotation):
+    """Resolve Union types to Typer-compatible types."""
+    origin = get_origin(annotation)
+    args = get_args(annotation)
+
+    # Handle types.UnionType (Python 3.10+) and typing.Union
+    if origin is types.UnionType or origin is Union:
+        # Filter out NoneType and Path types, keep str
+        non_none_args = [arg for arg in args if arg is not type(None)]
+        # If we have str and/or Path, use str (paths can be passed as strings in CLI)
+        if any(arg is str or arg is pathlib.Path or arg == pathlib.Path for arg in non_none_args):
+            # Check if None was in the original args
+            if type(None) in args:
+                return Optional[str]
+            return str
+        # For other unions, just take the first type
+        if type(None) in args:
+            return Optional[non_none_args[0]]
+        return non_none_args[0]
+
+    return annotation
+
+
+def _get_dataset_classes():
+    """Auto-detect all concrete dataset classes that inherit from BaseDataset."""
+    dataset_classes = []
+    for name in dir(irdl):
+        obj = getattr(irdl, name)
+        if (
+            isinstance(obj, type)
+            and issubclass(obj, BaseDataset)
+            and not isabstract(obj)
+            and hasattr(obj, "name")
+            and hasattr(obj, "doi")
+        ):
+            dataset_classes.append(obj)
+    return dataset_classes
+
+
+def _make_wrapper(cls, method, params, help_text, dataset_name, param_docs):  # noqa: D103
+    def wrapper(**kwargs):
+        return method.__func__(cls, **kwargs)
+
+    # Build the signature for the wrapper
+    new_params = []
+    for name, p in params.items():
+        if name == "cls":
+            continue
+        resolved_type = _resolve_union_type(p.annotation)
+        # Don't pass default to typer.Option - it's already in the parameter
+        new_params.append(p.replace(annotation=Annotated[resolved_type, typer.Option(help=param_docs.get(name, ""))]))
+
+    wrapper.__signature__ = signature(wrapper).replace(parameters=new_params)
+    wrapper.__doc__ = help_text
+    wrapper.__name__ = f"{dataset_name}_wrapper"
+    return wrapper
+
+
+#: Typer app that can be invoked by calling ``irdl`` from the CLI.
 app = typer.Typer(no_args_is_help=True)
 
 # Automatically register all supported datasets as subcommands to the app.
-for get_dataset in [getattr(irdl, d) for d in irdl.__all__]:
-    # get function docstring and signature
-    doc = FunctionDoc(get_dataset)
-    sig = signature(get_dataset)
-    typer_parameters = [
-        p.replace(annotation=Annotated[p.annotation, typer.Option(help=" ".join(d.desc).replace("`", ""))])
-        for p, d in zip(sig.parameters.values(), doc["Parameters"], strict=True)
-    ]
-    get_dataset.__signature__ = sig.replace(parameters=typer_parameters)
-    # register a subcommand to the main app and add --help information based on the docstring.
+for dataset_class in _get_dataset_classes():
+    get_method = dataset_class.get
+
+    # Get docstring and signature from the classmethod
+    doc = FunctionDoc(get_method)
+    sig = signature(get_method.__func__)
+
+    # Build Typer parameters with help text from docstring
+    param_docs = {p.name: " ".join(p.desc).replace("`", "") for p in doc["Parameters"]}
+
+    # Build help text from docstring
+    help_text = doc["Summary"][0] + "\n\n" + " ".join(doc["Extended Summary"])
+
+    wrapper = _make_wrapper(dataset_class, get_method, sig.parameters, help_text, dataset_class.name, param_docs)
+
+    # Register subcommand using dataset_class.name for the command name
     app.command(
-        name=get_dataset.__name__.removeprefix("get_"),
-        help=doc["Summary"][0] + "\n\n" + " ".join(doc["Extended Summary"]),
-    )(get_dataset)
+        name=dataset_class.name,
+        help=help_text,
+    )(wrapper)
 
 # expose click object for sphinx_click autodoc feature.
 typer_click_object = typer.main.get_command(app)

@@ -19,16 +19,18 @@ Python package to download, unpack and process impulse response datasets in a un
 - [Documentation](https://artpelling.github.io/irdl/)
 - [Installation instructions](https://artpelling.github.io/irdl/installation.html)
 - [Available datasets](https://artpelling.github.io/irdl/datasets.html)
-- [CLI-Reference](https://artpelling.github.io/irdl/cli_ref.html)
+- [Adding a Dataset](https://artpelling.github.io/irdl/adding_dataset.html)
+- [Reference (CLI & API)](https://artpelling.github.io/irdl/reference.html)
+- [Changelog](https://github.com/artpelling/irdl/blob/main/CHANGELOG.md)
 
 ## Usage (Python API)
 
 The package can be included in a Python script as simple as:
 
 ``` python
-from irdl import get_fabian
+from irdl import FabianDataset
 
-data = get_fabian(kind='measured', hato=10)
+data = FabianDataset.get(kind='measured', hato=10)
 print(data)
 ```
 
@@ -50,18 +52,17 @@ Once installed, the package provides a convenient command line script which can 
 
 ``` shell
 $ irdl --help
-
- Usage: irdl [OPTIONS] COMMAND [ARGS]...                                                
-                                                                                        
-╭─ Options ────────────────────────────────────────────────────────────────────────────╮
-│ --install-completion          Install completion for the current shell.              │
-│ --show-completion             Show completion for the current shell, to copy it or   │
-│                               customize the installation.                            │
-│ --help                        Show this message and exit.                            │
-╰──────────────────────────────────────────────────────────────────────────────────────╯
-╭─ Commands ───────────────────────────────────────────────────────────────────────────╮
-│ fabian    Download and extract the FABIAN HRTF Database v4 from DepositOnce.         │
-│ miracle   Download and extract the MIRACLE database from DepositOnce.                │
-│ sriracha  Download and extract the SRIRACHA database from DepositOnce.               │
-╰──────────────────────────────────────────────────────────────────────────────────────╯
+                                                                                                                        
+ Usage: irdl [OPTIONS] COMMAND [ARGS]...                                                                                
+                                                                                                                        
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ --install-completion          Install completion for the current shell.                                              │
+│ --show-completion             Show completion for the current shell, to copy it or customize the installation.       │
+│ --help                        Show this message and exit.                                                            │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Commands ───────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ miracle   Download and extract the MIRACLE database from DepositOnce.                                                │
+│ sriracha  Download and extract the SRIRACHA database from DepositOnce.                                               │
+│ fabian    Download and extract the FABIAN HRTF Database from DepositOnce.                                            │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```

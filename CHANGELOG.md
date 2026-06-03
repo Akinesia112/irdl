@@ -1,0 +1,92 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+---
+
+## [Unreleased]
+
+### Added
+- Class-based Dataset architecture with `BaseDataset` abstract base class
+- `IstaBaseDataset` for shared HDF5-based Dataset functionality (MIRACLE, SRIRACHA)
+- `FabianDataset`, `MiracleDataset`, `SrirachaDataset` classes replacing wrapper functions
+- SOFA as internal standard for all Datasets
+- `output_format="raw"` support for accessing original downloaded files
+- Separation of download and processing steps
+- Automatic docstring composition for Dataset classes via `__init_subclass__`
+- DOI as single source of truth (class attribute)
+- Export directory support for moving final output files
+- DSpace repository support for DepositOnce
+
+### Changed
+- Public API: `get_miracle()`, `get_sriracha()`, `get_fabian()` → `MiracleDataset.get()`, `SrirachaDataset.get()`, `FabianDataset.get()`
+- Internal HDF5 ingestion for MIRACLE and SRIRACHA datasets
+- Cache directory environment variable: `CACHE_DIR` → `IRDL_CACHE_DIR`
+- Progress bar implementation using Rich
+
+### Fixed
+- Sample rate handling for multi-dimensional arrays
+- Memory gating for large datasets (falls back to HDF5 when data doesn't fit in memory)
+- SRIRACHA non-dense scenario handling (4 split files merging)
+- MIRACLE dataset split extraction
+
+### Removed
+- Singleton dataset instances (`miracle_dataset`, `sriracha_dataset`, `fabian_dataset`)
+- Redundant `FabianDataset.get()` override (base class handles raw correctly)
+
+---
+
+## [1.0.0b1] - 2026-04-14
+
+### Added
+- Initial beta release
+- Support for MIRACLE, SRIRACHA, and FABIAN datasets
+- HDF5 and SOFA file format support
+- Pooch-based download with checksum verification
+- CLI with auto-generated help from Typer
+- Python API with pyfar, numpy, hdf5, and sofa output formats
+- Sphinx documentation with API reference
+- GitHub Actions CI/CD workflows
+
+### Changed
+- Project renamed to IRDL (Impulse Response Downloader)
+- Package structure reorganized to `src/irdl/`
+
+### Fixed
+- Initial implementation of dataset downloading and processing
+
+---
+
+## [1.0.0a3] - 2026-04-10
+
+### Added
+- SRIRACHA dataset support
+- MIRACLE dataset split functionality
+- ISTA module for shared functionality
+
+---
+
+## [1.0.0a2] - 2026-04-10
+
+### Added
+- Index page for documentation
+
+---
+
+## [1.0.0a1] - 2026-04-10
+
+### Added
+- Initial alpha release
+- Basic dataset downloading infrastructure
+- Zenodo repository support
+
+---
+
+[Unreleased]: https://github.com/artpelling/irdl/compare/v1.0.0b1...HEAD
+[1.0.0b1]: https://github.com/artpelling/irdl/compare/v1.0.0a3...v1.0.0b1
+[1.0.0a3]: https://github.com/artpelling/irdl/compare/v1.0.0a2...v1.0.0a3
+[1.0.0a2]: https://github.com/artpelling/irdl/compare/v1.0.0a1...v1.0.0a2
+[1.0.0a1]: https://github.com/artpelling/irdl/releases/tag/v1.0.0a1

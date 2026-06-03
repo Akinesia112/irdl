@@ -1,6 +1,10 @@
 Available Datasets
 ==================
 
+.. admonition:: Your favourite dataset is not listed?
+
+         Have a look at the guide to :doc:`adding_dataset` !
+
 .. currentmodule:: irdl
 
 Room impulse responses
@@ -9,8 +13,8 @@ Room impulse responses
   :caption: Room impulse responses
   :toctree: _autosummary
 
-  get_miracle
-  get_sriracha
+  MiracleDataset
+  SrirachaDataset
 
 Head-related impulse responses
 ------------------------------
@@ -18,4 +22,4 @@ Head-related impulse responses
   :caption: Head-related impulse responses
   :toctree: _autosummary
 
-  get_fabian
+  FabianDataset

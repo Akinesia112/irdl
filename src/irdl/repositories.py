@@ -31,8 +31,8 @@
 
 from time import sleep
 
+import pooch as po
 import requests
-from pooch import get_logger
 from pooch.downloaders import (
     DataRepository,
     DataverseRepository,
@@ -45,6 +45,8 @@ from requests.adapters import HTTPAdapter
 from requests.exceptions import ConnectionError, Timeout
 from urllib3.util.retry import Retry
 
+from irdl.logging import logger
+
 # Separate connect vs. read timeout: DepositOnce can be slow to accept connections.
 DEFAULT_TIMEOUT = (60, 30)  # (connect_timeout_s, read_timeout_s)
 
@@ -52,8 +54,14 @@ MAX_RETRIES = 5
 BACKOFF_FACTOR = 2.0  # exponential backoff: waits 2, 4, 8, 16, 32 s between retries
 
 
-def _make_session():
-    """Create a requests Session with automatic retry and exponential backoff."""
+def _make_session() -> requests.Session:
+    """Create a requests Session with automatic retry and exponential backoff.
+
+    Returns
+    -------
+    requests.Session
+        Session with automatic retry and exponential backoff configured.
+    """
     session = requests.Session()
     retry = Retry(
         total=MAX_RETRIES,
@@ -69,27 +77,43 @@ def _make_session():
 
 
 class DSpaceRepository(DataRepository):
-    def __init__(self, doi, archive_url):
+    """DSpace repository implementation for DepositOnce.
+
+    Attributes
+    ----------
+    archive_url : str
+        The archive URL for the repository.
+    doi : str
+        The DOI of the archive.
+    _api_response : dict or None
+        Cached API response from the repository.
+    """
+
+    def __init__(self, doi: str, archive_url: str):
         self.archive_url = archive_url
         self.doi = doi
         self._api_response = None
 
     @classmethod
-    def initialize(cls, doi, archive_url):
+    def initialize(cls, doi: str, archive_url: str) -> DataRepository | None:
         """Initialize the data repository if the given URL points to a corresponding repository.
 
         Initializes a data repository object. This is done as part of
         a chain of responsibility. If the class cannot handle the given
-        repository URL, it returns `None`. Otherwise a `DSpaceRepository`
+        repository URL, it returns None. Otherwise a DSpaceRepository
         instance is returned.
 
         Parameters
         ----------
-        doi : :class:`str`
+        doi : str
             The DOI that identifies the repository.
-        archive_url : :class:`str`
+        archive_url : str
             The resolved URL for the DOI.
 
+        Returns
+        -------
+        DSpaceRepository or None
+            DSpaceRepository instance if URL matches, None otherwise.
         """
         # Check whether this is a Figshare URL
         parsed_archive_url = parse_url(archive_url)
@@ -99,7 +123,19 @@ class DSpaceRepository(DataRepository):
         return cls(doi, archive_url)
 
     @property
-    def api_response(self):
+    def api_response(self) -> dict:
+        """Get the API response, fetching from server if not cached.
+
+        Returns
+        -------
+        dict
+            API response containing file metadata.
+
+        Raises
+        ------
+        ValueError
+            If no 'ORIGINAL' bundle is found for the item.
+        """
         if self._api_response is None:
             article_id = self.archive_url.split("/")[-1]
             with _make_session() as session:
@@ -132,45 +168,45 @@ class DSpaceRepository(DataRepository):
 
         return self._api_response
 
-    def download_url(self, file_name):
+    def download_url(self, file_name: str) -> str:
         """Use the repository API to get the download URL for a file given the archive URL.
 
         Parameters
         ----------
-        file_name : :class:`str`
+        file_name : str
             The name of the file in the archive that will be downloaded.
 
         Returns
         -------
-        download_url : :class:`str`
+        download_url : str
             The HTTP URL that can be used to download the file.
 
         """
         return self.api_response[file_name]["url"]
 
-    def file_size(self, file_name):
-        """Return the size of a file in bytes, or ``None`` if unavailable.
+    def file_size(self, file_name: str) -> int | None:
+        """Return the size of a file in bytes, or None if unavailable.
 
         Parameters
         ----------
-        file_name : :class:`str`
+        file_name : str
             The name of the file in the archive.
 
         Returns
         -------
-        size : :class:`int` or None
+        size : int or None
             The file size in bytes.
 
         """
         return self.api_response[file_name].get("size")
 
 
-    def populate_registry(self, pooch):
+    def populate_registry(self, pooch: po.Pooch) -> None:
         """Populate the registry using the data repository's API.
 
         Parameters
         ----------
-        pooch : :class:`pooch.Pooch`
+        pooch : pooch.Pooch
             The pooch instance that the registry will be added to.
 
         """
@@ -178,7 +214,7 @@ class DSpaceRepository(DataRepository):
             pooch.registry[name] = info["checksum"]
 
 
-def doi_to_repository(doi):
+def doi_to_repository(doi: str) -> DataRepository:
     """Instantiate a data repository instance from a given DOI.
 
     This function implements the chain of responsibility dispatch
@@ -186,14 +222,20 @@ def doi_to_repository(doi):
 
     Parameters
     ----------
-    doi : :class:`str`
+    doi : str
         The DOI of the archive.
 
     Returns
     -------
-    data_repository : :class:`DataRepository`
+    data_repository : DataRepository
         The data repository object.
 
+    Raises
+    ------
+    ConnectionError
+        If the DOI cannot be resolved to a URL.
+    ValueError
+        If no repository can handle the given URL.
     """
     # This should go away in a separate issue: DOI handling should
     # not rely on the (non-)existence of trailing slashes. The issue
@@ -209,7 +251,6 @@ def doi_to_repository(doi):
     ]
 
     # Extract the DOI and the repository information
-    logger = get_logger()
     archive_url = None
     for attempt in range(MAX_RETRIES):
         try:
@@ -219,7 +260,7 @@ def doi_to_repository(doi):
             wait = BACKOFF_FACTOR * (2 ** attempt)
             if attempt == 0:
                 logger.warning("Server is slow to respond, retrying with exponential backoff...")
-            logger.debug(f"  Attempt {attempt + 1}/{MAX_RETRIES} failed ({type(e).__name__}), waiting {wait:.0f}s")
+            logger.debug(f"Attempt {attempt + 1}/{MAX_RETRIES} failed ({type(e).__name__}), waiting {wait:.0f}s")
             if attempt < MAX_RETRIES - 1:
                 sleep(wait)
 
