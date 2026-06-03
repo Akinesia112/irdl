@@ -252,7 +252,7 @@ output_format : str
             Path to the downloaded artifact on disk (file or directory).
         """
         provider_dir.mkdir(exist_ok=True, parents=True)
-        self._download(provider_dir, **dataset_kwargs)
+        return self._download(provider_dir, **dataset_kwargs)
 
     @abstractmethod
     def _download(self, provider_dir: Path, **dataset_kwargs) -> Path:
@@ -355,7 +355,7 @@ output_format : str
             The processed, ingest-ready file at ``ingest_path``.
         """
         ingest_path.parent.mkdir(parents=True, exist_ok=True)
-        self._process(provider_artifact, ingest_path, **dataset_kwargs)
+        return self._process(provider_artifact, ingest_path, **dataset_kwargs)
 
     def _process(self, provider_artifact: Path, ingest_path: Path, **dataset_kwargs) -> Path:
         """Post-process downloaded file if needed.
@@ -391,9 +391,6 @@ output_format : str
             except OSError:
                 shutil.copy2(provider_artifact, ingest_path)
             return ingest_path
-
-        # For directories or other cases, subclass should override
-        raise NotImplementedError(f"_process() cannot handle {provider_artifact}. Subclass must override.")
 
     def _to_output(self, sofa: sf.Sofa, output_format: str, output_path: Path | None) -> dict | Path:
         """Convert sofar.Sofa to the requested output format.
