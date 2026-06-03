@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [1.0.0b2] - 2026-06-03
+
 ### Added
 - Class-based Dataset architecture with `BaseDataset` abstract base class
 - `IstaBaseDataset` for shared HDF5-based Dataset functionality (MIRACLE, SRIRACHA)
@@ -20,22 +24,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - DOI as single source of truth (class attribute)
 - Export directory support for moving final output files
 - DSpace repository support for DepositOnce
+- Improved download progress bar with retry logic and exponential backoff
+- Comprehensive unit tests for base functionality and conversions
 
 ### Changed
 - Public API: `get_miracle()`, `get_sriracha()`, `get_fabian()` → `MiracleDataset.get()`, `SrirachaDataset.get()`, `FabianDataset.get()`
 - Internal HDF5 ingestion for MIRACLE and SRIRACHA datasets
 - Cache directory environment variable: `CACHE_DIR` → `IRDL_CACHE_DIR`
 - Progress bar implementation using Rich
+- Logger module renamed to `logging` to avoid naming conflicts
+- Documentation restructured with separate reference pages for API, CLI, and datasets
+- Build backend switched to uv-build
 
 ### Fixed
 - Sample rate handling for multi-dimensional arrays
 - Memory gating for large datasets (falls back to HDF5 when data doesn't fit in memory)
 - SRIRACHA non-dense scenario handling (4 split files merging)
 - MIRACLE dataset split extraction
+- SOFA convention compliance checking with automatic upgrading
+- Cache directory property implementation for consistent path handling
 
 ### Removed
 - Singleton dataset instances (`miracle_dataset`, `sriracha_dataset`, `fabian_dataset`)
 - Redundant `FabianDataset.get()` override (base class handles raw correctly)
+- Edge case tests that were redundant or too specific
 
 ---
 
@@ -85,7 +97,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[Unreleased]: https://github.com/artpelling/irdl/compare/v1.0.0b1...HEAD
+[Unreleased]: https://github.com/artpelling/irdl/compare/v1.0.0b2...HEAD
+[1.0.0b2]: https://github.com/artpelling/irdl/compare/v1.0.0b1...v1.0.0b2
 [1.0.0b1]: https://github.com/artpelling/irdl/compare/v1.0.0a3...v1.0.0b1
 [1.0.0a3]: https://github.com/artpelling/irdl/compare/v1.0.0a2...v1.0.0a3
 [1.0.0a2]: https://github.com/artpelling/irdl/compare/v1.0.0a1...v1.0.0a2
