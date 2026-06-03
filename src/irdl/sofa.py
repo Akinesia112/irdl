@@ -161,8 +161,6 @@ class FabianDataset(SofaBaseDataset):
         :class:`pathlib.Path`
             Path to the extracted SOFA file in the ingest directory.
         """
-        ingest_path.parent.mkdir(parents=True, exist_ok=True)
-
         with ZipFile(provider_artifact, "r") as zf:
             for name in zf.namelist():
                 if name.endswith(ingest_path.name):

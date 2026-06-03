@@ -173,7 +173,7 @@ output_format : str
 
         # raw: skip processing entirely, return the provider artifact
         if output_format == "raw":
-            provider_artifact = self._download(provider_dir, **dataset_kwargs)
+            provider_artifact = self.download(provider_dir, **dataset_kwargs)
             if export_dir is None:
                 return provider_artifact
             else:
@@ -187,9 +187,9 @@ output_format : str
             logger.info(f"Ingestible file already exists at {ingest_path}, skipping download and processing.")
         else:
             # Download to provider directory
-            provider_artifact = self._download(provider_dir, **dataset_kwargs)
+            provider_artifact = self.download(provider_dir, **dataset_kwargs)
             logger.debug(f"Processing {provider_artifact} to {ingest_path}")
-            ingest_path = self._process(provider_artifact, ingest_path, **dataset_kwargs)
+            ingest_path = self.process(provider_artifact, ingest_path, **dataset_kwargs)
 
         # Ingest to SOFA (internal standard)
         if _fits_in_memory(ingest_path):
@@ -337,6 +337,26 @@ output_format : str
                 suff = ".h5"
         return (base / source_filename.stem).with_suffix(suff)
 
+    def process(self, provider_artifact: Path, ingest_path: Path, **dataset_kwargs) -> Path:
+        """Post-process downloaded file if needed.
+
+        Parameters
+        ----------
+        provider artifact : Path
+            Path to the freshly downloaded file (or download directory).
+        ingest_path : :class:`pathlib.Path`
+            Path to the ingestible file in the ingest directory.
+        **dataset_kwargs : dict
+            Dataset-specific parameters.
+
+        Returns
+        -------
+        ingest_path : Path
+            The processed, ingest-ready file at ``ingest_path``.
+        """
+        ingest_path.parent.mkdir(parents=True, exist_ok=True)
+        self._process(provider_artifact, ingest_path, **dataset_kwargs)
+
     def _process(self, provider_artifact: Path, ingest_path: Path, **dataset_kwargs) -> Path:
         """Post-process downloaded file if needed.
 
@@ -362,8 +382,6 @@ output_format : str
         ingest_path : Path
             The processed, ingest-ready file at ``ingest_path``.
         """
-        ingest_path.parent.mkdir(parents=True, exist_ok=True)
-
         if provider_artifact == ingest_path:
             return provider_artifact
 

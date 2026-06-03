@@ -534,7 +534,6 @@ class SrirachaDataset(IstaBaseDataset):
         n_full_grid = int(np.sqrt(n_sources))
         n_split_grid = n_full_grid // 2
 
-        ingest_path.parent.mkdir(parents=True, exist_ok=True)
         with h5.File(ingest_path, "w") as out:
             # create groups and datasets
             data_grp = out.create_group("data")
