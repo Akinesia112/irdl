@@ -1,7 +1,6 @@
 """Tests for Dataset conversion methods."""
 
 import tempfile
-import warnings
 from pathlib import Path
 
 import h5py
