@@ -3,7 +3,7 @@
 import pathlib
 import types
 from inspect import isabstract, signature
-from typing import Annotated, Optional, Union, get_args, get_origin
+from typing import Annotated, Any, Optional, Union, get_args, get_origin
 
 import typer
 from numpydoc.docscrape import FunctionDoc
@@ -16,7 +16,7 @@ from irdl.logging import configure_cli_logging
 configure_cli_logging()
 
 
-def _resolve_union_type(annotation):
+def _resolve_union_type(annotation: type) -> type:
     """Resolve Union types to Typer-compatible types."""
     origin = get_origin(annotation)
     args = get_args(annotation)
@@ -39,9 +39,9 @@ def _resolve_union_type(annotation):
     return annotation
 
 
-def _get_dataset_classes():
+def _get_dataset_classes() -> list[type]:
     """Auto-detect all concrete dataset classes that inherit from BaseDataset."""
-    dataset_classes = []
+    dataset_classes: list[type] = []
     for name in dir(irdl):
         obj = getattr(irdl, name)
         if (
@@ -56,7 +56,7 @@ def _get_dataset_classes():
 
 
 def _make_wrapper(cls, method, params, help_text, dataset_name, param_docs):  # noqa: D103
-    def wrapper(**kwargs):
+    def wrapper(**kwargs) -> Any:
         return method.__func__(cls, **kwargs)
 
     # Build the signature for the wrapper
