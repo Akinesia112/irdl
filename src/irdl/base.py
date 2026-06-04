@@ -318,7 +318,11 @@ output_format : str
         Path or None
             Canonical output path, or None for in-memory formats.
         """
-        base = (self.cache_dir / "output" if export_dir is None else Path(export_dir)) / self.name.upper()
+        base = (
+            self.cache_dir / self.name.upper() / "output"
+            if export_dir is None
+            else Path(export_dir) / self.name.upper()
+        )
         source_filename = Path(self._source_filename(**dataset_kwargs))
 
         match output_format:
