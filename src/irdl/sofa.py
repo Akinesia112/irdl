@@ -162,6 +162,7 @@ class FabianDataset(SofaBaseDataset):
             Path to the extracted SOFA file in the ingest directory.
         """
         with ZipFile(provider_artifact, "r") as zf:
+            # TODO: add error if name is not found in zipfile
             for name in zf.namelist():
                 if name.endswith(ingest_path.name):
                     # Flatten the extraction (strip any nested ZIP directory)
