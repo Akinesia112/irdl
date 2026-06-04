@@ -167,21 +167,18 @@ output_format : str
         ingest_path = self.cache_dir / self.name.upper() / "ingest" / self._source_filename(**dataset_kwargs)
         provider_dir = self.cache_dir / self.name.upper() / "provider"
 
-        # Early exit if output file already exists
-        if output_path is not None and output_path.exists():
-            logger.info(f"Output file already exists at {output_path}, skipping download and conversion.")
-            return output_path
-
-        # raw: skip processing entirely, return the provider artifact
+        # Special handling for raw output format
         if output_format == "raw":
             provider_artifact = self.download(provider_dir, **dataset_kwargs)
             if export_dir is None:
                 return provider_artifact
             else:
-                if not output_path.exists():
-                    output_path.parent.mkdir(exist_ok=True, parents=True)
-                    shutil.copy2(provider_artifact, output_path)
-                return output_path
+                return self._export_raw(provider_artifact, Path(export_dir))
+
+        # Early exit if output file already exists (not applicable for raw format, handled above)
+        if output_path is not None and output_path.exists():
+            logger.info(f"Output file already exists at {output_path}, skipping download and conversion.")
+            return output_path
 
         # Check if ingest-ready file already exists
         if ingest_path.exists():
@@ -334,6 +331,48 @@ output_format : str
             case "hdf5":
                 suff = ".h5"
         return (base / source_filename.stem).with_suffix(suff)
+
+    def _export_raw(self, provider_artifact: Path, export_dir: Path) -> Path:
+        """Export raw provider artifact to export directory.
+
+        For file artifacts, copies the file with its actual name.
+        For directory artifacts, copies all contents to the output base directory.
+        Raises ValueError if provider_artifact is neither a file nor a directory.
+
+        Parameters
+        ----------
+        provider_artifact : Path
+            Path to the downloaded artifact (file or directory).
+        export_dir : Path
+            Target export directory.
+
+        Returns
+        -------
+        Path
+            Path to the exported file or directory.
+        """
+        output_base = export_dir / self.name.upper() / "raw"
+        output_base.mkdir(exist_ok=True, parents=True)
+
+        if provider_artifact.is_file():
+            output_path = output_base / provider_artifact.name
+            if not output_path.exists():
+                shutil.copy2(provider_artifact, output_path)
+            return output_path
+        elif provider_artifact.is_dir():
+            for item in provider_artifact.iterdir():
+                dest = output_base / item.name
+                if not dest.exists():
+                    if item.is_file():
+                        shutil.copy2(item, dest)
+                    elif item.is_dir():
+                        shutil.copytree(item, dest)
+            return output_base
+        else:
+            raise ValueError(
+                f"Provider artifact must be a file or directory, but {self.name} "
+                f"returned: {provider_artifact}"
+            )
 
     def process(self, provider_artifact: Path, ingest_path: Path, **dataset_kwargs) -> Path:
         """Post-process downloaded file if needed.
