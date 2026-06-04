@@ -68,7 +68,8 @@ cache_dir : str
     Cache directory for downloads. Defaults is the OS user cache directory.
     This default can be overridden by setting `IRDL_CACHE_DIR` environment variable.
 export_dir : str, optional
-    Directory for final output. Stays in cache_dir if not specified.
+    Directory for final output. If specified, the data will be exported to <export_dir/{name}/>. Else, it remains in
+    <cache_dir/output/>.
 output_format : str
     Output format: 'pyfar', 'numpy', 'hdf5', 'sofa', or 'raw'.
 """
@@ -88,7 +89,7 @@ output_format : str
             doi_url = f"https://doi.org/{cls.doi}"
             doi_cli_line = f"DOI: {doi_url}"
             # Format prefix with class attributes
-            prefix = BaseDataset._get_doc_prefix.format(name=cls.name, doi=cls.doi)
+            prefix = BaseDataset._get_doc_prefix.format(name=cls.name.upper(), doi=cls.doi)
             # If class has a docstring with a summary, replace the first line of prefix
             if summary_line:
                 # Split prefix into lines and replace the first line
@@ -305,9 +306,6 @@ output_format : str
 
         Returns None for in-memory formats ('pyfar', 'numpy'). Uses _source_filename
         to construct the base filename, then replaces the extension based on output_format.
-
-        When ``export_dir`` is set, the returned path is flat (no subdirectories).
-        When ``export_dir`` is None, the returned path uses cache subdirectories.
 
         Parameters
         ----------
