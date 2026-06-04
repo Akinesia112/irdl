@@ -5,8 +5,9 @@ format is already SOFA or archived SOFA) and the FABIAN Dataset implementation,
 along with legacy helper functions for backwards compatibility.
 """
 
+import os
+import shutil
 from pathlib import Path
-from typing import Any
 from zipfile import ZipFile
 
 import sofar as sf
@@ -19,20 +20,53 @@ from irdl.logging import logger
 class SofaBaseDataset(BaseDataset):
     """Base class for datasets whose ingest-ready format is already SOFA.
 
-    The primary distinction is that ``output_format='sofa'`` can directly
-    return the ingest-ready file, avoiding a redundant copy to the ``output/``
-    cache subdirectory.
+    The primary distinction is that ``output_format='sofa'`` can either directly copy or link the
+    ingest-ready file, avoiding having to write the sofa file in memory.
     """
 
-    def _to_output(self, sofa: sf.Sofa, output_format: str, output_path: Path | None) -> Any:
-        """Convert sofar.Sofa to the requested output format.
+    def _to_sofa(self, sofa: sf.Sofa, ingest_path: Path, output_path: Path) -> Path:
+        """Copy sofar.Sofa file from ingest_dir and return Path.
 
-        For ``output_format='sofa'``, the ingest-ready file is already a valid
-        SOFA file, so we simply return the path instead of re-writing.
+        Parameters
+        ----------
+        sofa : :class:`sofar.Sofa`
+            SOFA object to write.
+        ingest_path : :class:`pathlib.Path`
+            Path to the ingestible file.
+        output_path : :class:`pathlib.Path`
+            Path where the .sofa file should be written to.
+
+        Returns
+        -------
+        :class:`pathlib.Path`
+            Path to the written SOFA file.
         """
-        if output_format == "sofa":
-            return output_path
-        return super()._to_output(sofa, output_format, output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        if output_path.parent.parent == ingest_path.parent.parent:
+            try:
+                logger.debug(f"Linking {ingest_path} to {output_path}.")
+                os.link(ingest_path, output_path)
+                return output_path
+            except OSError as e:
+                logger.debug(f"Linking failed: {repr(e)}")
+        logger.debug(f"Copying {ingest_path} to {output_path}.")
+        shutil.copy2(ingest_path, output_path)
+        return output_path
+
+    def _ingest(self, ingest_path: Path) -> sf.Sofa:
+        """Load SOFA file into sofar.Sofa object.
+
+        Parameters
+        ----------
+        ingest_path : :class:`pathlib.Path`
+            Path to the SOFA file in the ingest directory.
+
+        Returns
+        -------
+        :class:`sofar.Sofa`
+            SOFA object containing the dataset data.
+        """
+        return sf.read_sofa(ingest_path)
 
 
 class FabianDataset(SofaBaseDataset):
@@ -171,18 +205,3 @@ class FabianDataset(SofaBaseDataset):
                     zf.extract(name, path=ingest_path.parent)
 
         return ingest_path
-
-    def _ingest(self, ingest_path: Path) -> sf.Sofa:
-        """Load SOFA file into sofar.Sofa object.
-
-        Parameters
-        ----------
-        ingest_path : :class:`pathlib.Path`
-            Path to the SOFA file in the ingest directory.
-
-        Returns
-        -------
-        :class:`sofar.Sofa`
-            SOFA object containing the dataset data.
-        """
-        return sf.read_sofa(str(ingest_path))

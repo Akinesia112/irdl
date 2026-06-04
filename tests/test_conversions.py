@@ -120,13 +120,13 @@ class TestConversionToSofa:
     def test_conversion_to_sofa_returns_path(self, sofa_object):
         """Verify _to_sofa returns a Path object."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            result = test_dataset._to_sofa(sofa_object, Path(tmpdir) / "test.sofa")
+            result = test_dataset._to_sofa(sofa_object, Path(tmpdir), Path(tmpdir) / "test.sofa")
             assert isinstance(result, Path)
             assert result.exists()
 
-    def test_conversion_to_sofa_writable(self, sofa_object, tmp_path):
+    def test_conversion_to_sofa_writable(self, sofa_object, tmpdir):
         """Verify _to_sofa writes a valid SOFA file."""
-        result = test_dataset._to_sofa(sofa_object, Path(tmp_path) / "test.sofa")
+        result = test_dataset._to_sofa(sofa_object, Path(tmpdir), Path(tmpdir) / "test.sofa")
 
         # Verify file can be read back
         loaded_sofa = sf.read_sofa(str(result))
@@ -140,14 +140,14 @@ class TestConversionToHdf5:
     def test_conversion_to_hdf5_returns_path(self, sofa_object):
         """Verify _to_hdf5 returns a Path object."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            result = test_dataset._to_hdf5(sofa_object, Path(tmpdir) / "test.h5")
+            result = test_dataset._to_hdf5(sofa_object, Path(tmpdir), Path(tmpdir) / "test.h5")
             assert isinstance(result, Path)
             assert result.exists()
 
     def test_conversion_to_hdf5_structure(self, sofa_object):
         """Verify _to_hdf5 writes file with expected HDF5 structure."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            result = test_dataset._to_hdf5(sofa_object, Path(tmpdir) / "test.h5")
+            result = test_dataset._to_hdf5(sofa_object, Path(tmpdir), Path(tmpdir) / "test.h5")
 
             with h5py.File(result, "r") as f:
                 # Check data group exists
@@ -170,7 +170,7 @@ class TestConversionToHdf5:
         sofa_object.Data_Humidity = np.array([50.0, 50.0])
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            result = test_dataset._to_hdf5(sofa_object, Path(tmpdir) / "test.h5")
+            result = test_dataset._to_hdf5(sofa_object, Path(tmpdir), Path(tmpdir) / "test.h5")
 
             with h5py.File(result, "r") as f:
                 assert "temperature" in f["metadata"]

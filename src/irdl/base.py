@@ -21,6 +21,7 @@ import shutil
 from abc import ABC, abstractmethod
 from pathlib import Path
 
+import h5py as h5
 import numpy as np
 import pyfar as pf
 import sofar as sf
@@ -209,9 +210,8 @@ output_format : str
             )
             return
 
-        # Convert to requested output format
         logger.debug(f"Converting to {output_format} format")
-        return self._to_output(sofa, output_format, output_path)
+        return self._to_output(sofa, output_format, ingest_path, output_path)
 
     @abstractmethod
     def _validate_params(self, **dataset_kwargs) -> None:
@@ -374,8 +374,7 @@ output_format : str
             return output_base
         else:
             raise ValueError(
-                f"Provider artifact must be a file or directory, but {self.name} "
-                f"returned: {provider_artifact}"
+                f"Provider artifact must be a file or directory, but {self.name} returned: {provider_artifact}"
             )
 
     def process(self, provider_artifact: Path, ingest_path: Path, **dataset_kwargs) -> Path:
@@ -438,7 +437,7 @@ output_format : str
                 "Override _process with special implementation in subclass."
             )
 
-    def _to_output(self, sofa: sf.Sofa, output_format: str, output_path: Path | None) -> dict | Path:
+    def _to_output(self, sofa: sf.Sofa, output_format: str, ingest_path: Path, output_path: Path | None) -> dict | Path:
         """Convert sofar.Sofa to the requested output format.
 
         Parameters
@@ -447,6 +446,9 @@ output_format : str
             SOFA object to convert.
         output_format : str
             One of "pyfar", "numpy", "hdf5", "sofa".
+        ingest_path : :class:`pathlib.Path`
+            Path to the ingestible file. We also pass to allow for file-based export mechanics that
+            avoid loading into memory.
         output_path : :class:`pathlib.Path` or None
             Path where file-based outputs should be written.
 
@@ -464,9 +466,9 @@ output_format : str
         elif output_format == "numpy":
             return self._to_numpy(sofa)
         elif output_format == "sofa":
-            return self._to_sofa(sofa, output_path)
+            return self._to_sofa(sofa, ingest_path, output_path)
         elif output_format == "hdf5":
-            return self._to_hdf5(sofa, output_path)
+            return self._to_hdf5(sofa, ingest_path, output_path)
         else:
             raise ValueError(f"Unknown output_format: {output_format}")
 
@@ -518,13 +520,15 @@ output_format : str
             "sampling_rate": float(sofa.Data_SamplingRate),
         }
 
-    def _to_sofa(self, sofa: sf.Sofa, output_path: Path) -> Path:
+    def _to_sofa(self, sofa: sf.Sofa, ingest_path: Path, output_path: Path) -> Path:
         """Write sofar.Sofa to file and return Path.
 
         Parameters
         ----------
         sofa : :class:`sofar.Sofa`
             SOFA object to write.
+        ingest_path : :class:`pathlib.Path`
+            Path to the ingestible file.
         output_path : :class:`pathlib.Path`
             Path where the .sofa file should be written.
 
@@ -534,16 +538,18 @@ output_format : str
             Path to the written SOFA file.
         """
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        sf.write_sofa(str(output_path), sofa)
+        sf.write_sofa(output_path, sofa)
         return output_path
 
-    def _to_hdf5(self, sofa: sf.Sofa, output_path: Path) -> Path:
+    def _to_hdf5(self, sofa: sf.Sofa, ingest_path: Path, output_path: Path) -> Path:
         """Convert sofar.Sofa to HDF5 file and return Path.
 
         Parameters
         ----------
         sofa : :class:`sofar.Sofa`
             SOFA object to convert.
+        ingest_path : :class:`pathlib.Path`
+            Path to the ingestible file.
         output_path : :class:`pathlib.Path`
             Path where the .h5 file should be written.
 
@@ -552,8 +558,6 @@ output_format : str
         :class:`pathlib.Path`
             Path to the written HDF5 file.
         """
-        import h5py as h5
-
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         with h5.File(output_path, "w") as f:
