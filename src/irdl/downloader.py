@@ -9,7 +9,7 @@ from irdl.logging import RichProgressBar, logger
 from irdl.repositories import doi_to_repository
 
 #: The cache directory for storage of the temporary downloads. Defaults to the user cache directory.
-IRDL_CACHE_DIR = Path(os.getenv("IRDL_CACHE_DIR")) if "IRDL_CACHE_DIR" in os.environ else po.os_cache("irdl")
+IRDL_CACHE_DIR = Path(os.getenv("IRDL_CACHE_DIR")) if "IRDL_CACHE_DIR" in os.environ else Path(po.os_cache("irdl"))
 
 
 def _fetch(pup: po.Pooch, fname: str) -> str:

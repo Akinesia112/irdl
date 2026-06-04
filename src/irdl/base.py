@@ -65,8 +65,8 @@ class BaseDataset(ABC):
 Parameters
 ----------
 cache_dir : str
-    Cache directory for downloads. Defaults is the OS user cache directory. Default can be overriden
-    by setting `IRDL_CACHE_DIR` environment variable.
+    Cache directory for downloads. Defaults is the OS user cache directory.
+    This default can be overridden by setting `IRDL_CACHE_DIR` environment variable.
 export_dir : str, optional
     Directory for final output. Stays in cache_dir if not specified.
 output_format : str
