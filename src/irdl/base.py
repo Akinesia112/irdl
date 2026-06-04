@@ -389,6 +389,11 @@ output_format : str
             except OSError:
                 shutil.copy2(provider_artifact, ingest_path)
             return ingest_path
+        else:
+            raise NotImplementedError(
+                "BaseDataset._process can only handle single files."
+                "Override _process with special implementation in subclass."
+            )
 
     def _to_output(self, sofa: sf.Sofa, output_format: str, output_path: Path | None) -> dict | Path:
         """Convert sofar.Sofa to the requested output format.
