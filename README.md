@@ -10,10 +10,13 @@ Python package to download, unpack and process impulse response datasets in a un
   - a dictionary of [`pyfar`](https://pyfar.org)-objects (default)
   - a dictionary of NumPy arrays
   - a path to an HDF5-file for partial data access not having to load the entire data into memory 
+  - a path to a SOFA-file, the standardised format for spatially oriented acoustic data (`'sofa'`)
+  - a path to the unprocessed provider files as downloaded (`'raw'`)
 - Leverages [`pooch`](https://www.fatiando.org/pooch/latest/) to download impulse response datasets and verifies their integrity with a checksum. 
 - Only downloads, extracts and processes what is actually needed.
 - Adds `pooch`-support for dSpace repositories, such as TU Berlin [depositonce](https://depositonce.tu-berlin.de/home).
-- Data storage location can be set by `IRDL_CACHE_DIR` environmental variable (defaults to user cache directory).
+- Data storage location can be set by the `IRDL_CACHE_DIR` environment variable (defaults to the user cache directory).
+- Output can be processed and exported to a custom location via the `export_dir` argument.
 
 ## Links
 - [Documentation](https://artpelling.github.io/irdl/)
