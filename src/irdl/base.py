@@ -58,8 +58,6 @@ class BaseDataset(ABC):
     name: str
     doi: str
 
-    _cache_dir: Path | None = None
-
     # Default docstring prefix for all get() classmethods
     _get_doc_prefix = """Download {name} dataset.
 
@@ -108,24 +106,6 @@ output_format : str
                 full_doc += suffix
             get_func.__doc__ = full_doc
 
-    @property
-    def cache_dir(self) -> Path:
-        """Cache directory for downloads.
-
-        Returns the cache directory path, defaulting to IRDL_CACHE_DIR if not explicitly set.
-
-        Returns
-        -------
-        Path
-            Path to the cache directory for storing downloaded and processed files.
-        """
-        return IRDL_CACHE_DIR if self._cache_dir is None else self._cache_dir
-
-    @cache_dir.setter
-    def cache_dir(self, value: Path | str | None) -> None:
-        if value is not None:
-            self._cache_dir = Path(value)
-
     def _get(
         self,
         cache_dir: Path | str | None,
@@ -152,8 +132,6 @@ output_format : str
             For 'pyfar' / 'numpy': a dict of in-memory objects.
             For 'sofa' / 'hdf5' / 'raw': a :class:`pathlib.Path` to the file on disk.
         """
-        self.cache_dir = cache_dir
-
         # Validate common parameters
         if output_format not in ("pyfar", "hdf5", "numpy", "sofa", "raw"):
             raise ValueError("output_format must be one of 'pyfar', 'hdf5', 'numpy', 'sofa', 'raw'")
@@ -162,11 +140,14 @@ output_format : str
         logger.debug(f"Validating parameters for {self.name}")
         self._validate_params(output_format=output_format, **dataset_kwargs)
 
-        # Set up path variables
-        export_dir = Path(export_dir) if export_dir else None
-        output_path = self._output_path(output_format, export_dir, **dataset_kwargs)
-        ingest_path = self.cache_dir / self.name.upper() / "ingest" / self._source_filename(**dataset_kwargs)
-        provider_dir = self.cache_dir / self.name.upper() / "provider"
+        # Set up and sanitize path variables
+        cache_dir = (IRDL_CACHE_DIR if cache_dir is None else Path(cache_dir)) / self.name.upper()
+        export_dir = None if export_dir is None else Path(export_dir)
+        output_dir = cache_dir / "output" if export_dir is None else export_dir / self.name.upper()
+        provider_dir = cache_dir / "provider"
+        source_filename = self._source_filename(**dataset_kwargs)
+        output_path = self._output_path(output_dir, source_filename, output_format)
+        ingest_path = cache_dir / "ingest" / source_filename
 
         # Special handling for raw output format
         if output_format == "raw":
@@ -174,7 +155,7 @@ output_format : str
             if export_dir is None:
                 return provider_artifact
             else:
-                return self._export_raw(provider_artifact, Path(export_dir))
+                return self._export_raw(provider_artifact, export_dir)
 
         # Early exit if output file already exists (not applicable for raw format, handled above)
         if output_path is not None and output_path.exists():
@@ -298,43 +279,34 @@ output_format : str
             "FABIAN_HRIR_measured_HATO_0.sofa").
         """
 
-    def _output_path(self, output_format: str, export_dir: Path | None, **dataset_kwargs) -> Path | None:
+    def _output_path(self, output_dir: Path, source_filename : str, output_format: str) -> Path | None:
         """Return the canonical Path where a file-based output would be written.
 
-        Returns None for in-memory formats ('pyfar', 'numpy'). Uses _source_filename
-        to construct the base filename, then replaces the extension based on output_format.
+        Returns None for formats ('pyfar', 'numpy', 'raw'). Constructs the Path based on filename,
+        directory target and output format.
 
         Parameters
         ----------
+        output_dir : Path
+            The output directory. Either cache_dir/output, export_dir, or export_dir/raw.
+        source_filename : str
+            The name of the ingestible file. Constructed with _source_filename
         output_format : str
             One of 'pyfar', 'numpy', 'hdf5', 'sofa', 'raw'.
-        export_dir : Path or None
-            Optional export directory; determines whether cache subdirectories are used.
-        **dataset_kwargs : dict
-            Dataset-specific parameters used to construct the filename.
 
         Returns
         -------
         Path or None
             Canonical output path, or None for in-memory formats.
         """
-        base = (
-            self.cache_dir / self.name.upper() / "output"
-            if export_dir is None
-            else Path(export_dir) / self.name.upper()
-        )
-        source_filename = Path(self._source_filename(**dataset_kwargs))
-
         match output_format:
-            case "numpy" | "pyfar":
+            case "numpy" | "pyfar" | "raw":
                 return None
-            case "raw":
-                return base / "raw" / source_filename
             case "sofa":
                 suff = ".sofa"
             case "hdf5":
                 suff = ".h5"
-        return (base / source_filename.stem).with_suffix(suff)
+        return (output_dir / source_filename.stem).with_suffix(suff)
 
     def _export_raw(self, provider_artifact: Path, export_dir: Path) -> Path:
         """Export raw provider artifact to export directory.
