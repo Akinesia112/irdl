@@ -281,7 +281,7 @@ output_format : str
             "FABIAN_HRIR_measured_HATO_0.sofa").
         """
 
-    def _output_path(self, output_dir: Path, source_filename : str, output_format: str) -> Path | None:
+    def _output_path(self, output_dir: Path, source_filename: str, output_format: str) -> Path | None:
         """Return the canonical Path where a file-based output would be written.
 
         Returns None for formats ('pyfar', 'numpy', 'raw'). Constructs the Path based on filename,
