@@ -364,13 +364,7 @@ output_format : str
                 shutil.copy2(provider_artifact, output_path)
             return output_path
         elif provider_artifact.is_dir():
-            for item in provider_artifact.iterdir():
-                dest = output_base / item.name
-                if not dest.exists():
-                    if item.is_file():
-                        shutil.copy2(item, dest)
-                    elif item.is_dir():
-                        shutil.copytree(item, dest)
+            shutil.copytree(provider_artifact, output_base, dirs_exist_ok=True)
             return output_base
         else:
             raise ValueError(
