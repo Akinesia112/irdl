@@ -68,7 +68,7 @@ def configure_cli_logging() -> logging.Logger:
     """Configure logging for CLI usage with Rich handler."""
     # Logger is already configured with RichHandler above
     # Just ensure it has the right level
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.INFO)
     return logger
 
 

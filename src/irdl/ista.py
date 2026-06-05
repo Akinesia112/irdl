@@ -470,7 +470,7 @@ class SrirachaDataset(IstaBaseDataset):
         provider_artifact : Path
             Path to the downloaded file or the provider directory.
         ingest_path : :class:`pathlib.Path`
-            Path to the ingest directory.
+            Path to the HDF5 file in the ingest directory.
         **dataset_kwargs : dict
             Must contain 'scenario'. May contain 'dataset_split'.
 
