@@ -196,12 +196,15 @@ class FabianDataset(SofaBaseDataset):
             Path to the extracted SOFA file in the ingest directory.
         """
         with ZipFile(provider_artifact, "r") as zf:
-            # TODO: add error if name is not found in zipfile
             for name in zf.namelist():
                 if name.endswith(ingest_path.name):
                     # Flatten the extraction (strip any nested ZIP directory)
                     zf.getinfo(name).filename = Path(name).name
                     logger.info(f"Extracting {name} to {ingest_path.parent}")
                     zf.extract(name, path=ingest_path.parent)
+                    return ingest_path
 
-        return ingest_path
+            raise FileNotFoundError(
+                f"No entry matching '{ingest_path.name}' found in archive {provider_artifact}. "
+                "Check zf.namelist() for available entries."
+            )
