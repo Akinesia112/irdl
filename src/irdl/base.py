@@ -416,9 +416,6 @@ output_format : str
         ingest_path : Path
             The processed, ingest-ready file at ``ingest_path``.
         """
-        if provider_artifact == ingest_path:
-            return provider_artifact
-
         if provider_artifact.is_file():
             try:
                 os.link(provider_artifact, ingest_path)
