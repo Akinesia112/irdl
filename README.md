@@ -7,7 +7,7 @@ Python package to download, unpack and process impulse response datasets in a un
 
 ## Highlights
 - Returns data in a standardised format either
-  - a dictionary of [`pyfar`](https://pyfar.org)-objects (`'pyfar'`) (default)
+  - a dictionary of [`pyfar`](https://pyfar.org)-objects (default) (`'pyfar'`)
   - a dictionary of NumPy arrays (`'numpy'`)
   - a path to an HDF5-file for partial data access not having to load the entire data into memory (`'hdf5'`)
   - a path to a SOFA-file, the standardised format for spatially oriented acoustic data (`'sofa'`)
