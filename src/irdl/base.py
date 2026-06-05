@@ -216,6 +216,8 @@ output_format : str
     def download(self, provider_dir: Path, **dataset_kwargs) -> Path:
         """Download raw files and return Path to the primary artifact.
 
+        This method wraps _download to enforce provider_dir existence for all subclasses.
+
         Parameters
         ----------
         provider_dir : :class:`pathlib.Path`
@@ -345,6 +347,8 @@ output_format : str
 
     def process(self, provider_artifact: Path, ingest_path: Path, **dataset_kwargs) -> Path:
         """Post-process downloaded file if needed.
+
+        This method wraps _process to enforce ingest_dir existence for all subclasses.
 
         Parameters
         ----------
