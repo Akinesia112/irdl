@@ -154,8 +154,7 @@ output_format : str
             provider_artifact = self.download(provider_dir, **dataset_kwargs)
             if export_dir is None:
                 return provider_artifact
-            else:
-                return self._export_raw(provider_artifact, export_dir)
+            return self._export_raw(provider_artifact, export_dir)
 
         # Early exit if output file already exists (not applicable for raw format, handled above)
         if output_path is not None and output_path.exists():
@@ -189,7 +188,7 @@ output_format : str
                 f"SOFA convention not satisfied!\n{e}\n"
                 "See https://sofar.readthedocs.io/en/stable/resources/conventions.html#conventions for details."
             )
-            return
+            return None
 
         logger.debug(f"Converting to {output_format} format")
         return self._to_output(sofa, output_format, ingest_path, output_path)
@@ -337,13 +336,12 @@ output_format : str
             if not output_path.exists():
                 shutil.copy2(provider_artifact, output_path)
             return output_path
-        elif provider_artifact.is_dir():
+        if provider_artifact.is_dir():
             shutil.copytree(provider_artifact, output_base, dirs_exist_ok=True)
             return output_base
-        else:
-            raise ValueError(
-                f"Provider artifact must be a file or directory, but {self.name} returned: {provider_artifact}"
-            )
+        raise ValueError(
+            f"Provider artifact must be a file or directory, but {self.name} returned: {provider_artifact}"
+        )
 
     def process(self, provider_artifact: Path, ingest_path: Path, **dataset_kwargs) -> Path:
         """Post-process downloaded file if needed.
@@ -398,11 +396,10 @@ output_format : str
             except OSError:
                 shutil.copy2(provider_artifact, ingest_path)
             return ingest_path
-        else:
-            raise NotImplementedError(
-                "BaseDataset._process can only handle single files."
-                "Override _process with special implementation in subclass."
-            )
+        raise NotImplementedError(
+            "BaseDataset._process can only handle single files."
+            "Override _process with special implementation in subclass."
+        )
 
     def _to_output(self, sofa: sf.Sofa, output_format: str, ingest_path: Path, output_path: Path | None) -> dict | Path:
         """Convert sofar.Sofa to the requested output format.
@@ -430,14 +427,13 @@ output_format : str
         """
         if output_format == "pyfar":
             return self._to_pyfar(sofa)
-        elif output_format == "numpy":
+        if output_format == "numpy":
             return self._to_numpy(sofa)
-        elif output_format == "sofa":
+        if output_format == "sofa":
             return self._to_sofa(sofa, ingest_path, output_path)
-        elif output_format == "hdf5":
+        if output_format == "hdf5":
             return self._to_hdf5(sofa, ingest_path, output_path)
-        else:
-            raise ValueError(f"Unknown output_format: {output_format}")
+        raise ValueError(f"Unknown output_format: {output_format}")
 
     def _to_pyfar(self, sofa: sf.Sofa) -> dict:
         """Convert sofar.Sofa to dict of pyfar objects.

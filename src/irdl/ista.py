@@ -271,8 +271,7 @@ class MiracleDataset(IstaBaseDataset):
         # If no split requested, promote to ingest stage
         if not split:
             return super()._process(provider_artifact, ingest_path, **dataset_kwargs)
-        else:
-            return self._extract_split(provider_artifact, split, ingest_path)
+        return self._extract_split(provider_artifact, split, ingest_path)
 
     def _extract_split(self, ingest_path: Path, dataset_split: str, output_path: Path) -> Path:
         """Extract a dataset split from a full MIRACLE HDF5 file.
@@ -457,13 +456,12 @@ class SrirachaDataset(IstaBaseDataset):
             _fetch(pup, fname)
             return target_file
         # Non-dense full plane -> download 4 split files; process will then merge them
-        else:
-            logger.info(f"Downloading SRIRACHA scenario {scenario} (4 split files)")
-            pup = _pooch_from_doi(self.doi, path=provider_dir)
-            for split_file in ["C1", "C2", "C3", "C4"]:
-                fname = f"{scenario}-{split_file}.h5"
-                _fetch(pup, fname)
-            return provider_dir
+        logger.info(f"Downloading SRIRACHA scenario {scenario} (4 split files)")
+        pup = _pooch_from_doi(self.doi, path=provider_dir)
+        for split_file in ["C1", "C2", "C3", "C4"]:
+            fname = f"{scenario}-{split_file}.h5"
+            _fetch(pup, fname)
+        return provider_dir
 
     def _process(self, provider_artifact: Path, ingest_path: Path, **dataset_kwargs) -> Path:
         """Post-process SRIRACHA file if needed.
@@ -493,9 +491,8 @@ class SrirachaDataset(IstaBaseDataset):
         if scenario.endswith("D") or split is not None:
             return super()._process(provider_artifact, ingest_path, **dataset_kwargs)
         # Non-dense full plane -> merge all 4 split files
-        else:
-            logger.debug("Merging split files")
-            return self._merge_split_files(scenario, provider_artifact, ingest_path)
+        logger.debug("Merging split files")
+        return self._merge_split_files(scenario, provider_artifact, ingest_path)
 
     def _merge_split_files(self, scenario: str, provider_artifact: Path, ingest_path: Path) -> Path:
         """Merges four quadrant HDF5 files into a full-plane file.

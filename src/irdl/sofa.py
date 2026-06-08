@@ -48,7 +48,7 @@ class SofaBaseDataset(BaseDataset):
                 os.link(ingest_path, output_path)
                 return output_path
             except OSError as e:
-                logger.debug(f"Linking failed: {repr(e)}")
+                logger.debug(f"Linking failed: {e!r}")
         logger.debug(f"Copying {ingest_path} to {output_path}.")
         shutil.copy2(ingest_path, output_path)
         return output_path

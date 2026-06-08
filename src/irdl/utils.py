@@ -47,10 +47,9 @@ def _fits_in_memory(ingest_path: Path) -> bool:
     available = psutil.virtual_memory().available
     if file_size < available * 0.9:  # Headroom
         return True
-    else:
-        logger.warning(
-            f"Dataset too large for available memory "
-            f"({file_size / 1e9:.1f} GB needed, "
-            f"{available / 1e9:.1f} GB available). "
-        )
-        return False
+    logger.warning(
+        f"Dataset too large for available memory "
+        f"({file_size / 1e9:.1f} GB needed, "
+        f"{available / 1e9:.1f} GB available). "
+    )
+    return False

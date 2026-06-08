@@ -150,7 +150,7 @@ class RichProgressBar:
         """Advance the progress bar by n bytes."""
         if self._task_id is None:
             self._progress.start()
-            self._task_id = self._progress.add_task(self._description, total=self.total if self.total else None)
+            self._task_id = self._progress.add_task(self._description, total=self.total or None)
         self._progress.advance(self._task_id, n)
 
     def reset(self) -> None:
@@ -159,7 +159,7 @@ class RichProgressBar:
         Called by pooch before the final fill.
         """
         if self._task_id is not None:
-            self._progress.reset(self._task_id, total=self.total if self.total else None)
+            self._progress.reset(self._task_id, total=self.total or None)
 
     def close(self) -> None:
         """Fill to 100% and stop the progress display."""
