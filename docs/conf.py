@@ -1,3 +1,5 @@
+"""Sphinx configuration for the documentation."""
+
 import importlib.metadata
 
 metadata = importlib.metadata.metadata("irdl")
