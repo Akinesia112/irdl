@@ -131,9 +131,11 @@ class FabianDataset(SofaBaseDataset):
         hato = dataset_kwargs["hato"]
 
         if kind not in ["measured", "modeled"]:
-            raise ValueError("kind must be either 'measured' or 'modeled'")
+            msg = "kind must be either 'measured' or 'modeled'"
+            raise ValueError(msg)
         if hato not in [0, 10, 20, 30, 40, 50, 310, 320, 330, 340, 350]:
-            raise ValueError("hato must be one of [0, 10, 20, 30, 40, 50, 310, 320, 330, 340, 350]")
+            msg = "hato must be one of [0, 10, 20, 30, 40, 50, 310, 320, 330, 340, 350]"
+            raise ValueError(msg)
 
     def _source_filename(self, **dataset_kwargs) -> str:
         """Construct the ingest-ready (SOFA) filename.

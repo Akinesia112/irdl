@@ -134,7 +134,8 @@ output_format : str
         """  # noqa: D401
         # Validate common parameters
         if output_format not in ("pyfar", "hdf5", "numpy", "sofa", "raw"):
-            raise ValueError("output_format must be one of 'pyfar', 'hdf5', 'numpy', 'sofa', 'raw'")
+            msg = "output_format must be one of 'pyfar', 'hdf5', 'numpy', 'sofa', 'raw'"
+            raise ValueError(msg)
 
         # Validate dataset-specific parameters (including output_format)
         logger.debug(f"Validating parameters for {self.name}")
@@ -344,7 +345,7 @@ output_format : str
             msg
         )
 
-    def process(self, provider_artifact: Path, ingest_path: Path, **dataset_kwargs) -> Path:
+    def process(self, provider_artifact: Path, ingest_path: Path) -> Path:
         """Post-process downloaded file if needed.
 
         This method wraps _process to enforce ingest_dir existence for all subclasses.
@@ -355,8 +356,6 @@ output_format : str
             Path to the freshly downloaded file (or download directory).
         ingest_path : :class:`pathlib.Path`
             Path to the ingestible file in the ingest directory.
-        **dataset_kwargs : dict
-            Dataset-specific parameters.
 
         Returns
         -------
@@ -364,9 +363,9 @@ output_format : str
             The processed, ingest-ready file at ``ingest_path``.
         """
         ingest_path.parent.mkdir(parents=True, exist_ok=True)
-        return self._process(provider_artifact, ingest_path, **dataset_kwargs)
+        return self._process(provider_artifact, ingest_path)
 
-    def _process(self, provider_artifact: Path, ingest_path: Path, **dataset_kwargs) -> Path:
+    def _process(self, provider_artifact: Path, ingest_path: Path) -> Path:
         """Post-process downloaded file if needed.
 
         Override in subclass to extract, merge, or otherwise transform the downloaded data. Write
@@ -383,8 +382,6 @@ output_format : str
             Path to the freshly downloaded file (or download directory).
         ingest_path : :class:`pathlib.Path`
             Path to the ingestible file in the ingest directory.
-        **dataset_kwargs : dict
-            Dataset-specific parameters.
 
         Returns
         -------
@@ -397,9 +394,12 @@ output_format : str
             except OSError:
                 shutil.copy2(provider_artifact, ingest_path)
             return ingest_path
-        raise NotImplementedError(
+        msg = (
             "BaseDataset._process can only handle single files."
             "Override _process with special implementation in subclass."
+        )
+        raise NotImplementedError(
+            msg
         )
 
     def _to_output(self, sofa: sf.Sofa, output_format: str, ingest_path: Path, output_path: Path | None) -> dict | Path:
@@ -485,7 +485,7 @@ output_format : str
             "sampling_rate": float(sofa.Data_SamplingRate),
         }
 
-    def _to_sofa(self, sofa: sf.Sofa, ingest_path: Path, output_path: Path) -> Path:
+    def _to_sofa(self, sofa: sf.Sofa, ingest_path: Path, output_path: Path) -> Path:  # noqa: ARG002
         """Write sofar.Sofa to file and return Path.
 
         Parameters
@@ -506,7 +506,7 @@ output_format : str
         sf.write_sofa(output_path, sofa)
         return output_path
 
-    def _to_hdf5(self, sofa: sf.Sofa, ingest_path: Path, output_path: Path) -> Path:
+    def _to_hdf5(self, sofa: sf.Sofa, ingest_path: Path, output_path: Path) -> Path:  # noqa: ARG002
         """Convert sofar.Sofa to HDF5 file and return Path.
 
         Parameters

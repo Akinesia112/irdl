@@ -214,11 +214,14 @@ class MiracleDataset(IstaBaseDataset):
         dataset_split = dataset_kwargs.get("dataset_split")
 
         if scenario not in ["A1", "A2", "D1", "R2"]:
-            raise ValueError("scenario must be one of ['A1', 'A2', 'D1', 'R2']")
+            msg = "scenario must be one of ['A1', 'A2', 'D1', 'R2']"
+            raise ValueError(msg)
         if dataset_split not in [None, "C1", "C2", "C3", "C4"]:
-            raise ValueError("dataset_split must be None or one ['C1', 'C2', 'C3', 'C4']")
+            msg = "dataset_split must be None or one ['C1', 'C2', 'C3', 'C4']"
+            raise ValueError(msg)
         if scenario == "D1" and dataset_split is not None:
-            raise ValueError("scenario D1 cannot be split")
+            msg = "scenario D1 cannot be split"
+            raise ValueError(msg)
 
     def _download(self, provider_dir: Path, **dataset_kwargs) -> Path:
         """Download MIRACLE dataset file.
@@ -416,13 +419,17 @@ class SrirachaDataset(IstaBaseDataset):
         output_format = dataset_kwargs.get("output_format")
 
         if scenario not in ["SR1", "SRA1", "SR1-D", "SRA1-D", "SR2", "SRA2", "SR2-D", "SRA2-D"]:
-            raise ValueError("scenario must be one of [SR1, SRA1, SR1-D, SRA1-D, SR2, SRA2, SR2-D, SRA2-D]")
+            msg = "scenario must be one of [SR1, SRA1, SR1-D, SRA1-D, SR2, SRA2, SR2-D, SRA2-D]"
+            raise ValueError(msg)
         if dataset_split not in [None, "C1", "C2", "C3", "C4"]:
-            raise ValueError("dataset_split must be None or in [C1, C2, C3, C4]")
+            msg = "dataset_split must be None or in [C1, C2, C3, C4]"
+            raise ValueError(msg)
         if scenario[-1] == "D" and dataset_split is not None:
-            raise ValueError("dense datasets do not have splits")
+            msg = "dense datasets do not have splits"
+            raise ValueError(msg)
         if output_format == "raw" and scenario and scenario[-1] != "D" and dataset_split is None:
-            raise ValueError("raw output_format not supported for non-dense SRIRACHA scenarios without split")
+            msg = "raw output_format not supported for non-dense SRIRACHA scenarios without split"
+            raise ValueError(msg)
 
     def _download(self, provider_dir: Path, **dataset_kwargs) -> Path:
         """Download SRIRACHA dataset file(s) to the provider directory.
