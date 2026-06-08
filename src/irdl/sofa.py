@@ -209,6 +209,4 @@ class FabianDataset(SofaBaseDataset):
                 f"No entry matching '{ingest_path.name}' found in archive {provider_artifact}. "
                 "Check zf.namelist() for available entries."
             )
-            raise FileNotFoundError(
-                msg
-            )
+            raise FileNotFoundError(msg)

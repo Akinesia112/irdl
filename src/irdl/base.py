@@ -341,9 +341,7 @@ output_format : str
             shutil.copytree(provider_artifact, output_base, dirs_exist_ok=True)
             return output_base
         msg = f"Provider artifact must be a file or directory, but {self.name} returned: {provider_artifact}"
-        raise ValueError(
-            msg
-        )
+        raise ValueError(msg)
 
     def process(self, provider_artifact: Path, ingest_path: Path) -> Path:
         """Post-process downloaded file if needed.
@@ -398,9 +396,7 @@ output_format : str
             "BaseDataset._process can only handle single files."
             "Override _process with special implementation in subclass."
         )
-        raise NotImplementedError(
-            msg
-        )
+        raise NotImplementedError(msg)
 
     def _to_output(self, sofa: sf.Sofa, output_format: str, ingest_path: Path, output_path: Path | None) -> dict | Path:
         """Convert sofar.Sofa to the requested output format.
