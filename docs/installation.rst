@@ -39,14 +39,14 @@ Then, we install ``irdl`` in that environment with:
 
         .. code-block:: console
 
-            $ uv pip install acoular
+            $ uv pip install irdl
 
     .. tab-item:: ``pip``
         :sync: pip
 
         .. code-block:: console
 
-            $ pip install -U acoular
+            $ pip install -U irdl
 
 We can check the installation by checking for CLI-tool availability with:
 
