@@ -28,7 +28,7 @@ class TestDataset(BaseDataset):
     def _ingest(self, file_path):
         """No-op ingest for test dataset."""
 
-    def _source_filename(self, **kwargs):
+    def _source_filename(self, **kwargs):  # noqa: ARG002
         """Return test file name."""
         return "test.sofa"
 

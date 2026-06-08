@@ -74,7 +74,7 @@ class IstaBaseDataset(BaseDataset):
             humidity = f["metadata"]["humidity"][()] if "humidity" in f["metadata"] else None
 
         # SOFA dimension naming
-        m, r, n = ir.shape  # number of measurements, receiver and samples
+        m, r, _ = ir.shape  # number of measurements, receiver and samples
         e = 1  # number of emitters
         c = 3  # number of coordinates
         i = 1  # unity dimensions
@@ -92,12 +92,12 @@ class IstaBaseDataset(BaseDataset):
         sofa.GLOBAL_ListenerShortName = "Custom planar microphone array"
         sofa.GLOBAL_ListenerDescription = (
             "64-channel planar microphone array "
-            "(1.5 m × 1.5 m aluminium plate, Vogel's spiral, max spacing 1.47 m, 51.2 kHz sampling rate)"
+            "(1.5 m x 1.5 m aluminium plate, Vogel's spiral, max spacing 1.47 m, 51.2 kHz sampling rate)"
         )
         sofa.GLOBAL_ReceiverShortName = "GRAS 40PL-1 Short CCP"
         sofa.GLOBAL_SourceShortName = "Loudspeaker"
         sofa.GLOBAL_SourceDescription = (
-            "Dynamic 2” cone loudspeaker in a cylindrical enclosure (Frequency range 100 Hz–16 kHz)"
+            "Dynamic 2” cone loudspeaker in a cylindrical enclosure (Frequency range 100 Hz-16 kHz)"
         )
 
         sofa.RoomVolume = self.room_volume  # #Dim. 1, M => so add a dimension upfront
@@ -495,7 +495,7 @@ class SrirachaDataset(IstaBaseDataset):
         return self._merge_split_files(scenario, provider_artifact, ingest_path)
 
     def _merge_split_files(self, scenario: str, provider_artifact: Path, ingest_path: Path) -> Path:
-        """Merges four quadrant HDF5 files into a full-plane file.
+        """Merge four quadrant HDF5 files into a full-plane file.
 
         Reads metadata from the first split file in the provider directory,
         allocates output datasets with the full source-grid shape, copies each

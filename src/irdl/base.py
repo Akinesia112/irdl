@@ -131,7 +131,7 @@ output_format : str
         dict or :class:`pathlib.Path`
             For 'pyfar' / 'numpy': a dict of in-memory objects.
             For 'sofa' / 'hdf5' / 'raw': a :class:`pathlib.Path` to the file on disk.
-        """
+        """  # noqa: D401
         # Validate common parameters
         if output_format not in ("pyfar", "hdf5", "numpy", "sofa", "raw"):
             raise ValueError("output_format must be one of 'pyfar', 'hdf5', 'numpy', 'sofa', 'raw'")

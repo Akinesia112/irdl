@@ -4,7 +4,7 @@ metadata = importlib.metadata.metadata("irdl")
 
 project = "irdl"
 author = "Art J. R. Pelling"
-copyright = f"2025-%Y, {author}"
+copyright = f"2025-%Y, {author}"  # noqa: A001
 version = metadata["Version"]
 
 extensions = [

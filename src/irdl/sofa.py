@@ -24,7 +24,7 @@ class SofaBaseDataset(BaseDataset):
     ingest-ready file, avoiding having to write the sofa file in memory.
     """
 
-    def _to_sofa(self, sofa: sf.Sofa, ingest_path: Path, output_path: Path) -> Path:
+    def _to_sofa(self, sofa: sf.Sofa, ingest_path: Path, output_path: Path) -> Path:  # noqa: ARG002
         """Copy sofar.Sofa file from ingest_dir and return Path.
 
         Parameters
@@ -46,9 +46,10 @@ class SofaBaseDataset(BaseDataset):
             try:
                 logger.debug(f"Linking {ingest_path} to {output_path}.")
                 os.link(ingest_path, output_path)
-                return output_path
             except OSError as e:
                 logger.debug(f"Linking failed: {e!r}")
+            else:
+                return output_path
         logger.debug(f"Copying {ingest_path} to {output_path}.")
         shutil.copy2(ingest_path, output_path)
         return output_path
@@ -149,7 +150,7 @@ class FabianDataset(SofaBaseDataset):
         """
         return f"FABIAN_HRIR_{dataset_kwargs['kind']}_HATO_{dataset_kwargs['hato']}.sofa"
 
-    def _download(self, provider_dir: Path, **dataset_kwargs) -> Path:
+    def _download(self, provider_dir: Path, **dataset_kwargs) -> Path:  # noqa: ARG002
         """Download FABIAN ZIP archive to the provider directory.
 
         Only downloads the archive if it is not already cached in the provider
@@ -178,7 +179,7 @@ class FabianDataset(SofaBaseDataset):
             _fetch(pup, zipfile_name)
         return zip_path
 
-    def _process(self, provider_artifact: Path, ingest_path: Path, **dataset_kwargs) -> Path:
+    def _process(self, provider_artifact: Path, ingest_path: Path) -> Path:
         """Extract the requested SOFA file from the ZIP into the ingest directory.
 
         Parameters
@@ -187,8 +188,6 @@ class FabianDataset(SofaBaseDataset):
             Path to the ZIP archive in the provider directory.
         ingest_path : :class:`pathlib.Path`
             Path to the SOFA file in the ingest directory.
-        **dataset_kwargs : dict
-            Expected keys: kind, hato.
 
         Returns
         -------
