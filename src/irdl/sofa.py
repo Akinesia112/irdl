@@ -204,7 +204,10 @@ class FabianDataset(SofaBaseDataset):
                     zf.extract(name, path=ingest_path.parent)
                     return ingest_path
 
-            raise FileNotFoundError(
+            msg = (
                 f"No entry matching '{ingest_path.name}' found in archive {provider_artifact}. "
                 "Check zf.namelist() for available entries."
+            )
+            raise FileNotFoundError(
+                msg
             )

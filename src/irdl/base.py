@@ -339,8 +339,9 @@ output_format : str
         if provider_artifact.is_dir():
             shutil.copytree(provider_artifact, output_base, dirs_exist_ok=True)
             return output_base
+        msg = f"Provider artifact must be a file or directory, but {self.name} returned: {provider_artifact}"
         raise ValueError(
-            f"Provider artifact must be a file or directory, but {self.name} returned: {provider_artifact}"
+            msg
         )
 
     def process(self, provider_artifact: Path, ingest_path: Path, **dataset_kwargs) -> Path:
@@ -433,7 +434,8 @@ output_format : str
             return self._to_sofa(sofa, ingest_path, output_path)
         if output_format == "hdf5":
             return self._to_hdf5(sofa, ingest_path, output_path)
-        raise ValueError(f"Unknown output_format: {output_format}")
+        msg = f"Unknown output_format: {output_format}"
+        raise ValueError(msg)
 
     def _to_pyfar(self, sofa: sf.Sofa) -> dict:
         """Convert sofar.Sofa to dict of pyfar objects.

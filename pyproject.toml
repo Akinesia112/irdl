@@ -103,6 +103,7 @@ select = [
 
 ignore = [
     "COM812",  # conflict with ruff formatter
+    "SLF001",  # private-member-access -> TBD
     "TRY003",  # avoid long messages outside exception class
 ]
 
