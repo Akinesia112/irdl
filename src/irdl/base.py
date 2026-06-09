@@ -544,9 +544,9 @@ output_format : str
             # Add other metadata if present
             if hasattr(sofa, "RoomTemperature"):
                 meta_group.create_dataset("temperature", data=sofa.RoomTemperature)
-            elif hasattr(sofa, "Data_Temperature"):
-                meta_group.create_dataset("temperature", data=sofa.Data_Temperature)
-            if hasattr(sofa, "Data_Humidity"):
-                meta_group.create_dataset("humidity", data=sofa.Data_Humidity)
+            if hasattr(sofa, "SpeedOfSound"):
+                meta_group.create_dataset("c0", data=sofa.SpeedOfSound)
+            if hasattr(sofa, "Humidity"):
+                meta_group.create_dataset("humidity", data=sofa.Humidity)
 
         return output_path
