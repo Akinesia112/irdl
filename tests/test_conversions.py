@@ -166,8 +166,9 @@ class TestConversionToHdf5:
         # Manually add optional fields to the sofa object
         # Note: This bypasses SOFA's protected mode for testing purposes
         sofa_object._protected = False
-        sofa_object.Data_Temperature = np.array([20.0, 20.0])
-        sofa_object.Data_Humidity = np.array([50.0, 50.0])
+        sofa_object.RoomTemperature = np.array([20.0, 20.0])
+        sofa_object.Humidity = np.array([50.0, 50.0])
+        sofa_object.SpeedOfSound = np.array([[343.0], [343.0]])
 
         with tempfile.TemporaryDirectory() as tmpdir:
             result = test_dataset._to_hdf5(sofa_object, Path(tmpdir), Path(tmpdir) / "test.h5")
@@ -175,3 +176,4 @@ class TestConversionToHdf5:
             with h5py.File(result, "r") as f:
                 assert "temperature" in f["metadata"]
                 assert "humidity" in f["metadata"]
+                assert "c0" in f["metadata"]
