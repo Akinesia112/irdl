@@ -70,6 +70,8 @@ class IstaBaseDataset(BaseDataset):
             source_pos = f["data"]["location"]["source"][()]
             sampling_rate = f["metadata"]["sampling_rate"][()]
             temperature = f["metadata"]["temperature"][()]
+            speed_of_sound = f["metadata"]["c0"][()]
+            humidity = f["metadata"]["humidity"][()] if "humidity" in f["metadata"] else None
 
         # SOFA dimension naming
         m, r, n = ir.shape  # number of measurements, receiver and samples
@@ -131,6 +133,11 @@ class IstaBaseDataset(BaseDataset):
         sofa.Data_IR = ir[..., np.newaxis]  # dim spec (M, R, N, E)
         sofa.Data_SamplingRate = np.full((i, m), sampling_rate)  # dim spec (I, M)
         sofa.Data_Delay = np.zeros((m, r, i))
+
+        # --- Custom data (not part of the SOFA convention) ---------------------
+        sofa.add_variable("SpeedOfSound", speed_of_sound.reshape(m, i), "double", "MI")
+        if humidity is not None:
+            sofa.add_variable("Humidity", humidity.reshape(m, i), "double", "MI")
 
         return sofa
 
