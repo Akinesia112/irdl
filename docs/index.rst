@@ -6,9 +6,6 @@ Python package to download, unpack and process impulse response datasets in a un
 Usage (Python API)
 ------------------
 
-.. _python-api-reference:
-
-
 The package can be included in a Python script as simple as:
 
 .. code-block:: python
@@ -37,8 +34,6 @@ Usage (CLI)
 
 Once installed, the package provides a convenient command line script which can be invoked with ``irdl``.
 
-.. _cli-reference:
-
 .. code-block:: bash
 
   $ irdl --help
@@ -62,10 +57,11 @@ The supported datasets are available as subcommands, i.e.
 For more details, see the :ref:`cli-reference` section.
 
 .. toctree::
-   :hidden:
+   :maxdepth: 2
 
    Installation <installation>
    Available Datasets <datasets>
    Reference <reference>
    Contributing <contributing>
-   Changelog <https://github.com/artpelling/irdl/blob/main/CHANGELOG.md>
+   Processing flow <processing_flow>
+   Adding a new Dataset <adding_dataset>
