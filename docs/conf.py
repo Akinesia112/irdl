@@ -25,10 +25,14 @@ html_sidebars = {
     "**": ["sidebar-nav-bs.html"],
 }
 html_theme_options = {
-    "navbar_center": [],
+    "navbar_start": ["navbar-logo"],
+    "navbar_center": ["search-button-field"],
+    "navbar_persistent": ["theme-switcher"],
+    "navbar_end": ["navbar-icon-links"],
+    "navbar_align": "content",
     "logo": {
         "alt_text": "irdl",
-        "text": "irdl: Impulse Response Downloader",
+        "text": "irdl",
     },
     "icon_links": [
         {
