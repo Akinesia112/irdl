@@ -7,8 +7,6 @@ A new Dataset should fit into the shared ``BaseDataset`` flow rather than implem
 own retrieval pipeline. The Dataset-specific code should focus on acquiring provider data,
 preparing one ingest-ready file, and reading that file into SOFA.
 
-.. include:: _includes/minimum_useful_contribution.inc
-
 Choose a base class
 -------------------
 
@@ -36,7 +34,7 @@ A skeletal Dataset looks like this:
 
 
    class NewDataset(BaseDataset):
-       """Download and process the NEW Dataset."""
+       """Retrieve and process the NEW Dataset."""
 
        name = "new"
        doi = "10.xxxx/example"
@@ -74,7 +72,7 @@ A skeletal Dataset looks like this:
            return f"new-{scenario}.sofa"
 
        def _download(self, provider_dir: Path, **dataset_kwargs) -> Path:
-           # Download provider file(s) into provider_dir.
+           # Retrieve provider file(s) into provider_dir.
            # Return the primary provider artifact.
            raise NotImplementedError
 
@@ -109,8 +107,8 @@ NumPy-style docstring.
 Documentation overview
 ----------------------
 
-Add the Dataset to the matching section in ``docs/datasets.rst``. If no existing section
-fits, create a new section with the Dataset type.
+Add the Dataset to the matching section in ``docs/datasets/index.rst``. If no existing
+section fits, create a new section with the Dataset type.
 
 The documentation Makefile regenerates CLI help snippets while building the docs. If a
 change affects CLI help text, the README usage section may also need to be refreshed, but
@@ -135,5 +133,5 @@ output conversion. ``BaseDataset`` verifies the SOFA convention and prints diagn
 are useful while implementing a Dataset, including during agent-assisted coding.
 
 In your contribution notes, include the command or Python snippet you ran and the smallest
-useful evidence that the downloaded data is correct, such as expected filenames, dimensions,
+useful evidence that the retrieved data is correct, such as expected filenames, dimensions,
 sampling rate, coordinates, or Dataset metadata.

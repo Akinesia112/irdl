@@ -1,7 +1,7 @@
 Processing flow
 ===============
 
-This page describes the contributor-facing architecture of IRDL and the conceptual flow of
+This page describes the contributor-facing architecture of ``irdl`` and the conceptual flow of
 a ``Dataset.get(...)`` call. It intentionally focuses on stable concepts and extension
 points rather than every private implementation detail.
 
@@ -10,7 +10,7 @@ Core architecture
 
 ``BaseDataset``
    The core abstraction for all Datasets. It owns the shared ``get`` pipeline: common
-   parameter validation, cache path handling, download/process orchestration, SOFA
+   parameter validation, cache path handling, retrieval/process orchestration, SOFA
    verification, and output conversion.
 
 Optional shared bases
@@ -23,8 +23,8 @@ Concrete Dataset classes
    docstring are also used to generate CLI parameters and help text.
 
 Support modules
-   Download/repository helpers, CLI generation, logging/progress helpers, and small utility
-   functions live outside the Dataset classes.
+   Retrieval/repository helpers, CLI generation, logging/progress helpers, and small
+   utility functions live outside the Dataset classes.
 
 Generic shape:
 
@@ -37,13 +37,13 @@ Generic shape:
 Cache stages
 ------------
 
-IRDL uses three canonical Cache Stages:
+``irdl`` uses three canonical Cache Stages:
 
 ``provider``
    Files exactly as the Dataset Provider delivers them.
 
 ``ingest``
-   The single ingest-ready file that IRDL can read into the internal SOFA representation.
+   The single ingest-ready file that ``irdl`` can read into the internal SOFA representation.
 
 ``output``
    Cached files produced by converting the internal SOFA representation to disk-based
@@ -63,10 +63,10 @@ A public ``Dataset.get(...)`` call delegates to the shared ``BaseDataset`` flow:
      └─ BaseDataset._get(...)
          ├─ validate common and Dataset-specific parameters
          ├─ resolve provider / ingest / output paths
-         ├─ raw output: download provider artifact and return/copy it
+         ├─ raw output: retrieve provider artifact and return/copy it
          ├─ reuse cached output if available
          ├─ reuse ingest file if available
-         ├─ download provider artifact if needed
+         ├─ retrieve provider artifact if needed
          ├─ process provider → ingest if needed
          ├─ ingest to internal SOFA representation
          ├─ verify and upgrade SOFA convention
@@ -97,9 +97,9 @@ itself needs to change.
 Output behavior
 ---------------
 
-``output_format="raw"`` returns the provider-stage artifact before IRDL processing. For all
-other Output Formats, IRDL ingests the data to SOFA first and then converts from SOFA to the
+``output_format="raw"`` returns the provider-stage artifact before ``irdl`` processing. For all
+other Output Formats, ``irdl`` ingests the data to SOFA first and then converts from SOFA to the
 requested representation.
 
-When ``export_dir`` is provided, IRDL copies the requested artifact to the export directory.
+When ``export_dir`` is provided, ``irdl`` copies the requested artifact to the Export Directory.
 The cache remains intact so later calls can reuse provider, ingest, or output artifacts.

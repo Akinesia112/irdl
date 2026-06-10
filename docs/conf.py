@@ -21,7 +21,11 @@ templates_path = ["_templates"]
 
 html_static_path = ["_static"]
 html_theme = "pydata_sphinx_theme"
+html_sidebars = {
+    "**": ["sidebar-nav-bs.html"],
+}
 html_theme_options = {
+    "navbar_center": [],
     "logo": {
         "alt_text": "irdl",
         "text": "irdl: Impulse Response Downloader",
@@ -39,11 +43,11 @@ html_theme_options = {
             "type": "local",
         },
     ],
+    "collapse_navigation": False,
+    "navigation_depth": 3,
+    "show_nav_level": 2,
     "pygments_light_style": "tango",
     "pygments_dark_style": "monokai",
-}
-html_sidebars = {
-    "installation": [],
 }
 
 # sphinx_copybutton config

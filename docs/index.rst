@@ -1,67 +1,59 @@
 ``irdl``: Impulse Response Downloader
 =====================================
 
-Python package to download, unpack and process impulse response datasets in a unified way.
-
-Usage (Python API)
-------------------
-
-The package can be included in a Python script as simple as:
+``irdl`` retrieves, caches, and converts impulse response Datasets in a unified way.
 
 .. code-block:: python
 
-  from irdl import FabianDataset
+   from irdl import MiracleDataset
 
-  data = FabianDataset.get(kind='measured', hato=10)
-  print(data)
-
-Will output:
+   data = MiracleDataset.get(scenario="A1")
+   print(data["impulse_response"])
 
 .. code-block:: bash
 
-  {'impulse_response': time domain energy Signal:
-  (11950, 2) channels with 256 samples @ 44100.0 Hz sampling rate and none FFT normalization,
-   'receiver_coordinates': 2D Coordinates object with 2 points of cshape (2, 1)
-  Does not contain sampling weights,
-   'source_coordinates': 1D Coordinates object with 11950 points of cshape (11950,)
-  Does not contain sampling weights}
+   $ irdl miracle --scenario A1
 
-For more details, see the :ref:`python-api-reference` section.
+``irdl`` follows a simple user-facing flow:
 
+1. Choose a Dataset and parameters.
+2. ``irdl`` retrieves and reuses cached source artifacts.
+3. ``irdl`` prepares the ingest-ready representation when needed.
+4. ``irdl`` returns the requested Output Format.
 
-Usage (CLI)
------------
+.. grid:: 2
+   :gutter: 2
 
-Once installed, the package provides a convenient command line script which can be invoked with ``irdl``.
+   .. grid-item-card:: Getting started
+      :link: getting_started
+      :link-type: doc
 
-.. code-block:: bash
+      Install ``irdl`` and run the first MIRACLE retrieval from Python or the CLI.
 
-  $ irdl --help
+   .. grid-item-card:: Installation
+      :link: installation
+      :link-type: doc
 
-.. literalinclude:: cli-help.txt
-  :caption: Output:
-  :language: bash
-  :encoding: utf-8
+      Compare ``uv`` and ``pip`` installation paths and global tool setup.
 
-The supported datasets are available as subcommands, i.e.
+   .. grid-item-card:: Datasets
+      :link: datasets/index
+      :link-type: doc
 
-.. code-block:: bash
+      Browse MIRACLE, SRIRACHA, and FABIAN with grouped navigation in the sidebar.
 
-  $ irdl miracle --help
+   .. grid-item-card:: Reference
+      :link: reference/index
+      :link-type: doc
 
-.. literalinclude:: cli-miracle-help.txt
-  :caption: Output:
-  :language: bash
-  :encoding: utf-8
-
-For more details, see the :ref:`cli-reference` section.
+      Jump to the Python API, CLI reference, and internal modules.
 
 .. toctree::
-   :maxdepth: 2
+   :hidden:
 
+   Introduction <self>
+   Getting started <getting_started>
    Installation <installation>
-   Available Datasets <datasets>
-   Reference <reference>
-   Contributing <contributing>
-   Processing flow <processing_flow>
-   Adding a new Dataset <adding_dataset>
+   Datasets <datasets/index>
+   Reference <reference/index>
+   Contributor Guide <contributor-guide/index>
