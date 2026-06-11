@@ -1,19 +1,17 @@
 """Utility functions for IRDL."""
 
+from inspect import isabstract
 from pathlib import Path
 from types import ModuleType
 
 import psutil
 
+from irdl.base import BaseDataset
 from irdl.logging import logger
 
 
 def _get_dataset_classes(module: ModuleType) -> list[type]:
     """Return concrete BaseDataset subclasses exported by module."""
-    from inspect import isabstract
-
-    from irdl.base import BaseDataset
-
     dataset_classes: list[type] = []
     for name in dir(module):
         obj = getattr(module, name)

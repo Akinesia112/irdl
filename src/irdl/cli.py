@@ -3,7 +3,7 @@
 import pathlib
 import types
 from inspect import signature
-from typing import Annotated, Any, Optional, Union, get_args, get_origin
+from typing import Annotated, Any, Union, get_args, get_origin
 
 import typer
 from numpydoc.docscrape import FunctionDoc
@@ -39,7 +39,7 @@ def _resolve_union_type(annotation: type) -> type:
     return annotation
 
 
-def _make_wrapper(cls, method, params, help_text, dataset_name, param_docs):  # noqa: D103
+def _make_wrapper(cls, method, params, help_text, dataset_name, param_docs):
     def wrapper(**kwargs) -> Any:
         return method.__func__(cls, **kwargs)
 
