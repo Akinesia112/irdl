@@ -12,16 +12,19 @@ BUILDDIR      = build
 help:
 	@$(SPHINXBUILD) -M help "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
 
-.PHONY: help Makefile cli
+.PHONY: help Makefile generated-docs
 
-cli:
-	irdl --help | sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]//g" > cli-help.txt
-	irdl miracle --help | sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]//g" > cli-miracle-help.txt
+generated-docs:
+	mkdir -p _generated
+	uv run python generate_dataset_docs.py
+	uv run python -m typer ../src/irdl/cli.py utils docs --name irdl --output _generated/cli.md
 
 # Catch-all target: route all unknown targets to Sphinx using the new
 # "make mode" option.  $(O) is meant as a shortcut for $(SPHINXOPTS).
-%: Makefile cli
+%: Makefile generated-docs
 	@$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
 
 clean:
-	rm -rf build _autosummary cli-help.txt cli-miracle-help.txt
+	rm -rf build _autosummary _generated
+	rm -f datasets/room_impulse_responses.rst datasets/head_related_impulse_responses.rst
+	rm -f datasets/miracle_dataset.rst datasets/sriracha_dataset.rst datasets/fabian_dataset.rst

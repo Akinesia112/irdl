@@ -1,7 +1,8 @@
 Installation
 ============
 
-We recommend either ``uv`` or ``pip`` with ``venv`` for installation. First, we create a virtual environment:
+We recommend either ``uv`` or ``pip`` with ``venv`` for installation. First, create a
+virtual environment:
 
 .. tab-set::
     :sync-group: tool
@@ -14,7 +15,7 @@ We recommend either ``uv`` or ``pip`` with ``venv`` for installation. First, we 
             $ uv venv
 
         .. note::
-           ``uv`` will handle environment activation implicitly (the environment is created at ``.venv``).
+           ``uv`` will handle environment activation implicitly when you use ``uv run``.
 
     .. tab-item:: ``venv``
         :sync: pip
@@ -23,13 +24,13 @@ We recommend either ``uv`` or ``pip`` with ``venv`` for installation. First, we 
 
             $ python3 -m venv my-env
 
-        and activate the environment with:
+        Then activate the environment:
 
         .. code-block:: console
 
-            $ source my-env/activate/bin
+            $ source my-env/bin/activate
 
-Then, we install ``irdl`` in that environment with:
+Then install ``irdl`` into that environment:
 
 .. tab-set::
     :sync-group: tool
@@ -48,7 +49,7 @@ Then, we install ``irdl`` in that environment with:
 
             $ pip install -U irdl
 
-We can check the installation by checking for CLI-tool availability with:
+Check the installation by asking the CLI for help:
 
 .. tab-set::
     :sync-group: tool
@@ -67,27 +68,16 @@ We can check the installation by checking for CLI-tool availability with:
 
             $ irdl --help
 
-If you would like the ``irdl`` command to be available globally you can either add the binary to your path or install irdl with ``uv tool``!
+.. tip::
 
-.. tab-set::
-    :sync-group: tool
+    If you want the ``irdl`` command to be available globally, install it as a ``uv tool``:
 
-    .. tab-item:: ```uv``
-        :sync: uv
+    .. code-block:: console
 
-        Skip all of the above and simply run
+       $ uv tool install irdl
 
-        .. code-block:: console
+    Upgrade the global tool later with:
 
-            $ uv tool install irdl
+    .. code-block:: console
 
-        You can check for new available datasets with ``uv tool upgrade irdl`` 🤗
-
-    .. tab-item:: ``pip``
-        :sync: pip
-
-        On Linux and MacOs:
-
-        .. code-block:: console
-
-            $ export PATH=$PATH:path/to/my-env/bin/irdl
+       $ uv tool upgrade irdl

@@ -34,16 +34,16 @@ dependencies = [
     "pooch>=1.8.2",
     "pyfar>=0.7.3",
     "rich>=13.0.0",
-    "typer>=0.17.4",
+    "typer>=0.26.7,<0.27",
     "psutil>=7.0.0",
     "sofar>=1.2.3",
 ]
 
 [dependency-groups]
 docs = [
+    "myst-parser>=4.0.1",
     "pydata-sphinx-theme>=0.16.1",
     "sphinx>=9.0.4",
-    "sphinx-click>=6.2.0",
     "sphinx-copybutton>=0.5.2",
     "sphinx-design>=0.7.0",
 ]
