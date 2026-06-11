@@ -21,17 +21,14 @@ class TestDataset(BaseDataset):
 
     def _validate_params(self, dataset_kwargs):
         """No-op validation for test dataset."""
-        pass
 
     def _download(self, **kwargs):
         """No-op download for test dataset."""
-        pass
 
     def _ingest(self, file_path):
         """No-op ingest for test dataset."""
-        pass
 
-    def _source_filename(self, **kwargs):
+    def _source_filename(self, **kwargs):  # noqa: ARG002
         """Return test file name."""
         return "test.sofa"
 

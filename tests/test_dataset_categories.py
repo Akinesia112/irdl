@@ -4,14 +4,15 @@ from importlib import util
 from pathlib import Path
 
 import irdl
-from irdl.utils import _get_dataset_classes
+from irdl.base import _get_dataset_classes
 
 
 def _load_dataset_categories():
     path = Path(__file__).resolve().parents[1] / "docs" / "dataset_categories.py"
     spec = util.spec_from_file_location("dataset_categories", path)
     module = util.module_from_spec(spec)
-    assert spec and spec.loader
+    assert spec
+    assert spec.loader
     spec.loader.exec_module(module)
     return module.DATASET_CATEGORIES
 

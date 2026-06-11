@@ -24,7 +24,7 @@ class SofaBaseDataset(BaseDataset):
     ingest-ready file, avoiding having to write the sofa file in memory.
     """
 
-    def _to_sofa(self, sofa: sf.Sofa, ingest_path: Path, output_path: Path) -> Path:
+    def _to_sofa(self, sofa: sf.Sofa, ingest_path: Path, output_path: Path) -> Path:  # noqa: ARG002
         """Copy sofar.Sofa file from ingest_dir and return Path.
 
         Parameters
@@ -46,9 +46,10 @@ class SofaBaseDataset(BaseDataset):
             try:
                 logger.debug(f"Linking {ingest_path} to {output_path}.")
                 os.link(ingest_path, output_path)
-                return output_path
             except OSError as e:
-                logger.debug(f"Linking failed: {repr(e)}")
+                logger.debug(f"Linking failed: {e!r}")
+            else:
+                return output_path
         logger.debug(f"Copying {ingest_path} to {output_path}.")
         shutil.copy2(ingest_path, output_path)
         return output_path
@@ -130,9 +131,11 @@ class FabianDataset(SofaBaseDataset):
         hato = dataset_kwargs["hato"]
 
         if kind not in ["measured", "modeled"]:
-            raise ValueError("kind must be either 'measured' or 'modeled'")
+            msg = "kind must be either 'measured' or 'modeled'"
+            raise ValueError(msg)
         if hato not in [0, 10, 20, 30, 40, 50, 310, 320, 330, 340, 350]:
-            raise ValueError("hato must be one of [0, 10, 20, 30, 40, 50, 310, 320, 330, 340, 350]")
+            msg = "hato must be one of [0, 10, 20, 30, 40, 50, 310, 320, 330, 340, 350]"
+            raise ValueError(msg)
 
     def _source_filename(self, **dataset_kwargs) -> str:
         """Construct the ingest-ready (SOFA) filename.
@@ -149,7 +152,7 @@ class FabianDataset(SofaBaseDataset):
         """
         return f"FABIAN_HRIR_{dataset_kwargs['kind']}_HATO_{dataset_kwargs['hato']}.sofa"
 
-    def _download(self, provider_dir: Path, **dataset_kwargs) -> Path:
+    def _download(self, provider_dir: Path, **dataset_kwargs) -> Path:  # noqa: ARG002
         """Download FABIAN ZIP archive to the provider directory.
 
         Only downloads the archive if it is not already cached in the provider
@@ -178,7 +181,7 @@ class FabianDataset(SofaBaseDataset):
             _fetch(pup, zipfile_name)
         return zip_path
 
-    def _process(self, provider_artifact: Path, ingest_path: Path, **dataset_kwargs) -> Path:
+    def _process(self, provider_artifact: Path, ingest_path: Path) -> Path:
         """Extract the requested SOFA file from the ZIP into the ingest directory.
 
         Parameters
@@ -187,8 +190,6 @@ class FabianDataset(SofaBaseDataset):
             Path to the ZIP archive in the provider directory.
         ingest_path : :class:`pathlib.Path`
             Path to the SOFA file in the ingest directory.
-        **dataset_kwargs : dict
-            Expected keys: kind, hato.
 
         Returns
         -------
@@ -204,7 +205,8 @@ class FabianDataset(SofaBaseDataset):
                     zf.extract(name, path=ingest_path.parent)
                     return ingest_path
 
-            raise FileNotFoundError(
+            msg = (
                 f"No entry matching '{ingest_path.name}' found in archive {provider_artifact}. "
                 "Check zf.namelist() for available entries."
             )
+            raise FileNotFoundError(msg)

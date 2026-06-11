@@ -48,7 +48,7 @@ docs = [
     "sphinx-design>=0.7.0",
 ]
 
-lint = ["ruff==0.14.14"]
+lint = ["ruff==0.15.16"]
 
 tests = ["pytest"]
 
@@ -80,22 +80,49 @@ explicit = true
 
 
 [tool.ruff]
-src = ["src"]
-exclude = ["src/irdl/repositories.py"]
 line-length = 120
+src = ["src"]
+extend-exclude = ["src/irdl/repositories.py"]  # code from pooch
+
 
 [tool.ruff.format]
 quote-style = "double"
+docstring-code-format = true
+docstring-code-line-length = 120
 
 [tool.ruff.lint]
-select = ["B", "D", "E", "F", "I", "ICN", "N", "Q", "W"]
+select = [
+        "A", "ARG", "ASYNC", "B", "EXE", "FBT", "PERF", "S", "SIM", "SLOT", # code correctness & safety
+        "BLE", "C90", "DTZ", "E", "F", "FURB", "INP", "PIE", "PGH", "PL", "PT", "PYI", "RSE", "RET", "RUF", "SLF", "TRY", "UP", "W",  #  sanitization
+        "C", "C4", "COM", "N", "NPY", "PTH", "Q", # formatting
+        "I", "ICN", "TID",  # imports
+        "D", "FIX", "TD",  # docstring
+        "EM", "INT", "FLY", "ISC", "G", "LOG", "T20",  # strings, logging & error messages
+        # "CPY",  # preview
+        ]
+
 ignore = [
-    "D100", "D104", "D401",
-    "N803",
+    "COM812",  # conflict with ruff formatter
+    "PLR0913",  # too many arguments
+    "SLF001",  # private-member-access -> TBD
+    "TRY003",  # avoid long messages outside exception class
 ]
 
+[tool.ruff.lint.flake8-import-conventions]
+banned-from  = ["numpy", "pyfar", "sofar"]
+[tool.ruff.lint.flake8-import-conventions.aliases]
+numpy = "np"
+pyfar = "pf"
+sofar = "sf"
+
+
 [tool.ruff.lint.pycodestyle]
+ignore-overlong-task-comments = true
 max-doc-length = 100
 
 [tool.ruff.lint.pydocstyle]
 convention = "numpy"
+
+[tool.ruff.lint.per-file-ignores]
+"docs/*" = ["INP001"]
+"tests/*" = ["S101"]

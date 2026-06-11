@@ -52,7 +52,7 @@ def _pooch_from_doi(doi: str, path: str = IRDL_CACHE_DIR) -> po.Pooch:
     pup = po.create(path=path, base_url=doi, retry_if_failed=2)
     repository = doi_to_repository(doi)
     repository.populate_registry(pup)
-    for file in pup.registry.keys():
+    for file in pup.registry:
         pup.urls[file] = repository.download_url(file_name=file)
     # Attach file sizes from the repository API for use by the progress bar.
     if hasattr(repository, "file_size"):

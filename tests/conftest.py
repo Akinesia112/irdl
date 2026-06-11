@@ -22,8 +22,8 @@ def sofa_object():
     n_receivers = 2
 
     # Create random IR data: shape (n_sources, n_receivers, n_samples)
-    np.random.seed(42)
-    sofa.Data_IR = np.random.randn(n_sources, n_receivers, n_samples).astype(np.float32)
+    rng = np.random.default_rng(42)
+    sofa.Data_IR = rng.normal(size=(n_sources, n_receivers, n_samples)).astype(np.float32)
 
     # Set sampling rate
     sofa.Data_SamplingRate = sampling_rate

@@ -74,7 +74,7 @@ class IstaBaseDataset(BaseDataset):
             humidity = f["metadata"]["humidity"][()] if "humidity" in f["metadata"] else None
 
         # SOFA dimension naming
-        m, r, n = ir.shape  # number of measurements, receiver and samples
+        m, r, _ = ir.shape  # number of measurements, receiver and samples
         e = 1  # number of emitters
         c = 3  # number of coordinates
         i = 1  # unity dimensions
@@ -92,12 +92,12 @@ class IstaBaseDataset(BaseDataset):
         sofa.GLOBAL_ListenerShortName = "Custom planar microphone array"
         sofa.GLOBAL_ListenerDescription = (
             "64-channel planar microphone array "
-            "(1.5 m × 1.5 m aluminium plate, Vogel's spiral, max spacing 1.47 m, 51.2 kHz sampling rate)"
+            "(1.5 m x 1.5 m aluminium plate, Vogel's spiral, max spacing 1.47 m, 51.2 kHz sampling rate)"
         )
         sofa.GLOBAL_ReceiverShortName = "GRAS 40PL-1 Short CCP"
         sofa.GLOBAL_SourceShortName = "Loudspeaker"
         sofa.GLOBAL_SourceDescription = (
-            "Dynamic 2” cone loudspeaker in a cylindrical enclosure (Frequency range 100 Hz–16 kHz)"
+            "Dynamic 2” cone loudspeaker in a cylindrical enclosure (Frequency range 100 Hz-16 kHz)"
         )
 
         sofa.RoomVolume = self.room_volume  # #Dim. 1, M => so add a dimension upfront
@@ -214,11 +214,14 @@ class MiracleDataset(IstaBaseDataset):
         dataset_split = dataset_kwargs.get("dataset_split")
 
         if scenario not in ["A1", "A2", "D1", "R2"]:
-            raise ValueError("scenario must be one of ['A1', 'A2', 'D1', 'R2']")
+            msg = "scenario must be one of ['A1', 'A2', 'D1', 'R2']"
+            raise ValueError(msg)
         if dataset_split not in [None, "C1", "C2", "C3", "C4"]:
-            raise ValueError("dataset_split must be None or one ['C1', 'C2', 'C3', 'C4']")
+            msg = "dataset_split must be None or one ['C1', 'C2', 'C3', 'C4']"
+            raise ValueError(msg)
         if scenario == "D1" and dataset_split is not None:
-            raise ValueError("scenario D1 cannot be split")
+            msg = "scenario D1 cannot be split"
+            raise ValueError(msg)
 
     def _download(self, provider_dir: Path, **dataset_kwargs) -> Path:
         """Download MIRACLE dataset file.
@@ -271,8 +274,7 @@ class MiracleDataset(IstaBaseDataset):
         # If no split requested, promote to ingest stage
         if not split:
             return super()._process(provider_artifact, ingest_path, **dataset_kwargs)
-        else:
-            return self._extract_split(provider_artifact, split, ingest_path)
+        return self._extract_split(provider_artifact, split, ingest_path)
 
     def _extract_split(self, ingest_path: Path, dataset_split: str, output_path: Path) -> Path:
         """Extract a dataset split from a full MIRACLE HDF5 file.
@@ -417,13 +419,17 @@ class SrirachaDataset(IstaBaseDataset):
         output_format = dataset_kwargs.get("output_format")
 
         if scenario not in ["SR1", "SRA1", "SR1-D", "SRA1-D", "SR2", "SRA2", "SR2-D", "SRA2-D"]:
-            raise ValueError("scenario must be one of [SR1, SRA1, SR1-D, SRA1-D, SR2, SRA2, SR2-D, SRA2-D]")
+            msg = "scenario must be one of [SR1, SRA1, SR1-D, SRA1-D, SR2, SRA2, SR2-D, SRA2-D]"
+            raise ValueError(msg)
         if dataset_split not in [None, "C1", "C2", "C3", "C4"]:
-            raise ValueError("dataset_split must be None or in [C1, C2, C3, C4]")
+            msg = "dataset_split must be None or in [C1, C2, C3, C4]"
+            raise ValueError(msg)
         if scenario[-1] == "D" and dataset_split is not None:
-            raise ValueError("dense datasets do not have splits")
+            msg = "dense datasets do not have splits"
+            raise ValueError(msg)
         if output_format == "raw" and scenario and scenario[-1] != "D" and dataset_split is None:
-            raise ValueError("raw output_format not supported for non-dense SRIRACHA scenarios without split")
+            msg = "raw output_format not supported for non-dense SRIRACHA scenarios without split"
+            raise ValueError(msg)
 
     def _download(self, provider_dir: Path, **dataset_kwargs) -> Path:
         """Download SRIRACHA dataset file(s) to the provider directory.
@@ -457,13 +463,12 @@ class SrirachaDataset(IstaBaseDataset):
             _fetch(pup, fname)
             return target_file
         # Non-dense full plane -> download 4 split files; process will then merge them
-        else:
-            logger.info(f"Downloading SRIRACHA scenario {scenario} (4 split files)")
-            pup = _pooch_from_doi(self.doi, path=provider_dir)
-            for split_file in ["C1", "C2", "C3", "C4"]:
-                fname = f"{scenario}-{split_file}.h5"
-                _fetch(pup, fname)
-            return provider_dir
+        logger.info(f"Downloading SRIRACHA scenario {scenario} (4 split files)")
+        pup = _pooch_from_doi(self.doi, path=provider_dir)
+        for split_file in ["C1", "C2", "C3", "C4"]:
+            fname = f"{scenario}-{split_file}.h5"
+            _fetch(pup, fname)
+        return provider_dir
 
     def _process(self, provider_artifact: Path, ingest_path: Path, **dataset_kwargs) -> Path:
         """Post-process SRIRACHA file if needed.
@@ -493,12 +498,11 @@ class SrirachaDataset(IstaBaseDataset):
         if scenario.endswith("D") or split is not None:
             return super()._process(provider_artifact, ingest_path, **dataset_kwargs)
         # Non-dense full plane -> merge all 4 split files
-        else:
-            logger.debug("Merging split files")
-            return self._merge_split_files(scenario, provider_artifact, ingest_path)
+        logger.debug("Merging split files")
+        return self._merge_split_files(scenario, provider_artifact, ingest_path)
 
     def _merge_split_files(self, scenario: str, provider_artifact: Path, ingest_path: Path) -> Path:
-        """Merges four quadrant HDF5 files into a full-plane file.
+        """Merge four quadrant HDF5 files into a full-plane file.
 
         Reads metadata from the first split file in the provider directory,
         allocates output datasets with the full source-grid shape, copies each

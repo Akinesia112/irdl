@@ -19,7 +19,9 @@ The BaseDataset class handles:
 import os
 import shutil
 from abc import ABC, abstractmethod
+from inspect import isabstract
 from pathlib import Path
+from types import ModuleType
 
 import h5py as h5
 import numpy as np
@@ -131,10 +133,11 @@ output_format : str
         dict or :class:`pathlib.Path`
             For 'pyfar' / 'numpy': a dict of in-memory objects.
             For 'sofa' / 'hdf5' / 'raw': a :class:`pathlib.Path` to the file on disk.
-        """
+        """  # noqa: D401
         # Validate common parameters
         if output_format not in ("pyfar", "hdf5", "numpy", "sofa", "raw"):
-            raise ValueError("output_format must be one of 'pyfar', 'hdf5', 'numpy', 'sofa', 'raw'")
+            msg = "output_format must be one of 'pyfar', 'hdf5', 'numpy', 'sofa', 'raw'"
+            raise ValueError(msg)
 
         # Validate dataset-specific parameters (including output_format)
         logger.debug(f"Validating parameters for {self.name}")
@@ -154,8 +157,7 @@ output_format : str
             provider_artifact = self.download(provider_dir, **dataset_kwargs)
             if export_dir is None:
                 return provider_artifact
-            else:
-                return self._export_raw(provider_artifact, export_dir)
+            return self._export_raw(provider_artifact, export_dir)
 
         # Early exit if output file already exists (not applicable for raw format, handled above)
         if output_path is not None and output_path.exists():
@@ -189,7 +191,7 @@ output_format : str
                 f"SOFA convention not satisfied!\n{e}\n"
                 "See https://sofar.readthedocs.io/en/stable/resources/conventions.html#conventions for details."
             )
-            return
+            return None
 
         logger.debug(f"Converting to {output_format} format")
         return self._to_output(sofa, output_format, ingest_path, output_path)
@@ -337,15 +339,13 @@ output_format : str
             if not output_path.exists():
                 shutil.copy2(provider_artifact, output_path)
             return output_path
-        elif provider_artifact.is_dir():
+        if provider_artifact.is_dir():
             shutil.copytree(provider_artifact, output_base, dirs_exist_ok=True)
             return output_base
-        else:
-            raise ValueError(
-                f"Provider artifact must be a file or directory, but {self.name} returned: {provider_artifact}"
-            )
+        msg = f"Provider artifact must be a file or directory, but {self.name} returned: {provider_artifact}"
+        raise ValueError(msg)
 
-    def process(self, provider_artifact: Path, ingest_path: Path, **dataset_kwargs) -> Path:
+    def process(self, provider_artifact: Path, ingest_path: Path) -> Path:
         """Post-process downloaded file if needed.
 
         This method wraps _process to enforce ingest_dir existence for all subclasses.
@@ -356,8 +356,6 @@ output_format : str
             Path to the freshly downloaded file (or download directory).
         ingest_path : :class:`pathlib.Path`
             Path to the ingestible file in the ingest directory.
-        **dataset_kwargs : dict
-            Dataset-specific parameters.
 
         Returns
         -------
@@ -365,9 +363,9 @@ output_format : str
             The processed, ingest-ready file at ``ingest_path``.
         """
         ingest_path.parent.mkdir(parents=True, exist_ok=True)
-        return self._process(provider_artifact, ingest_path, **dataset_kwargs)
+        return self._process(provider_artifact, ingest_path)
 
-    def _process(self, provider_artifact: Path, ingest_path: Path, **dataset_kwargs) -> Path:
+    def _process(self, provider_artifact: Path, ingest_path: Path) -> Path:
         """Post-process downloaded file if needed.
 
         Override in subclass to extract, merge, or otherwise transform the downloaded data. Write
@@ -384,8 +382,6 @@ output_format : str
             Path to the freshly downloaded file (or download directory).
         ingest_path : :class:`pathlib.Path`
             Path to the ingestible file in the ingest directory.
-        **dataset_kwargs : dict
-            Dataset-specific parameters.
 
         Returns
         -------
@@ -398,11 +394,11 @@ output_format : str
             except OSError:
                 shutil.copy2(provider_artifact, ingest_path)
             return ingest_path
-        else:
-            raise NotImplementedError(
-                "BaseDataset._process can only handle single files."
-                "Override _process with special implementation in subclass."
-            )
+        msg = (
+            "BaseDataset._process can only handle single files."
+            "Override _process with special implementation in subclass."
+        )
+        raise NotImplementedError(msg)
 
     def _to_output(self, sofa: sf.Sofa, output_format: str, ingest_path: Path, output_path: Path | None) -> dict | Path:
         """Convert sofar.Sofa to the requested output format.
@@ -430,14 +426,14 @@ output_format : str
         """
         if output_format == "pyfar":
             return self._to_pyfar(sofa)
-        elif output_format == "numpy":
+        if output_format == "numpy":
             return self._to_numpy(sofa)
-        elif output_format == "sofa":
+        if output_format == "sofa":
             return self._to_sofa(sofa, ingest_path, output_path)
-        elif output_format == "hdf5":
+        if output_format == "hdf5":
             return self._to_hdf5(sofa, ingest_path, output_path)
-        else:
-            raise ValueError(f"Unknown output_format: {output_format}")
+        msg = f"Unknown output_format: {output_format}"
+        raise ValueError(msg)
 
     def _to_pyfar(self, sofa: sf.Sofa) -> dict:
         """Convert sofar.Sofa to dict of pyfar objects.
@@ -487,7 +483,7 @@ output_format : str
             "sampling_rate": float(sofa.Data_SamplingRate),
         }
 
-    def _to_sofa(self, sofa: sf.Sofa, ingest_path: Path, output_path: Path) -> Path:
+    def _to_sofa(self, sofa: sf.Sofa, ingest_path: Path, output_path: Path) -> Path:  # noqa: ARG002
         """Write sofar.Sofa to file and return Path.
 
         Parameters
@@ -508,7 +504,7 @@ output_format : str
         sf.write_sofa(output_path, sofa)
         return output_path
 
-    def _to_hdf5(self, sofa: sf.Sofa, ingest_path: Path, output_path: Path) -> Path:
+    def _to_hdf5(self, sofa: sf.Sofa, ingest_path: Path, output_path: Path) -> Path:  # noqa: ARG002
         """Convert sofar.Sofa to HDF5 file and return Path.
 
         Parameters
@@ -550,3 +546,19 @@ output_format : str
                 meta_group.create_dataset("humidity", data=sofa.Humidity)
 
         return output_path
+
+
+def _get_dataset_classes(module: ModuleType) -> list[type]:
+    """Return concrete BaseDataset subclasses exported by module."""
+    dataset_classes: list[type] = []
+    for name in dir(module):
+        obj = getattr(module, name)
+        if (
+            isinstance(obj, type)
+            and issubclass(obj, BaseDataset)
+            and not isabstract(obj)
+            and hasattr(obj, "name")
+            and hasattr(obj, "doi")
+        ):
+            dataset_classes.append(obj)
+    return dataset_classes

@@ -95,7 +95,7 @@ def _write_category_page(category: dict[str, object]) -> None:
 
 
 def main() -> None:
-    """Main entry point that generates all dataset tables and doc pages."""
+    """Generate all dataset tables and doc pages."""
     FRAGMENTS_DIR.mkdir(parents=True, exist_ok=True)
     DATASETS_DIR.mkdir(parents=True, exist_ok=True)
 

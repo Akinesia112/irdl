@@ -3,14 +3,14 @@
 import pathlib
 import types
 from inspect import signature
-from typing import Annotated, Any, Optional, Union, get_args, get_origin
+from typing import Annotated, Any, Union, get_args, get_origin
 
 import typer
 from numpydoc.docscrape import FunctionDoc
 
 import irdl
+from irdl.base import _get_dataset_classes
 from irdl.logging import configure_cli_logging
-from irdl.utils import _get_dataset_classes
 
 # Configure CLI logging
 configure_cli_logging()
@@ -29,17 +29,17 @@ def _resolve_union_type(annotation: type) -> type:
         if any(arg is str or arg is pathlib.Path or arg == pathlib.Path for arg in non_none_args):
             # Check if None was in the original args
             if type(None) in args:
-                return Optional[str]
+                return str | None
             return str
         # For other unions, just take the first type
         if type(None) in args:
-            return Optional[non_none_args[0]]
+            return non_none_args[0] | None
         return non_none_args[0]
 
     return annotation
 
 
-def _make_wrapper(cls, method, params, help_text, dataset_name, param_docs):  # noqa: D103
+def _make_wrapper(cls, method, params, help_text, dataset_name, param_docs):
     def wrapper(**kwargs) -> Any:
         return method.__func__(cls, **kwargs)
 
