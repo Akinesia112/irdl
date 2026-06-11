@@ -62,17 +62,21 @@ def _write_dataset_page(dataset: dict[str, object]) -> None:
     ]
     intro_rst = _dataset_description_rst(dataset)
     if intro_rst is not None:
-        lines.extend([
-            f".. include:: {intro_rst}",
+        lines.extend(
+            [
+                f".. include:: {intro_rst}",
+                "",
+            ]
+        )
+    lines.extend(
+        [
+            f".. autoclass:: {class_name}",
+            "   :members:",
+            "   :undoc-members: false",
+            "   :show-inheritance:",
             "",
-        ])
-    lines.extend([
-        f".. autoclass:: {class_name}",
-        "   :members:",
-        "   :undoc-members: false",
-        "   :show-inheritance:",
-        "",
-    ])
+        ]
+    )
     (DATASETS_DIR / f"{slug}.rst").write_text("\n".join(lines))
 
 
@@ -91,6 +95,7 @@ def _write_category_page(category: dict[str, object]) -> None:
 
 
 def main() -> None:
+    """Main entry point that generates all dataset tables and doc pages."""
     FRAGMENTS_DIR.mkdir(parents=True, exist_ok=True)
     DATASETS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -120,12 +125,14 @@ def main() -> None:
     for category in DATASET_CATEGORIES:
         title = str(category["title"])
         datasets = list(category["datasets"])
-        body_lines.extend([
-            title,
-            "-" * len(title),
-            "",
-            *_autosummary_block(datasets),
-        ])
+        body_lines.extend(
+            [
+                title,
+                "-" * len(title),
+                "",
+                *_autosummary_block(datasets),
+            ]
+        )
 
     (FRAGMENTS_DIR / "datasets_body.inc").write_text("\n".join(body_lines))
 

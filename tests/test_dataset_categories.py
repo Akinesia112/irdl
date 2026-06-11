@@ -4,7 +4,6 @@ from importlib import util
 from pathlib import Path
 
 import irdl
-
 from irdl.utils import _get_dataset_classes
 
 
@@ -27,10 +26,6 @@ class TestDatasetCategories:
     def test_every_public_dataset_has_category_entry(self):
         """Verify docs dataset mapping covers all public Datasets."""
         categories = _load_dataset_categories()
-        category_names = {
-            dataset["name"]
-            for category in categories
-            for dataset in category["datasets"]
-        }
+        category_names = {dataset["name"] for category in categories for dataset in category["datasets"]}
 
         assert category_names == _public_dataset_names()

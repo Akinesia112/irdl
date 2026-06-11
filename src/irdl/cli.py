@@ -82,4 +82,3 @@ for dataset_class in _get_dataset_classes(irdl):
         name=dataset_class.name,
         help=help_text,
     )(wrapper)
-
