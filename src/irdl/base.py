@@ -19,7 +19,9 @@ The BaseDataset class handles:
 import os
 import shutil
 from abc import ABC, abstractmethod
+from inspect import isabstract
 from pathlib import Path
+from types import ModuleType
 
 import h5py as h5
 import numpy as np
@@ -544,3 +546,19 @@ output_format : str
                 meta_group.create_dataset("humidity", data=sofa.Humidity)
 
         return output_path
+
+
+def _get_dataset_classes(module: ModuleType) -> list[type]:
+    """Return concrete BaseDataset subclasses exported by module."""
+    dataset_classes: list[type] = []
+    for name in dir(module):
+        obj = getattr(module, name)
+        if (
+            isinstance(obj, type)
+            and issubclass(obj, BaseDataset)
+            and not isabstract(obj)
+            and hasattr(obj, "name")
+            and hasattr(obj, "doi")
+        ):
+            dataset_classes.append(obj)
+    return dataset_classes

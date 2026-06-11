@@ -4,7 +4,7 @@ from importlib import util
 from pathlib import Path
 
 import irdl
-from irdl.utils import _get_dataset_classes
+from irdl.base import _get_dataset_classes
 
 
 def _load_dataset_categories():

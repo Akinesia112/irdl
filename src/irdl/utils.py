@@ -1,29 +1,10 @@
 """Utility functions for IRDL."""
 
-from inspect import isabstract
 from pathlib import Path
-from types import ModuleType
 
 import psutil
 
-from irdl.base import BaseDataset
 from irdl.logging import logger
-
-
-def _get_dataset_classes(module: ModuleType) -> list[type]:
-    """Return concrete BaseDataset subclasses exported by module."""
-    dataset_classes: list[type] = []
-    for name in dir(module):
-        obj = getattr(module, name)
-        if (
-            isinstance(obj, type)
-            and issubclass(obj, BaseDataset)
-            and not isabstract(obj)
-            and hasattr(obj, "name")
-            and hasattr(obj, "doi")
-        ):
-            dataset_classes.append(obj)
-    return dataset_classes
 
 
 def _fits_in_memory(ingest_path: Path) -> bool:

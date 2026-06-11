@@ -9,8 +9,8 @@ import typer
 from numpydoc.docscrape import FunctionDoc
 
 import irdl
+from irdl.base import _get_dataset_classes
 from irdl.logging import configure_cli_logging
-from irdl.utils import _get_dataset_classes
 
 # Configure CLI logging
 configure_cli_logging()
