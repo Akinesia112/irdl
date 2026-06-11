@@ -68,14 +68,16 @@ Check the installation by asking the CLI for help:
 
             $ irdl --help
 
-If you want the ``irdl`` command to be available globally, install it as a uv tool:
+.. tip::
 
-.. code-block:: console
+    If you want the ``irdl`` command to be available globally, install it as a ``uv tool``:
 
-   $ uv tool install irdl
+    .. code-block:: console
 
-Upgrade the global tool later with:
+       $ uv tool install irdl
 
-.. code-block:: console
+    Upgrade the global tool later with:
 
-   $ uv tool upgrade irdl
+    .. code-block:: console
+
+       $ uv tool upgrade irdl

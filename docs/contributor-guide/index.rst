@@ -18,8 +18,8 @@ automatically. Just prepend development commands with ``uv run``.
    $ uv run ruff format
    $ uv run make -C docs html
 
-The documentation Makefile regenerates the CLI help snippets that are included in the
-Sphinx documentation. Only the ``README.md`` may need manual updating.
+The documentation Makefile regenerates the dataset docs and CLI help snippets that are
+included in the Sphinx documentation. Only the ``README.md`` may need manual updating.
 
 Coding style
 ------------

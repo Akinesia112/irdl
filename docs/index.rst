@@ -1,5 +1,5 @@
-``irdl``: Impulse Response Downloader
-=====================================
+Impulse Response Downloader
+===========================
 
 ``irdl`` retrieves, caches, and converts impulse response Datasets in a unified way.
 
@@ -7,19 +7,19 @@
 
    from irdl import MiracleDataset
 
-   data = MiracleDataset.get(scenario="A1")
+   data = MiracleDataset.get(scenario="D1")
    print(data["impulse_response"])
 
 .. code-block:: bash
 
-   $ irdl miracle --scenario A1
+   $ irdl miracle --scenario D1
 
 ``irdl`` follows a simple user-facing flow:
 
 1. Choose a Dataset and parameters.
-2. ``irdl`` retrieves and reuses cached source artifacts.
-3. ``irdl`` prepares the ingest-ready representation when needed.
-4. ``irdl`` returns the requested Output Format.
+2. ``irdl`` retrieves the data and reuses cached source artifacts.
+3. ``irdl`` processes the artifacts if needed and internally parses it to `SOFA standard <https://sofaconventions.org>`_.
+4. ``irdl`` returns the requested output format either as a path or in-memory objects.
 
 .. grid:: 2
    :gutter: 2

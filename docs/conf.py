@@ -8,8 +8,8 @@ copyright = f"2025-%Y, {author}"
 version = metadata["Version"]
 
 extensions = [
+    "myst_parser",
     "numpydoc",
-    "sphinx_click",
     "sphinx_copybutton",
     "sphinx_design",
     "sphinx.ext.autodoc",
@@ -17,7 +17,13 @@ extensions = [
     "sphinx.ext.intersphinx",
 ]
 
+source_suffix = {
+    ".rst": "restructuredtext",
+    ".md": "markdown",
+}
+
 templates_path = ["_templates"]
+exclude_patterns = ["_generated"]
 
 html_static_path = ["_static"]
 html_theme = "pydata_sphinx_theme"

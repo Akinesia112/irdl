@@ -22,7 +22,7 @@ Use the MIRACLE Dataset class directly:
 
    from irdl import MiracleDataset
 
-   data = MiracleDataset.get(scenario="A1")
+   data = MiracleDataset.get(scenario="D1")
 
    print(data["impulse_response"])
    print(data["source_coordinates"])
@@ -38,7 +38,7 @@ The CLI exposes the same MIRACLE retrieval flow as a Dataset subcommand:
 
 .. code-block:: bash
 
-   $ irdl miracle --scenario A1
+   $ irdl miracle --scenario D1
 
 Add ``--output-format sofa`` or ``--output-format hdf5`` when you want a file-backed
 result. Use ``--export-dir`` to copy the requested artifact to an Export Directory.

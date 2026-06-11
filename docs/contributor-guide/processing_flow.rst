@@ -9,9 +9,9 @@ Core architecture
 -----------------
 
 ``BaseDataset``
-   The core abstraction for all Datasets. It owns the shared ``get`` pipeline: common
-   parameter validation, cache path handling, retrieval/process orchestration, SOFA
-   verification, and output conversion.
+   The core abstraction for all Datasets. See :class:`~irdl.base.BaseDataset`. It owns the
+   shared ``get`` pipeline: common parameter validation, cache path handling,
+   retrieval/process orchestration, SOFA verification, and output conversion.
 
 Optional shared bases
    A Dataset family can introduce an intermediate base class when multiple Datasets share
@@ -55,7 +55,7 @@ file in the ``ingest`` stage, not a separate stage name.
 ``get`` processing flow
 -----------------------
 
-A public ``Dataset.get(...)`` call delegates to the shared ``BaseDataset`` flow:
+A public ``Dataset.get(...)`` call delegates to the shared :class:`~irdl.base.BaseDataset` flow:
 
 .. code-block:: text
 
@@ -90,16 +90,16 @@ The important extension points for a new Dataset are:
 ``_ingest()``
    Read the ingest-ready file and return the internal SOFA representation.
 
-``_to_output()`` and related conversion methods normally stay in ``BaseDataset``. New
-Datasets should not implement output-specific conversion unless the shared conversion layer
-itself needs to change.
+``_to_output()`` and related conversion methods normally stay in
+:class:`~irdl.base.BaseDataset`. New Datasets should not implement output-specific conversion
+unless the shared conversion layer itself needs to change.
 
 Output behavior
 ---------------
 
-``output_format="raw"`` returns the provider-stage artifact before ``irdl`` processing. For all
-other Output Formats, ``irdl`` ingests the data to SOFA first and then converts from SOFA to the
-requested representation.
+``output_format="raw"`` returns the provider-stage artifact before ``irdl`` processing. For
+all other Output Formats, ``irdl`` ingests the data to SOFA first and then converts from SOFA
+to the requested representation. See the public class docs in :doc:`/reference/python_api`.
 
 When ``export_dir`` is provided, ``irdl`` copies the requested artifact to the Export Directory.
 The cache remains intact so later calls can reuse provider, ingest, or output artifacts.

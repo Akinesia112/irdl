@@ -3,18 +3,18 @@
 Adding a new Dataset
 ====================
 
-A new Dataset should fit into the shared ``BaseDataset`` flow rather than implementing its
-own retrieval pipeline. The Dataset-specific code should focus on acquiring provider data,
-preparing one ingest-ready file, and reading that file into SOFA.
+A new Dataset should fit into the shared :class:`~irdl.base.BaseDataset` flow rather than
+implementing its own retrieval pipeline. The Dataset-specific code should focus on acquiring
+provider data, preparing one ingest-ready file, and reading that file into SOFA.
 
 Choose a base class
 -------------------
 
-Use ``BaseDataset`` for most Datasets.
+Use :class:`~irdl.base.BaseDataset` for most Datasets.
 
-If the provider data is already SOFA-native, consider inheriting from ``SofaBaseDataset``.
-``SofaBaseDataset`` preserves the same shared flow but avoids unnecessary SOFA output
-rewrites when ``output_format="sofa"`` is requested.
+If the provider data is already SOFA-native, consider inheriting from
+:class:`~irdl.sofa.SofaBaseDataset`. :class:`~irdl.sofa.SofaBaseDataset` preserves the same shared flow but
+avoids unnecessary SOFA output rewrites when ``output_format="sofa"`` is requested.
 
 Start with a concrete Dataset class. Extract an intermediate shared base class only when at
 least two Datasets share provider behavior or source layout.
@@ -99,21 +99,41 @@ as part of the public API:
 
    from .new_module import NewDataset as NewDataset
 
-The CLI is generated automatically from concrete ``BaseDataset`` subclasses imported by
-``irdl``. Do not add hand-written CLI code for a new Dataset. The CLI command name comes
-from ``Dataset.name``; parameters and help text come from the typed ``get()`` signature and
-NumPy-style docstring.
+The CLI is generated automatically from concrete :class:`~irdl.base.BaseDataset`
+subclasses imported by ``irdl``. Do not add hand-written CLI code for a new Dataset. The CLI
+command name comes from ``Dataset.name``; parameters and help text come from the typed
+``get()`` signature and NumPy-style docstring. See :doc:`/reference/python_api` for API
+links.
 
-Documentation overview
-----------------------
+Document the Dataset
+--------------------
 
-Add the Dataset to the matching section in ``docs/datasets/index.rst``. If no existing
-section fits, create a new section with the Dataset type.
+Dataset docs use one mapping as single source of truth: ``docs/dataset_categories.py``.
+Add the new Dataset to the right category there. The generator uses that mapping to build:
 
-The documentation Makefile regenerates CLI help snippets while building the docs. If a
-change affects CLI help text, the README usage section may also need to be refreshed, but
-contributors are not required to do that before opening a contribution. Maintainers can
-regenerate generated docs and README snippets during review.
+- Datasets page tables
+- category pages in the left sidebar
+- per-Dataset pages
+
+If the Dataset needs handwritten prose, add an ``.rst`` fragment and point
+``description_rst`` at it in ``docs/dataset_categories.py``. Set ``description_rst`` to
+``None`` for the current behavior. See :doc:`/reference/python_api` for the generated
+Dataset class pages.
+
+The referenced ``.rst`` file is injected before the generated ``.. autoclass::`` block on
+the Dataset page. Use a path relative to ``docs/datasets/``. Example:
+
+.. code-block:: python
+
+   {
+       "name": "irdl.MiracleDataset",
+       "description_rst": "descriptions/miracle.rst",
+   }
+
+If no handwritten prose is needed, leave ``description_rst`` unset or ``None``.
+
+The documentation Makefile regenerates the dataset docs and CLI help while building the
+docs. Maintainers can refresh generated docs during review.
 
 Manual verification
 -------------------
@@ -129,7 +149,7 @@ For example:
    print(path)
 
 This exercises validation, provider acquisition, processing, ingest, SOFA verification, and
-output conversion. ``BaseDataset`` verifies the SOFA convention and prints diagnostics that
+output conversion. :class:`~irdl.base.BaseDataset` verifies the SOFA convention and prints diagnostics that
 are useful while implementing a Dataset, including during agent-assisted coding.
 
 In your contribution notes, include the command or Python snippet you ran and the smallest

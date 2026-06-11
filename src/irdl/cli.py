@@ -2,15 +2,15 @@
 
 import pathlib
 import types
-from inspect import isabstract, signature
+from inspect import signature
 from typing import Annotated, Any, Optional, Union, get_args, get_origin
 
 import typer
 from numpydoc.docscrape import FunctionDoc
 
 import irdl
-from irdl.base import BaseDataset
 from irdl.logging import configure_cli_logging
+from irdl.utils import _get_dataset_classes
 
 # Configure CLI logging
 configure_cli_logging()
@@ -39,22 +39,6 @@ def _resolve_union_type(annotation: type) -> type:
     return annotation
 
 
-def _get_dataset_classes() -> list[type]:
-    """Auto-detect all concrete dataset classes that inherit from BaseDataset."""
-    dataset_classes: list[type] = []
-    for name in dir(irdl):
-        obj = getattr(irdl, name)
-        if (
-            isinstance(obj, type)
-            and issubclass(obj, BaseDataset)
-            and not isabstract(obj)
-            and hasattr(obj, "name")
-            and hasattr(obj, "doi")
-        ):
-            dataset_classes.append(obj)
-    return dataset_classes
-
-
 def _make_wrapper(cls, method, params, help_text, dataset_name, param_docs):  # noqa: D103
     def wrapper(**kwargs) -> Any:
         return method.__func__(cls, **kwargs)
@@ -78,7 +62,7 @@ def _make_wrapper(cls, method, params, help_text, dataset_name, param_docs):  # 
 app = typer.Typer(no_args_is_help=True)
 
 # Automatically register all supported datasets as subcommands to the app.
-for dataset_class in _get_dataset_classes():
+for dataset_class in _get_dataset_classes(irdl):
     get_method = dataset_class.get
 
     # Get docstring and signature from the classmethod
@@ -99,5 +83,3 @@ for dataset_class in _get_dataset_classes():
         help=help_text,
     )(wrapper)
 
-# expose click object for sphinx_click autodoc feature.
-typer_click_object = typer.main.get_command(app)
