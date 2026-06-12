@@ -5,16 +5,6 @@ Python API
 
 The public Python API is centered on concrete Dataset classes and a shared retrieval flow.
 
-Key classes
------------
-
-- :class:`irdl.base.BaseDataset`
-- :class:`irdl.ista.IstaBaseDataset`
-- :class:`irdl.sofa.SofaBaseDataset`
-- :class:`irdl.FabianDataset`
-- :class:`irdl.MiracleDataset`
-- :class:`irdl.SrirachaDataset`
-
 Dataset modules
 ---------------
 
@@ -25,6 +15,7 @@ Dataset modules
    base
    ista
    sofa
+   sofacoustics
 
 Internal modules
 ----------------

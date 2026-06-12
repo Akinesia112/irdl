@@ -28,7 +28,7 @@ Impulse Response Downloader
       :link: getting_started
       :link-type: doc
 
-      Install ``irdl`` and run the first MIRACLE retrieval from Python or the CLI.
+      Install ``irdl`` and run the first dataset retrieval from Python or the CLI.
 
    .. grid-item-card:: Installation
       :link: installation
@@ -40,13 +40,13 @@ Impulse Response Downloader
       :link: datasets/index
       :link-type: doc
 
-      Browse MIRACLE, SRIRACHA, and FABIAN with grouped navigation in the sidebar.
+      Browse all available datasets.
 
    .. grid-item-card:: Reference
       :link: reference/index
       :link-type: doc
 
-      Jump to the Python API, CLI reference, and internal modules.
+      Jump to the Python API and CLI reference.
 
 .. toctree::
    :hidden:

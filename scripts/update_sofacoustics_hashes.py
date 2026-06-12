@@ -1,4 +1,4 @@
-"""Regenerate the packaged SOFACoustics hash registry for supported files."""
+"""Regenerate the packaged SOFAcoustics hash registry for supported files."""
 
 from __future__ import annotations
 

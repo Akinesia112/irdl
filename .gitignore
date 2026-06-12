@@ -2,10 +2,7 @@ __pycache__/
 docs/build
 docs/_autosummary
 docs/_generated
-docs/datasets/room_impulse_responses.rst
-docs/datasets/head_related_impulse_responses.rst
-docs/datasets/miracle_dataset.rst
-docs/datasets/sriracha_dataset.rst
-docs/datasets/fabian_dataset.rst
+docs/datasets/*
+!docs/datasets/index.rst
 /docs/cli-help.txt
 /docs/cli-miracle-help.txt

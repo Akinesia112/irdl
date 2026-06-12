@@ -1,4 +1,4 @@
-"""SOFACoustics-hosted datasets with direct static SOFA downloads."""
+"""SOFAcoustics-hosted datasets with direct static SOFA downloads."""
 
 from pathlib import Path
 
@@ -10,12 +10,12 @@ from irdl.utils import load_hash_registry
 
 
 def get_sofacoustics_hash(path_key: str) -> str:
-    """Return one verified hash entry from the SOFACoustics provider registry."""
+    """Return one verified hash entry from the SOFAcoustics provider registry."""
     registry = load_hash_registry("sofacoustics")
     try:
         return registry[path_key]
     except KeyError as exc:
-        msg = f"Missing SOFACoustics hash registry entry for '{path_key}'"
+        msg = f"Missing SOFAcoustics hash registry entry for '{path_key}'"
         raise ValueError(msg) from exc
 
 
