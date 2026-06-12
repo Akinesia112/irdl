@@ -11,11 +11,7 @@ from urllib.request import Request, urlopen
 PROVIDER_ROOT = "https://sofacoustics.org/data/database"
 OUTPUT_PATH = Path("src/irdl/registry/sofacoustics_hashes.json")
 SUPPORTED_FILES = {
-    "hutubs": [
-        f"pp{subject}_HRIRs_{kind}.sofa"
-        for subject in range(1, 97)
-        for kind in ("measured", "simulated")
-    ]
+    "hutubs": [f"pp{subject}_HRIRs_{kind}.sofa" for subject in range(1, 97) for kind in ("measured", "simulated")]
 }
 
 
@@ -39,8 +35,7 @@ def main() -> None:
 
     with ThreadPoolExecutor(max_workers=6) as executor:
         futures = {
-            executor.submit(_hash_static_file, provider, filename): (provider, filename)
-            for provider, filename in jobs
+            executor.submit(_hash_static_file, provider, filename): (provider, filename) for provider, filename in jobs
         }
         for future in as_completed(futures):
             path_key, digest = future.result()
