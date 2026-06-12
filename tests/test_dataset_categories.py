@@ -17,9 +17,7 @@ class TestDatasetCategories:
         """Verify all public Datasets have a _category attribute."""
         for cls in _public_dataset_classes():
             assert hasattr(cls, "_category"), f"{cls.__name__} is missing _category attribute"
-            assert isinstance(cls._category, DatasetCategory), (
-                f"{cls.__name__}._category is not a DatasetCategory"
-            )
+            assert isinstance(cls._category, DatasetCategory), f"{cls.__name__}._category is not a DatasetCategory"
 
     def test_all_categories_are_known(self):
         """Verify all dataset categories are from the known DatasetCategory enum."""
