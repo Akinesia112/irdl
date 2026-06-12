@@ -2,6 +2,7 @@
 
 import pathlib
 import types
+from importlib.metadata import version
 from inspect import signature
 from pathlib import Path
 from typing import Annotated, Any, Union, get_args, get_origin
@@ -103,25 +104,19 @@ app.add_typer(get_app, name="get")
 
 
 def _get_version() -> str:
-    """Get the irdl package version from pyproject.toml."""
-    import tomllib
-    
-    pyproject_path = Path(__file__).parent.parent.parent / "pyproject.toml"
-    with open(pyproject_path, "rb") as f:
-        data = tomllib.load(f)
-    return data["project"]["version"]
+    """Get the irdl package version."""
+    return version("irdl")
 
 
 @app.callback(invoke_without_command=True)
 def main_callback(
-    ctx: typer.Context,
     version: bool = typer.Option(False, "--version", help="Show version and exit."),
 ) -> None:
-    """Main callback for version flag handling."""
+    """Handle version flag."""
     if version:
         version_str = _get_version()
         typer.echo(f"irdl {version_str}")
-        raise typer.Exit()
+        raise typer.Exit
 
 
 @cache_app.callback()
