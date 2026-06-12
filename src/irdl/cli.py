@@ -12,7 +12,7 @@ import typer
 from numpydoc.docscrape import FunctionDoc
 
 import irdl
-from irdl.base import _get_dataset_classes
+from irdl.base import DatasetCategory, _get_dataset_classes
 from irdl.cache import cache_dir as resolve_cache_dir
 from irdl.cache import cache_size, clean_cache, format_bytes, prune_cache
 from irdl.logging import configure_cli_logging
@@ -160,6 +160,42 @@ def cache_prune_command(
     typer.echo(f"pruning cache at: {typer.style(str(root), fg=typer.colors.BRIGHT_BLUE)}")
     typer.echo(f"freed disk space: {typer.style(format_bytes(freed, human_readable=True), fg=typer.colors.BRIGHT_MAGENTA)}")
     return freed
+
+
+@app.command(name="list", help="List all available datasets.")
+def list_datasets() -> None:
+    """List all available datasets grouped by category."""
+    dataset_classes = _get_dataset_classes(irdl)
+    if not dataset_classes:
+        typer.echo("No datasets available.")
+        return
+    
+    # Group datasets by category
+    datasets_by_category: dict[DatasetCategory, list[type]] = {}
+    uncategorized: list[type] = []
+    
+    for dataset_class in dataset_classes:
+        category = getattr(dataset_class, "_category", None)
+        if category is None:
+            uncategorized.append(dataset_class)
+        else:
+            if category not in datasets_by_category:
+                datasets_by_category[category] = []
+            datasets_by_category[category].append(dataset_class)
+    
+    # Display categorized datasets (in DatasetCategory definition order)
+    for category in DatasetCategory:
+        if category in datasets_by_category:
+            datasets = datasets_by_category[category]
+            typer.echo(f"\n{typer.style(category.value.replace('_', ' ').title(), fg=typer.colors.BRIGHT_MAGENTA)}:")
+            for dataset_class in sorted(datasets, key=lambda x: x.name):
+                typer.echo(f"  {typer.style(dataset_class.name, fg=typer.colors.BRIGHT_CYAN)}")
+    
+    # Display uncategorized datasets
+    if uncategorized:
+        typer.echo(f"\n{typer.style('Uncategorized', fg=typer.colors.BRIGHT_YELLOW)}:")
+        for dataset_class in sorted(uncategorized, key=lambda x: x.name):
+            typer.echo(f"  {typer.style(dataset_class.name, fg=typer.colors.BRIGHT_CYAN)}")
 
 
 # Automatically register all supported datasets as subcommands to the app.

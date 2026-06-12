@@ -19,6 +19,7 @@ The BaseDataset class handles:
 import os
 import shutil
 from abc import ABC, abstractmethod
+from enum import Enum
 from inspect import isabstract
 from pathlib import Path
 from types import ModuleType
@@ -31,6 +32,13 @@ import sofar as sf
 from irdl.cache import IRDL_CACHE_DIR
 from irdl.logging import logger
 from irdl.utils import _fits_in_memory
+
+
+class DatasetCategory(str, Enum):
+    """Categories for grouping datasets."""
+
+    ROOM_IMPULSE_RESPONSES = "room_impulse_responses"
+    HEAD_RELATED_IMPULSE_RESPONSES = "head_related_impulse_responses"
 
 
 class BaseDataset(ABC):

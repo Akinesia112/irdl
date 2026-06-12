@@ -12,7 +12,7 @@ from zipfile import ZipFile
 
 import sofar as sf
 
-from irdl.base import BaseDataset
+from irdl.base import BaseDataset, DatasetCategory
 from irdl.downloader import _fetch, _pooch_from_doi
 from irdl.logging import logger
 
@@ -83,6 +83,7 @@ class FabianDataset(SofaBaseDataset):
 
     name = "fabian"
     doi = "10.14279/depositonce-5718.5"
+    _category = DatasetCategory.HEAD_RELATED_IMPULSE_RESPONSES
 
     @classmethod
     def get(

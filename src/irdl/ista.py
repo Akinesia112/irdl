@@ -11,7 +11,7 @@ import h5py as h5
 import numpy as np
 import sofar as sf
 
-from irdl.base import BaseDataset
+from irdl.base import BaseDataset, DatasetCategory
 from irdl.downloader import _fetch, _pooch_from_doi
 from irdl.logging import logger
 
@@ -160,6 +160,7 @@ class MiracleDataset(IstaBaseDataset):
 
     name = "miracle"
     doi = "10.14279/depositonce-20837"
+    _category = DatasetCategory.ROOM_IMPULSE_RESPONSES
     # metadata needed for creation of sofa file
     room_volume = 830
     measurement_date = 1697068800.0
@@ -360,6 +361,7 @@ class SrirachaDataset(IstaBaseDataset):
 
     name = "sriracha"
     doi = "10.14279/depositonce-23943"
+    _category = DatasetCategory.ROOM_IMPULSE_RESPONSES
     room_volume = 73.5
     measurement_date = 1755648000.0
 
