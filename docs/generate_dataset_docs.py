@@ -25,7 +25,7 @@ def _class_slug(class_name: str) -> str:
 
 def _find_description_rst(dataset_name: str) -> str | None:
     """Auto-detect description RST file for a dataset.
-    
+
     Looks for files like datasets/miracle.rst or datasets/MiracleDataset.rst
     """
     # Try lowercase name first
@@ -71,7 +71,7 @@ def _write_dataset_page(dataset_class: type) -> None:
         ".. currentmodule:: irdl",
         "",
     ]
-    
+
     # Auto-detect description RST
     intro_rst = _find_description_rst(dataset_class.name)
     if intro_rst is not None:
@@ -81,7 +81,7 @@ def _write_dataset_page(dataset_class: type) -> None:
                 "",
             ]
         )
-    
+
     lines.extend(
         [
             f".. autoclass:: {class_name}",
@@ -114,11 +114,11 @@ def main() -> None:
 
     # Get all dataset classes
     dataset_classes = _get_dataset_classes(irdl)
-    
+
     # Group by category
     datasets_by_category: dict[DatasetCategory, list[type]] = {}
     uncategorized: list[type] = []
-    
+
     for cls in dataset_classes:
         category = getattr(cls, "_category", None)
         if category is None:
@@ -135,32 +135,33 @@ def main() -> None:
     ]
 
     seen_datasets: set[str] = set()
-    
+
     # Process categorized datasets (in DatasetCategory definition order)
     for category in DatasetCategory:
         if category in datasets_by_category:
             datasets = datasets_by_category[category]
             title = category.value.replace("_", " ").title()
             slug = category.value
-            
+
             body_lines.append(f"   {title} <{slug}>")
-            
+
             _write_category_page(category, datasets)
             for cls in datasets:
                 if cls.name not in seen_datasets:
                     _write_dataset_page(cls)
                     seen_datasets.add(cls.name)
-    
+
     # Process uncategorized datasets
     if uncategorized:
         # Create a special category for uncategorized
         from enum import Enum
+
         class UncategorizedCategory(str, Enum):
             UNCATEGORIZED = "uncategorized"
-        
+
         uncategorized_category = UncategorizedCategory.UNCATEGORIZED
         body_lines.append(f"   Uncategorized <{uncategorized_category.value}>")
-        
+
         # Write category page
         lines = [
             "Uncategorized",
@@ -170,7 +171,7 @@ def main() -> None:
             *_hidden_toctree_block(uncategorized),
         ]
         (DATASETS_DIR / f"{uncategorized_category.value}.rst").write_text("\n".join(lines))
-        
+
         for cls in uncategorized:
             if cls.name not in seen_datasets:
                 _write_dataset_page(cls)
@@ -191,7 +192,7 @@ def main() -> None:
                     *_autosummary_block(datasets),
                 ]
             )
-    
+
     if uncategorized:
         body_lines.extend(
             [

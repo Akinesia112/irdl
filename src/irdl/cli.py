@@ -147,7 +147,9 @@ def cache_clean_command(
     root = resolve_cache_dir(cache_dir)
     freed = clean_cache(cache_dir, active_dataset_names=_active_dataset_names())
     typer.echo(f"cleaning cache at: {typer.style(str(root), fg=typer.colors.BRIGHT_BLUE)}")
-    typer.echo(f"freed disk space: {typer.style(format_bytes(freed, human_readable=True), fg=typer.colors.BRIGHT_MAGENTA)}")
+    typer.echo(
+        f"freed disk space: {typer.style(format_bytes(freed, human_readable=True), fg=typer.colors.BRIGHT_MAGENTA)}"
+    )
     return freed
 
 
@@ -160,7 +162,9 @@ def cache_prune_command(
     root = resolve_cache_dir(cache_dir)
     freed = prune_cache(cache_dir, active_dataset_names=_active_dataset_names())
     typer.echo(f"pruning cache at: {typer.style(str(root), fg=typer.colors.BRIGHT_BLUE)}")
-    typer.echo(f"freed disk space: {typer.style(format_bytes(freed, human_readable=True), fg=typer.colors.BRIGHT_MAGENTA)}")
+    typer.echo(
+        f"freed disk space: {typer.style(format_bytes(freed, human_readable=True), fg=typer.colors.BRIGHT_MAGENTA)}"
+    )
     return freed
 
 
@@ -171,11 +175,11 @@ def list_datasets() -> None:
     if not dataset_classes:
         typer.echo("No datasets available.")
         return
-    
+
     # Group datasets by category
     datasets_by_category: dict[DatasetCategory, list[type]] = {}
     uncategorized: list[type] = []
-    
+
     for dataset_class in dataset_classes:
         category = getattr(dataset_class, "_category", None)
         if category is None:
@@ -184,7 +188,7 @@ def list_datasets() -> None:
             if category not in datasets_by_category:
                 datasets_by_category[category] = []
             datasets_by_category[category].append(dataset_class)
-    
+
     # Display categorized datasets (in DatasetCategory definition order)
     for category in DatasetCategory:
         if category in datasets_by_category:
@@ -201,7 +205,7 @@ def list_datasets() -> None:
                     typer.echo(f"    {description}")
                 if doi:
                     typer.echo(f"    DOI: https://doi.org/{doi}")
-    
+
     # Display uncategorized datasets
     if uncategorized:
         typer.echo(f"\n{typer.style('Uncategorized', fg=typer.colors.BRIGHT_YELLOW)}:")
