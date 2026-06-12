@@ -18,7 +18,7 @@ Impulse Response Downloader
 
 1. Choose a Dataset and parameters.
 2. ``irdl`` retrieves the data and reuses cached source artifacts.
-3. ``irdl`` processes the artifacts if needed and internally parses it to `SOFA standard <https://sofaconventions.org>`_.
+3. ``irdl`` processes the artifacts if needed and internally parses it to `SOFA standard <https://www.sofaconventions.org/mediawiki/index.php/SOFA_(Spatially_Oriented_Format_for_Acoustics)>`_.
 4. ``irdl`` returns the requested output format either as a path or in-memory objects.
 
 .. grid:: 2
