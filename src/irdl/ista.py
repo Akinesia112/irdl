@@ -132,7 +132,11 @@ class IstaBaseDataset(BaseDataset):
         # --- IR data -----------------------------------------------------------
         sofa.Data_IR = ir[..., np.newaxis]  # dim spec (M, R, N, E)
         # Use scalar sampling rate since all measurements share the same rate
-        sofa.Data_SamplingRate = float(sampling_rate) if np.isscalar(sampling_rate) or len(np.unique(sampling_rate)) == 1 else np.full((i, m), sampling_rate)
+        sofa.Data_SamplingRate = (
+            float(sampling_rate)
+            if np.isscalar(sampling_rate) or len(np.unique(sampling_rate)) == 1
+            else np.full((i, m), sampling_rate)
+        )
         sofa.Data_Delay = np.zeros((m, r, i))
 
         # --- Custom data (not part of the SOFA convention) ---------------------
