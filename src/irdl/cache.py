@@ -115,7 +115,7 @@ def prune_cache(
     active_dataset_names: Iterable[str] | None = None,
 ) -> int:
     """Remove unreachable cache items for known datasets only, and return freed bytes.
-    
+
     Only processes datasets in active_dataset_names. Datasets not in this list are left untouched.
     For each known dataset, keeps only the highest cache stage and removes lower stages.
     """

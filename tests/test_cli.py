@@ -63,4 +63,4 @@ def test_make_wrapper_echoes_formatted_dict(monkeypatch):
 
     assert result == {"output_format": "numpy"}
     # typer.style adds ANSI color codes (\x1b[96m = bright cyan, \x1b[0m = reset)
-    assert echoed == [f"\x1b[96moutput_format:\n  numpy\x1b[0m"]
+    assert echoed == ["\x1b[96moutput_format:\n  numpy\x1b[0m"]

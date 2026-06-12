@@ -158,7 +158,7 @@ def cache_prune_command(
     ctx: typer.Context,
 ) -> int:
     """Remove unreachable cache items for known datasets only.
-    
+
     Only processes datasets registered in the current IRDL version.
     Unknown directories in the cache are left untouched.
     """
