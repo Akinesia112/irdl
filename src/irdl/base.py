@@ -224,7 +224,7 @@ output_format : str
         ValueError
             If any parameter is invalid.
         """
-    
+
     @abstractmethod
     def _source_filename(self, **dataset_kwargs) -> str:
         """Construct the ingest-ready filename with extension for the dataset.
@@ -334,7 +334,7 @@ output_format : str
             "Override _process with special implementation in subclass."
         )
         raise NotImplementedError(msg)
-    
+
     @abstractmethod
     def _ingest(self, ingest_path: Path) -> sf.Sofa:
         """Convert processed or raw file to sofar.Sofa object.

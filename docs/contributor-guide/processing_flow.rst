@@ -1,4 +1,4 @@
-Processing flow
+Architecture and Processing Flow
 ===============
 
 This page describes the contributor-facing architecture of ``irdl`` and the conceptual flow of
@@ -13,26 +13,29 @@ Core architecture
    shared ``get`` pipeline: common parameter validation, cache path handling,
    retrieval/process orchestration, SOFA verification, and output conversion.
 
-Optional shared bases
-   A Dataset family can introduce an intermediate base class when multiple Datasets share
-   provider behavior or source layout. Do this only when the behavior is genuinely shared.
+Optional Dataset Family classes
+   When several Datasets share dataset-specific steps in the get pipeline
+   (see :ref:get-processing-flow), a Dataset Family class can be introduced to lift that
+   shared logic into an intermediate base class. Do this only when the behavior is genuinely
+   shared; otherwise keep it in the individual Dataset class.
 
-Concrete Dataset classes
-   Each Dataset has one concrete class. Its public entry point is a typed ``get()``
-   classmethod that delegates to the shared pipeline. The typed signature and NumPy-style
-   docstring are also used to generate CLI parameters and help text.
+Individual Dataset classes
+   Each Dataset is implemented as an individual class. Its typed get() classmethod delegates to 
+   the shared pipeline, while the class itself implements that pipeline's dataset-specific steps 
+   (see :ref:get-processing-flow). The typed signature and NumPy-style docstring are also used to 
+   generate CLI parameters and help text.
 
 Support modules
    Retrieval/repository helpers, CLI generation, logging/progress helpers, and small
    utility functions live outside the Dataset classes.
 
-Generic shape:
+Class hierarchy:
 
 .. code-block:: text
 
    BaseDataset
-   └── Optional shared base
-       └── Concrete Dataset
+   └── Optional Dataset Family class
+       └── Individual Dataset class
 
 Cache stages
 ------------
@@ -46,8 +49,8 @@ Cache stages
    The single ingest-ready file that ``irdl`` can read into the internal SOFA representation.
 
 ``output``
-   Cached files produced by converting the internal SOFA representation to disk-based
-   Output Formats.
+   Files produced by converting the internal SOFA representation to disk-based
+   Output Formats. 
 
 Use these names in code comments and documentation. "Ingest-ready" is an adjective for a
 file in the ``ingest`` stage, not a separate stage name.
@@ -63,16 +66,16 @@ A public ``Dataset.get(...)`` call delegates to the shared :class:`~irdl.base.Ba
      └─ BaseDataset._get(...)
          ├─ validate common and Dataset-specific parameters
          ├─ resolve provider / ingest / output paths
-         ├─ raw output: retrieve provider artifact and return/copy it
+         ├─ [optional] raw output: retrieve provider artifact and return it
          ├─ reuse cached output if available
          ├─ reuse ingest file if available
          ├─ retrieve provider artifact if needed
-         ├─ process provider → ingest if needed
+         ├─ [optional] process provider file(s) into ingest file
          ├─ ingest to internal SOFA representation
          ├─ verify and upgrade SOFA convention
          └─ convert SOFA → requested Output Format
 
-The important extension points for a new Dataset are:
+Each Dataset must implement the following extension points:
 
 ``_validate_params()``
    Validate Dataset-specific parameters and invalid parameter combinations.
@@ -85,7 +88,8 @@ The important extension points for a new Dataset are:
 
 ``_process()``
    Optional. Transform provider-stage files into the single ingest-ready file. The default
-   implementation handles simple single-file promotion from ``provider`` to ``ingest``.
+   implementation skips processing and handles simple single-file promotion 
+   from ``provider`` to ``ingest``.
 
 ``_ingest()``
    Read the ingest-ready file and return the internal SOFA representation.
