@@ -28,7 +28,7 @@ import numpy as np
 import pyfar as pf
 import sofar as sf
 
-from irdl.downloader import IRDL_CACHE_DIR
+from irdl.cache import IRDL_CACHE_DIR
 from irdl.logging import logger
 from irdl.utils import _fits_in_memory
 

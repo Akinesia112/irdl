@@ -13,6 +13,8 @@ from numpydoc.docscrape import FunctionDoc
 
 import irdl
 from irdl.base import _get_dataset_classes
+from irdl.cache import cache_dir as resolve_cache_dir
+from irdl.cache import cache_size, clean_cache, format_bytes, prune_cache
 from irdl.logging import configure_cli_logging
 
 # Configure CLI logging
@@ -94,6 +96,51 @@ def _make_wrapper(cls, method, params, help_text, dataset_name, param_docs):
 
 #: Typer app that can be invoked by calling ``irdl`` from the CLI.
 app = typer.Typer(no_args_is_help=True)
+cache_app = typer.Typer(no_args_is_help=True, help="Manage cache directory.")
+app.add_typer(cache_app, name="cache")
+
+
+def _active_dataset_names() -> set[str]:
+    return {dataset_class.name for dataset_class in _get_dataset_classes(irdl)}
+
+
+@cache_app.command(name="size", help="Show cache directory size.")
+def cache_size_command(
+    human_readable: bool = typer.Option(False, "-H", "--human-readable", help="Format size with binary units."),  # noqa: FBT001, FBT003
+) -> int:
+    """Show cache directory size."""
+    size = cache_size()
+    typer.echo(format_bytes(size, human_readable=human_readable))
+    return size
+
+
+@cache_app.command(name="dir", help="Show cache directory path.")
+def cache_dir_command() -> Path:
+    """Show cache directory path."""
+    path = resolve_cache_dir()
+    typer.echo(str(path))
+    return path
+
+
+@cache_app.command(name="clean", help="Wipe cache directory.")
+def cache_clean_command() -> int:
+    """Wipe cache directory."""
+    root = resolve_cache_dir()
+    freed = clean_cache(root)
+    typer.echo(f"cleaning cache at: {root}")
+    typer.echo(f"freed disk space: {format_bytes(freed, human_readable=True)}")
+    return freed
+
+
+@cache_app.command(name="prune", help="Remove unreachable cache items.")
+def cache_prune_command() -> int:
+    """Remove unreachable cache items."""
+    root = resolve_cache_dir()
+    freed = prune_cache(root, active_dataset_names=_active_dataset_names())
+    typer.echo(f"pruning cache at: {root}")
+    typer.echo(f"freed disk space: {format_bytes(freed, human_readable=True)}")
+    return freed
+
 
 # Automatically register all supported datasets as subcommands to the app.
 for dataset_class in _get_dataset_classes(irdl):
