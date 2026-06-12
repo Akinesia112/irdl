@@ -1,6 +1,5 @@
 """Implements download and post-processing based on pooch."""
 
-import os
 from collections.abc import Mapping
 from pathlib import Path
 
