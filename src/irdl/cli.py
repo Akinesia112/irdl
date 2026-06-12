@@ -3,8 +3,11 @@
 import pathlib
 import types
 from inspect import signature
+from pathlib import Path
 from typing import Annotated, Any, Union, get_args, get_origin
 
+import numpy as np
+import pyfar as pf
 import typer
 from numpydoc.docscrape import FunctionDoc
 
@@ -39,9 +42,40 @@ def _resolve_union_type(annotation: type) -> type:
     return annotation
 
 
+def _format_cli_value(value: Any) -> str:
+    """Format CLI return values for readable terminal output."""
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, dict):
+        sections = []
+        for key, item in value.items():
+            formatted = _format_cli_item(item)
+            indented = "\n".join(f"  {line}" for line in formatted.splitlines())
+            sections.append(f"{key}:\n{indented}")
+        return "\n\n".join(sections)
+    return str(value)
+
+
+def _format_cli_item(value: Any) -> str:
+    """Format one item inside a CLI result mapping."""
+    if isinstance(value, np.ndarray):
+        summary = f"ndarray shape={value.shape} dtype={value.dtype}"
+        if value.ndim == 0:
+            return f"{summary}\n{value.item()}"
+        return f"{summary}\n{np.array2string(value, threshold=12, edgeitems=2)}"
+    if isinstance(value, pf.Signal | pf.Coordinates):
+        return str(value)
+    if isinstance(value, Path):
+        return str(value)
+    return str(value)
+
+
 def _make_wrapper(cls, method, params, help_text, dataset_name, param_docs):
     def wrapper(**kwargs) -> Any:
-        return method.__func__(cls, **kwargs)
+        result = method.__func__(cls, **kwargs)
+        if result is not None:
+            typer.echo(_format_cli_value(result))
+        return result
 
     # Build the signature for the wrapper
     new_params = []

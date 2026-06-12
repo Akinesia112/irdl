@@ -310,7 +310,7 @@ output_format : str
                 suff = ".sofa"
             case "hdf5":
                 suff = ".h5"
-        return (output_dir / source_filename.stem).with_suffix(suff)
+        return (output_dir / Path(source_filename).stem).with_suffix(suff)
 
     def _export_raw(self, provider_artifact: Path, export_dir: Path) -> Path:
         """Export raw provider artifact to export directory.
@@ -345,7 +345,7 @@ output_format : str
         msg = f"Provider artifact must be a file or directory, but {self.name} returned: {provider_artifact}"
         raise ValueError(msg)
 
-    def process(self, provider_artifact: Path, ingest_path: Path) -> Path:
+    def process(self, provider_artifact: Path, ingest_path: Path, **dataset_kwargs) -> Path:
         """Post-process downloaded file if needed.
 
         This method wraps _process to enforce ingest_dir existence for all subclasses.
@@ -356,6 +356,8 @@ output_format : str
             Path to the freshly downloaded file (or download directory).
         ingest_path : :class:`pathlib.Path`
             Path to the ingestible file in the ingest directory.
+        **dataset_kwargs : dict
+            Dataset-specific parameters passed through to ``_process``.
 
         Returns
         -------
@@ -363,9 +365,9 @@ output_format : str
             The processed, ingest-ready file at ``ingest_path``.
         """
         ingest_path.parent.mkdir(parents=True, exist_ok=True)
-        return self._process(provider_artifact, ingest_path)
+        return self._process(provider_artifact, ingest_path, **dataset_kwargs)
 
-    def _process(self, provider_artifact: Path, ingest_path: Path) -> Path:
+    def _process(self, provider_artifact: Path, ingest_path: Path, **_dataset_kwargs) -> Path:
         """Post-process downloaded file if needed.
 
         Override in subclass to extract, merge, or otherwise transform the downloaded data. Write
@@ -382,6 +384,8 @@ output_format : str
             Path to the freshly downloaded file (or download directory).
         ingest_path : :class:`pathlib.Path`
             Path to the ingestible file in the ingest directory.
+        **dataset_kwargs : dict
+            Dataset-specific parameters (unused by the default implementation).
 
         Returns
         -------
