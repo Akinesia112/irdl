@@ -70,6 +70,171 @@ class SofaBaseDataset(BaseDataset):
         return sf.read_sofa(ingest_path)
 
 
+class BrasRs8Dataset(SofaBaseDataset):
+    """Download the BRAS RS8 dataset from DepositOnce.
+
+    BRAS RS8 extends the Benchmark for Room Acoustical Simulation (BRAS) by a
+    finite curved reflector. The dataset contains nine scenes with various source
+    and receiver configurations, covering dispersing and focusing reflections,
+    as well as diffraction around the surface. In total, nearly 3,000 impulse
+    responses were measured under controlled anechoic conditions.
+
+    Attributes
+    ----------
+    name : str
+        Dataset name ("bras-rs8").
+    doi : str
+        Digital Object Identifier ("10.14279/depositonce-25649").
+    """
+
+    name = "bras-rs8"
+    doi = "10.14279/depositonce-25649"
+    _category = DatasetCategory.ROOM_IMPULSE_RESPONSES
+
+    @classmethod
+    def get(
+        cls,
+        scene: str = "01a",
+        cache_dir: Path | str | None = None,
+        export_dir: Path | str | None = None,
+        output_format: str = "pyfar",
+    ) -> dict | Path | None:
+        """
+        scene : str, optional
+            Scene identifier to download. One of:
+            '01a', '01b', '01c', '02',
+            '03a', '03b', '03c', '03d', '03e'.
+            Default is '01a'.
+
+        Returns
+        -------
+        dict or Path
+            For 'pyfar' / 'numpy': dict of in-memory objects.
+            For 'sofa' / 'hdf5' / 'raw': Path to file on disk.
+        """  # noqa: D205, D403
+        return cls()._get(
+            scene=scene,
+            cache_dir=cache_dir,
+            export_dir=export_dir,
+            output_format=output_format,
+        )
+
+    def _validate_params(self, **dataset_kwargs) -> None:
+        """Validate BRAS-RS8-specific parameters.
+
+        Parameters
+        ----------
+        **dataset_kwargs : dict
+            Must contain 'scene' (one of the valid scene identifiers).
+
+        Raises
+        ------
+        ValueError
+            If scene is not one of the valid scene identifiers.
+        """
+        scene = dataset_kwargs["scene"]
+        valid_scenes = {
+            "01a",
+            "01b",
+            "01c",
+            "02",
+            "03a",
+            "03b",
+            "03c",
+            "03d",
+            "03e",
+        }
+        if scene not in valid_scenes:
+            msg = f"scene must be one of {sorted(valid_scenes)}"
+            raise ValueError(msg)
+
+    def _source_filename(self, **dataset_kwargs) -> str:
+        """Construct the ingest-ready (SOFA) filename.
+
+        Parameters
+        ----------
+        **dataset_kwargs : dict
+            Expected key: scene.
+
+        Returns
+        -------
+        str
+            File name in format "RS8_{scene}.sofa".
+        """
+        scene = dataset_kwargs["scene"]
+        return f"RS8_{scene}.sofa"
+
+    def _download(self, provider_dir: Path, **_dataset_kwargs) -> Path:
+        """Download BRAS-RS8 Scene_descriptions.zip archive to the provider directory.
+
+        Only downloads the archive if it is not already cached in the provider
+        directory. Returns the ZIP path so that ``_process`` can extract the
+        requested SOFA file into the ingest directory.
+
+        Parameters
+        ----------
+        provider_dir : Path
+            Provider directory (e.g., ``cache/BRAS-RS8/provider/``).
+        **_dataset_kwargs : dict
+            Unused dataset-specific parameters (accepted for compatibility).
+
+        Returns
+        -------
+        Path
+            Path to the downloaded ZIP archive.
+        """
+        zipfile_name = "1_Scene_descriptions.zip"
+        zip_path = provider_dir / zipfile_name
+        if zip_path.exists():
+            logger.info(f"BRAS-RS8 ZIP archive already cached at {zip_path}, skipping download")
+        else:
+            logger.info("Downloading BRAS-RS8 dataset")
+            pup = _pooch_from_doi(self.doi, path=provider_dir)
+            _fetch(pup, zipfile_name)
+        return zip_path
+
+    def _process(self, provider_artifact: Path, ingest_path: Path, **dataset_kwargs) -> Path:
+        """Extract the requested SOFA file from the ZIP into the ingest directory.
+
+        Parameters
+        ----------
+        provider_artifact : Path
+            Path to the ZIP archive in the provider directory.
+        ingest_path : Path
+            Path to the SOFA file in the ingest directory.
+        **dataset_kwargs : dict
+            Expected key: scene.
+
+        Returns
+        -------
+        Path
+            Path to the extracted SOFA file in the ingest directory.
+        """
+        scene = dataset_kwargs["scene"]
+        # The SOFA file inside the zip is named RS8_RIRs_{scene}.sofa
+        sofa_filename = f"RS8_RIRs_{scene}.sofa"
+
+        ingest_path.parent.mkdir(parents=True, exist_ok=True)
+
+        with ZipFile(provider_artifact, "r") as zf:
+            # Find the file that matches our pattern
+            matching_files = [
+                name for name in zf.namelist()
+                if name.endswith(sofa_filename)
+            ]
+            if not matching_files:
+                msg = f"SOFA file {sofa_filename} not found in archive {provider_artifact.name}"
+                raise FileNotFoundError(msg)
+            if len(matching_files) > 1:
+                logger.warning(f"Found multiple files matching {sofa_filename}, using first one")
+            source_file = matching_files[0]
+            # Extract to ingest_path
+            with zf.open(source_file) as source, ingest_path.open("wb") as target:
+                target.write(source.read())
+
+        return ingest_path
+
+
 class FabianDataset(SofaBaseDataset):
     """Download and extract the FABIAN HRTF database from DepositOnce.
 
