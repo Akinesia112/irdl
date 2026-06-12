@@ -69,12 +69,27 @@ def cache_dir(cache_dir: Path | str | None = None) -> Path:
     return resolve_cache_dir(cache_dir)
 
 
-def clean_cache(cache_dir: Path | str | None = None) -> int:
-    """Remove cache root contents, recreate empty dir, and return freed bytes."""
+def clean_cache(cache_dir: Path | str | None = None, *, active_dataset_names: Iterable[str] | None = None) -> int:
+    """Remove cache contents for known datasets only, and return freed bytes."""
     root = resolve_cache_dir(cache_dir)
-    freed = _path_size(root)
-    shutil.rmtree(root, ignore_errors=True)
-    root.mkdir(parents=True, exist_ok=True)
+    if not root.exists():
+        return 0
+
+    active_names = {name.lower() for name in active_dataset_names} if active_dataset_names is not None else None
+    freed = 0
+
+    for entry in root.iterdir():
+        if entry.is_file() or entry.is_symlink():
+            # Skip files in the cache root - only process dataset directories
+            continue
+        if not entry.is_dir():
+            continue
+
+        if active_names is not None and entry.name.lower() not in active_names:
+            continue
+
+        freed += _delete_path(entry)
+
     return freed
 
 
@@ -99,7 +114,7 @@ def prune_cache(
     *,
     active_dataset_names: Iterable[str] | None = None,
 ) -> int:
-    """Remove unreachable cache items and return freed bytes."""
+    """Remove unreachable cache items for known datasets only, and return freed bytes."""
     root = resolve_cache_dir(cache_dir)
     if not root.exists():
         return 0
@@ -109,13 +124,12 @@ def prune_cache(
 
     for entry in root.iterdir():
         if entry.is_file() or entry.is_symlink():
-            freed += _delete_path(entry)
+            # Skip files in the cache root - only process dataset directories
             continue
         if not entry.is_dir():
             continue
 
         if active_names is not None and entry.name.lower() not in active_names:
-            freed += _delete_path(entry)
             continue
 
         stages = [entry / stage for stage in _CACHE_STAGES if (entry / stage).exists()]

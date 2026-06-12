@@ -76,7 +76,7 @@ def _make_wrapper(cls, method, params, help_text, dataset_name, param_docs):
     def wrapper(**kwargs) -> Any:
         result = method.__func__(cls, **kwargs)
         if result is not None:
-            typer.echo(_format_cli_value(result))
+            typer.echo(typer.style(_format_cli_value(result), fg=typer.colors.BRIGHT_CYAN))
         return result
 
     # Build the signature for the wrapper
@@ -100,45 +100,65 @@ cache_app = typer.Typer(no_args_is_help=True, help="Manage cache directory.")
 app.add_typer(cache_app, name="cache")
 
 
+@cache_app.callback()
+def cache_callback(
+    ctx: typer.Context,
+    cache_dir: Path | None = typer.Option(None, "--cache-dir", help="Custom cache directory path."),
+) -> None:
+    """Cache command callback to handle common options."""
+    ctx.obj = {"cache_dir": cache_dir}
+
+
 def _active_dataset_names() -> set[str]:
     return {dataset_class.name for dataset_class in _get_dataset_classes(irdl)}
 
 
 @cache_app.command(name="size", help="Show cache directory size.")
 def cache_size_command(
+    ctx: typer.Context,
     human_readable: bool = typer.Option(False, "-H", "--human-readable", help="Format size with binary units."),  # noqa: FBT001, FBT003
 ) -> int:
     """Show cache directory size."""
-    size = cache_size()
-    typer.echo(format_bytes(size, human_readable=human_readable))
+    cache_dir = ctx.obj.get("cache_dir") if ctx.obj else None
+    size = cache_size(cache_dir)
+    typer.echo(typer.style(format_bytes(size, human_readable=human_readable), fg=typer.colors.BRIGHT_MAGENTA))
     return size
 
 
 @cache_app.command(name="dir", help="Show cache directory path.")
-def cache_dir_command() -> Path:
+def cache_dir_command(
+    ctx: typer.Context,
+) -> Path:
     """Show cache directory path."""
-    path = resolve_cache_dir()
-    typer.echo(str(path))
+    cache_dir = ctx.obj.get("cache_dir") if ctx.obj else None
+    path = resolve_cache_dir(cache_dir)
+    typer.echo(typer.style(str(path), fg=typer.colors.BRIGHT_BLUE))
     return path
 
 
 @cache_app.command(name="clean", help="Wipe cache directory.")
-def cache_clean_command() -> int:
+def cache_clean_command(
+    ctx: typer.Context,
+) -> int:
     """Wipe cache directory."""
-    root = resolve_cache_dir()
-    freed = clean_cache(root)
-    typer.echo(f"cleaning cache at: {root}")
-    typer.echo(f"freed disk space: {format_bytes(freed, human_readable=True)}")
+    cache_dir = ctx.obj.get("cache_dir") if ctx.obj else None
+    root = resolve_cache_dir(cache_dir)
+    freed = clean_cache(cache_dir, active_dataset_names=_active_dataset_names())
+    typer.echo(f"cleaning cache at: {typer.style(str(root), fg=typer.colors.BRIGHT_BLUE)}")
+    typer.echo(f"freed disk space: {typer.style(format_bytes(freed, human_readable=True), fg=typer.colors.BRIGHT_MAGENTA)}")
     return freed
 
 
 @cache_app.command(name="prune", help="Remove unreachable cache items.")
-def cache_prune_command() -> int:
+def cache_prune_command(
+    ctx: typer.Context,
+) -> int:
     """Remove unreachable cache items."""
-    root = resolve_cache_dir()
-    freed = prune_cache(root, active_dataset_names=_active_dataset_names())
-    typer.echo(f"pruning cache at: {root}")
-    typer.echo(f"freed disk space: {format_bytes(freed, human_readable=True)}")
+    cache_dir = ctx.obj.get("cache_dir") if ctx.obj else None
+    root = resolve_cache_dir(cache_dir)
+    freed = prune_cache(cache_dir, active_dataset_names=_active_dataset_names())
+    typer.echo(f"pruning cache at: {typer.style(str(root), fg=typer.colors.BRIGHT_BLUE)}")
+    typer.echo(f"freed disk space: {typer.style(format_bytes(freed, human_readable=True), fg=typer.colors.BRIGHT_MAGENTA)}")
     return freed
 
 
