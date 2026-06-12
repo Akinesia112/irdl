@@ -181,7 +181,7 @@ class FabianDataset(SofaBaseDataset):
             _fetch(pup, zipfile_name)
         return zip_path
 
-    def _process(self, provider_artifact: Path, ingest_path: Path) -> Path:
+    def _process(self, provider_artifact: Path, ingest_path: Path, **_dataset_kwargs) -> Path:
         """Extract the requested SOFA file from the ZIP into the ingest directory.
 
         Parameters
@@ -190,6 +190,8 @@ class FabianDataset(SofaBaseDataset):
             Path to the ZIP archive in the provider directory.
         ingest_path : :class:`pathlib.Path`
             Path to the SOFA file in the ingest directory.
+        **_dataset_kwargs : dict
+            Unused dataset-specific parameters (accepted for compatibility).
 
         Returns
         -------
