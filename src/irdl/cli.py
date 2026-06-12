@@ -12,7 +12,9 @@ import typer
 from numpydoc.docscrape import FunctionDoc
 
 import irdl
-from irdl.base import _get_dataset_classes
+from irdl.base import DatasetCategory, _get_dataset_classes
+from irdl.cache import cache_dir as resolve_cache_dir
+from irdl.cache import cache_size, clean_cache, format_bytes, prune_cache
 from irdl.logging import configure_cli_logging
 
 # Configure CLI logging
@@ -74,7 +76,7 @@ def _make_wrapper(cls, method, params, help_text, dataset_name, param_docs):
     def wrapper(**kwargs) -> Any:
         result = method.__func__(cls, **kwargs)
         if result is not None:
-            typer.echo(_format_cli_value(result))
+            typer.echo(typer.style(_format_cli_value(result), fg=typer.colors.BRIGHT_CYAN))
         return result
 
     # Build the signature for the wrapper
@@ -94,8 +96,132 @@ def _make_wrapper(cls, method, params, help_text, dataset_name, param_docs):
 
 #: Typer app that can be invoked by calling ``irdl`` from the CLI.
 app = typer.Typer(no_args_is_help=True)
+cache_app = typer.Typer(no_args_is_help=True, help="Manage cache directory.")
+get_app = typer.Typer(no_args_is_help=True, help="Download datasets.")
+app.add_typer(cache_app, name="cache")
+app.add_typer(get_app, name="get")
 
-# Automatically register all supported datasets as subcommands to the app.
+
+@cache_app.callback()
+def cache_callback(
+    ctx: typer.Context,
+    cache_dir: Path | None = typer.Option(None, "--cache-dir", help="Custom cache directory path."),
+) -> None:
+    """Cache command callback to handle common options."""
+    ctx.obj = {"cache_dir": cache_dir}
+
+
+def _active_dataset_names() -> set[str]:
+    return {dataset_class.name for dataset_class in _get_dataset_classes(irdl)}
+
+
+@cache_app.command(name="size", help="Show cache directory size.")
+def cache_size_command(
+    ctx: typer.Context,
+    human_readable: bool = typer.Option(False, "-H", "--human-readable", help="Format size with binary units."),
+) -> int:
+    """Show cache directory size."""
+    cache_dir = ctx.obj.get("cache_dir") if ctx.obj else None
+    size = cache_size(cache_dir)
+    typer.echo(typer.style(format_bytes(size, human_readable=human_readable), fg=typer.colors.BRIGHT_MAGENTA))
+    return size
+
+
+@cache_app.command(name="dir", help="Show cache directory path.")
+def cache_dir_command(
+    ctx: typer.Context,
+) -> Path:
+    """Show cache directory path."""
+    cache_dir = ctx.obj.get("cache_dir") if ctx.obj else None
+    path = resolve_cache_dir(cache_dir)
+    typer.echo(typer.style(str(path), fg=typer.colors.BRIGHT_BLUE))
+    return path
+
+
+@cache_app.command(name="clean", help="Wipe cache directory.")
+def cache_clean_command(
+    ctx: typer.Context,
+) -> int:
+    """Wipe cache directory."""
+    cache_dir = ctx.obj.get("cache_dir") if ctx.obj else None
+    root = resolve_cache_dir(cache_dir)
+    freed = clean_cache(cache_dir, active_dataset_names=_active_dataset_names())
+    typer.echo(f"cleaning cache at: {typer.style(str(root), fg=typer.colors.BRIGHT_BLUE)}")
+    typer.echo(
+        f"freed disk space: {typer.style(format_bytes(freed, human_readable=True), fg=typer.colors.BRIGHT_MAGENTA)}"
+    )
+    return freed
+
+
+@cache_app.command(name="prune", help="Remove unreachable cache items.")
+def cache_prune_command(
+    ctx: typer.Context,
+) -> int:
+    """Remove unreachable cache items."""
+    cache_dir = ctx.obj.get("cache_dir") if ctx.obj else None
+    root = resolve_cache_dir(cache_dir)
+    freed = prune_cache(cache_dir, active_dataset_names=_active_dataset_names())
+    typer.echo(f"pruning cache at: {typer.style(str(root), fg=typer.colors.BRIGHT_BLUE)}")
+    typer.echo(
+        f"freed disk space: {typer.style(format_bytes(freed, human_readable=True), fg=typer.colors.BRIGHT_MAGENTA)}"
+    )
+    return freed
+
+
+def _get_dataset_description(dataset_class: type) -> str:
+    """Get the first line of a dataset class's docstring."""
+    docstring = dataset_class.__doc__ or ""
+    return docstring.strip().split("\n")[0] if docstring.strip() else ""
+
+
+def _display_dataset(dataset_class: type) -> None:
+    """Display a single dataset with its description and DOI."""
+    typer.echo(f"  {typer.style(dataset_class.name, fg=typer.colors.BRIGHT_CYAN)}")
+    description = _get_dataset_description(dataset_class)
+    if description:
+        typer.echo(f"    {description}")
+    doi = getattr(dataset_class, "doi", None)
+    if doi:
+        typer.echo(f"    DOI: https://doi.org/{doi}")
+
+
+@app.command(name="list", help="List all available datasets.")
+def list_datasets() -> None:
+    """List all available datasets grouped by category."""
+    dataset_classes = _get_dataset_classes(irdl)
+    if not dataset_classes:
+        typer.echo("No datasets available.")
+        return
+
+    # Group datasets by category
+    datasets_by_category: dict[DatasetCategory, list[type]] = {}
+    uncategorized: list[type] = []
+
+    for dataset_class in dataset_classes:
+        category = getattr(dataset_class, "_category", None)
+        if category is None:
+            uncategorized.append(dataset_class)
+        elif category in datasets_by_category:
+            datasets_by_category[category].append(dataset_class)
+        else:
+            datasets_by_category[category] = [dataset_class]
+
+    # Display categorized datasets (in DatasetCategory definition order)
+    for category in DatasetCategory:
+        if category in datasets_by_category:
+            datasets = datasets_by_category[category]
+            typer.echo(f"\n{typer.style(category.value.replace('_', ' ').title(), fg=typer.colors.BRIGHT_MAGENTA)}:")
+            for dataset_class in sorted(datasets, key=lambda x: x.name):
+                _display_dataset(dataset_class)
+
+    # Display uncategorized datasets
+    if uncategorized:
+        typer.echo(f"\n{typer.style('Uncategorized', fg=typer.colors.BRIGHT_YELLOW)}:")
+        for dataset_class in sorted(uncategorized, key=lambda x: x.name):
+            _display_dataset(dataset_class)
+
+
+# Automatically register all supported datasets as subcommands to the get app.
 for dataset_class in _get_dataset_classes(irdl):
     get_method = dataset_class.get
 
@@ -112,7 +238,7 @@ for dataset_class in _get_dataset_classes(irdl):
     wrapper = _make_wrapper(dataset_class, get_method, sig.parameters, help_text, dataset_class.name, param_docs)
 
     # Register subcommand using dataset_class.name for the command name
-    app.command(
+    get_app.command(
         name=dataset_class.name,
         help=help_text,
     )(wrapper)

@@ -13,5 +13,7 @@ runs:
     - name: Check CLI
       run: |
         ${{ inputs.command }} irdl --help
-        ${{ inputs.command }} irdl miracle --help
-      shell: bash -e {0}
+        ${{ inputs.command }} irdl cache --help
+        ${{ inputs.command }} irdl list
+        ${{ inputs.command }} irdl get --help
+        ${{ inputs.command }} irdl get miracle --help
