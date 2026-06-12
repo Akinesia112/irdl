@@ -218,10 +218,7 @@ class BrasRs8Dataset(SofaBaseDataset):
 
         with ZipFile(provider_artifact, "r") as zf:
             # Find the file that matches our pattern
-            matching_files = [
-                name for name in zf.namelist()
-                if name.endswith(sofa_filename)
-            ]
+            matching_files = [name for name in zf.namelist() if name.endswith(sofa_filename)]
             if not matching_files:
                 msg = f"SOFA file {sofa_filename} not found in archive {provider_artifact.name}"
                 raise FileNotFoundError(msg)
