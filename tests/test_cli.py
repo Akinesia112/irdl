@@ -41,7 +41,8 @@ def test_make_wrapper_echoes_returned_path(monkeypatch):
     result = wrapper(output_format="sofa")
 
     assert result == RESULT_DIR / "result.sofa"
-    assert echoed == [str(RESULT_DIR / "result.sofa")]
+    # typer.style adds ANSI color codes (\x1b[96m = bright cyan, \x1b[0m = reset)
+    assert echoed == [f"\x1b[96m{RESULT_DIR / 'result.sofa'}\x1b[0m"]
 
 
 def test_make_wrapper_echoes_formatted_dict(monkeypatch):
@@ -61,4 +62,5 @@ def test_make_wrapper_echoes_formatted_dict(monkeypatch):
     result = wrapper(output_format="numpy")
 
     assert result == {"output_format": "numpy"}
-    assert echoed == ["output_format:\n  numpy"]
+    # typer.style adds ANSI color codes (\x1b[96m = bright cyan, \x1b[0m = reset)
+    assert echoed == [f"\x1b[96moutput_format:\n  numpy\x1b[0m"]
