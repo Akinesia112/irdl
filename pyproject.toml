@@ -70,7 +70,7 @@ requires = ["uv-build>=0.11.17,<0.12"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
-source-include = ["CHANGELOG.md", "LICENSE", "README.md"]
+source-include = ["CHANGELOG.md", "LICENSE", "README.md", "src/irdl/registry/*.json"]
 
 [[tool.uv.index]]
 name = "pypi"

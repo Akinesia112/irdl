@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from irdl.sofacoustics import HutubsDataset
-from irdl.sofacoustics_registry import SOFACOUSTICS_HASHES
+from irdl.sofacoustics import HutubsDataset, get_sofacoustics_hash
+from irdl.utils import load_hash_registry
 
 
 class TestHutubsDataset:
@@ -55,12 +55,12 @@ class TestHutubsDataset:
 
     def test_hash_registry_covers_supported_hutubs_hrirs(self):
         """Verify the provider-wide registry covers all supported HUTUBS HRIR SOFA files."""
-        hutubs_hashes = SOFACOUSTICS_HASHES["hutubs"]
+        registry = load_hash_registry("sofacoustics")
         expected_supported_files = 96 * 2
 
-        assert len(hutubs_hashes) == expected_supported_files
-        assert hutubs_hashes["pp1_HRIRs_measured.sofa"].startswith("sha256:")
-        assert hutubs_hashes["pp96_HRIRs_simulated.sofa"].startswith("sha256:")
+        assert len(registry) == expected_supported_files
+        assert registry["hutubs/pp1_HRIRs_measured.sofa"].startswith("sha256:")
+        assert registry["hutubs/pp96_HRIRs_simulated.sofa"].startswith("sha256:")
 
     def test_download_uses_static_registry_entry(self, monkeypatch, tmp_path):
         """Verify download constructs a single-file static registry for the provider file."""
@@ -90,7 +90,7 @@ class TestHutubsDataset:
 
         assert result == tmp_path / "pp3_HRIRs_measured.sofa"
         assert captured["registry"] == {
-            "pp3_HRIRs_measured.sofa": SOFACOUSTICS_HASHES["hutubs"]["pp3_HRIRs_measured.sofa"]
+            "pp3_HRIRs_measured.sofa": get_sofacoustics_hash("hutubs/pp3_HRIRs_measured.sofa")
         }
         assert captured["urls"] == {
             "pp3_HRIRs_measured.sofa": "https://sofacoustics.org/data/database/hutubs/pp3_HRIRs_measured.sofa"

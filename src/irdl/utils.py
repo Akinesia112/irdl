@@ -1,10 +1,62 @@
 """Utility functions for IRDL."""
 
+import json
+from functools import cache
+from importlib import resources
 from pathlib import Path
 
 import psutil
 
 from irdl.logging import logger
+
+
+@cache
+def load_hash_registry(provider_name: str) -> dict[str, str]:
+    """Load and validate a packaged provider hash registry.
+
+    Parameters
+    ----------
+    provider_name : str
+        Provider identifier used to resolve ``<provider_name>_hashes.json`` from
+        ``irdl/registry/`` package data.
+
+    Returns
+    -------
+    dict
+        Flat mapping of provider-relative paths to ``sha256:...`` digests.
+    """
+    resource = resources.files("irdl").joinpath("registry", f"{provider_name}_hashes.json")
+    with resource.open("r", encoding="utf-8") as handle:
+        registry = json.load(handle)
+    _validate_hash_registry(provider_name, registry)
+    return registry
+
+
+def _validate_hash_registry(provider_name: str, registry: object) -> None:
+    """Validate the common flat hash-registry schema.
+
+    Parameters
+    ----------
+    provider_name : str
+        Provider identifier used in error messages.
+    registry : object
+        Parsed JSON payload to validate.
+
+    Raises
+    ------
+    ValueError
+        If the registry does not match the required flat ``dict[str, str]`` schema.
+    """
+    if not isinstance(registry, dict):
+        msg = f"Hash registry '{provider_name}' must be a JSON object"
+        raise TypeError(msg)
+    for key, value in registry.items():
+        if not isinstance(key, str) or "/" not in key:
+            msg = f"Hash registry '{provider_name}' contains invalid path key: {key!r}"
+            raise ValueError(msg)
+        if not isinstance(value, str) or not value.startswith("sha256:"):
+            msg = f"Hash registry '{provider_name}' contains invalid digest for {key!r}: {value!r}"
+            raise ValueError(msg)
 
 
 def _fits_in_memory(ingest_path: Path) -> bool:

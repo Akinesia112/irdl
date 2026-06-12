@@ -5,11 +5,21 @@ from pathlib import Path
 from irdl.downloader import _fetch, _pooch_from_static_registry
 from irdl.logging import logger
 from irdl.sofa import SofaBaseDataset
-from irdl.sofacoustics_registry import SOFACOUSTICS_HASHES
+from irdl.utils import load_hash_registry
+
+
+def get_sofacoustics_hash(path_key: str) -> str:
+    """Return one verified hash entry from the SOFACoustics provider registry."""
+    registry = load_hash_registry("sofacoustics")
+    try:
+        return registry[path_key]
+    except KeyError as exc:
+        msg = f"Missing SOFACoustics hash registry entry for '{path_key}'"
+        raise ValueError(msg) from exc
 
 
 class SofacousticsBaseDataset(SofaBaseDataset):
-    """Base class for datasets hosted as static files on SOFACoustics."""
+    """Base class for datasets hosted as static files on sofacoustics.org."""
 
     dataset_slug: str
 
@@ -24,7 +34,8 @@ class SofacousticsBaseDataset(SofaBaseDataset):
     def _download(self, provider_dir: Path, **dataset_kwargs) -> Path:
         """Download one static provider file using the checked-in hash registry."""
         filename = self._provider_filename(**dataset_kwargs)
-        known_hash = SOFACOUSTICS_HASHES[self.dataset_slug][filename]
+        path_key = f"{self.dataset_slug}/{filename}"
+        known_hash = get_sofacoustics_hash(path_key)
         pup = _pooch_from_static_registry(
             path=provider_dir,
             registry={filename: known_hash},
@@ -36,7 +47,7 @@ class SofacousticsBaseDataset(SofaBaseDataset):
 
 
 class HutubsDataset(SofacousticsBaseDataset):
-    """Download and extract the HUTUBS HRTF database from SOFACoustics."""
+    """Download and extract the HUTUBS HRTF database from SOFAcoustics."""
 
     name = "hutubs"
     doi = "10.14279/depositonce-8487"
