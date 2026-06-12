@@ -11,6 +11,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.0b4] - 2026-06-12
+
+### Added
+- `HutubsDataset` for SOFAcoustics HUTUBS dataset support
+- `DatasetCategory` enum for organizing datasets by type (HRIR, Room Acoustics, etc.)
+- New CLI commands: `irdl list` to show available datasets, `irdl cache size`, `irdl cache dir`, `irdl cache clean`, `irdl cache prune`
+- Dataset registry refactoring with improved organization
+- Shell integration support
+- `simulated` parameter for FabianDataset (replaces `fabian` kwarg)
+- `dataset_kwargs` support for FabianDataset
+
+### Changed
+- FabianDataset parameter renamed from `fabian` to `simulated` for clarity
+- Improved CLI output formatting
+- Refactored registry system for better dataset management
+- Enhanced docstrings and documentation
+
+### Fixed
+- Sample rate handling for various dataset formats
+- Process kwargs handling in dataset methods
+- Cache pruning safety improvements
+- Smoke tests and unit test fixes
+- Documentation links and README formatting
+
+---
+
+## [1.0.0b3] - 2026-06-11
+
+### Added
+- Contributing guide and tutorial documentation
+- Enhanced error handling with FileNotFound exceptions
+- Improved logging with demoted log levels for cleaner output
+
+### Changed
+- Refactored SofaBase class for better SOFA file handling
+- Improved export path construction and raw export functionality
+- Cleaned up cache directory handling
+- Enhanced directory setup logic
+- Updated README with clearer data return format descriptions
+- Improved error messages throughout the codebase
+
+### Fixed
+- Circular import issues
+- Export logic clarity and robustness
+- Code formatting and linting throughout
+- Installation instructions and documentation
+- Unreachable code removal and code simplification
+
+---
+
 ## [1.0.0b2] - 2026-06-03
 
 ### Added
@@ -97,7 +147,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[Unreleased]: https://github.com/artpelling/irdl/compare/v1.0.0b2...HEAD
+[Unreleased]: https://github.com/artpelling/irdl/compare/v1.0.0b4...HEAD
+[1.0.0b4]: https://github.com/artpelling/irdl/compare/v1.0.0b3...v1.0.0b4
+[1.0.0b3]: https://github.com/artpelling/irdl/compare/v1.0.0b2...v1.0.0b3
 [1.0.0b2]: https://github.com/artpelling/irdl/compare/v1.0.0b1...v1.0.0b2
 [1.0.0b1]: https://github.com/artpelling/irdl/compare/v1.0.0a3...v1.0.0b1
 [1.0.0a3]: https://github.com/artpelling/irdl/compare/v1.0.0a2...v1.0.0a3
