@@ -118,7 +118,7 @@ def _active_dataset_names() -> set[str]:
 @cache_app.command(name="size", help="Show cache directory size.")
 def cache_size_command(
     ctx: typer.Context,
-    human_readable: bool = typer.Option(False, "-H", "--human-readable", help="Format size with binary units."),  # noqa: FBT001, FBT003
+    human_readable: bool = typer.Option(False, "-H", "--human-readable", help="Format size with binary units."),
 ) -> int:
     """Show cache directory size."""
     cache_dir = ctx.obj.get("cache_dir") if ctx.obj else None
@@ -168,6 +168,23 @@ def cache_prune_command(
     return freed
 
 
+def _get_dataset_description(dataset_class: type) -> str:
+    """Get the first line of a dataset class's docstring."""
+    docstring = dataset_class.__doc__ or ""
+    return docstring.strip().split("\n")[0] if docstring.strip() else ""
+
+
+def _display_dataset(dataset_class: type) -> None:
+    """Display a single dataset with its description and DOI."""
+    typer.echo(f"  {typer.style(dataset_class.name, fg=typer.colors.BRIGHT_CYAN)}")
+    description = _get_dataset_description(dataset_class)
+    if description:
+        typer.echo(f"    {description}")
+    doi = getattr(dataset_class, "doi", None)
+    if doi:
+        typer.echo(f"    DOI: https://doi.org/{doi}")
+
+
 @app.command(name="list", help="List all available datasets.")
 def list_datasets() -> None:
     """List all available datasets grouped by category."""
@@ -184,10 +201,10 @@ def list_datasets() -> None:
         category = getattr(dataset_class, "_category", None)
         if category is None:
             uncategorized.append(dataset_class)
-        else:
-            if category not in datasets_by_category:
-                datasets_by_category[category] = []
+        elif category in datasets_by_category:
             datasets_by_category[category].append(dataset_class)
+        else:
+            datasets_by_category[category] = [dataset_class]
 
     # Display categorized datasets (in DatasetCategory definition order)
     for category in DatasetCategory:
@@ -195,29 +212,13 @@ def list_datasets() -> None:
             datasets = datasets_by_category[category]
             typer.echo(f"\n{typer.style(category.value.replace('_', ' ').title(), fg=typer.colors.BRIGHT_MAGENTA)}:")
             for dataset_class in sorted(datasets, key=lambda x: x.name):
-                # Get first line of docstring as description
-                docstring = dataset_class.__doc__ or ""
-                description = docstring.strip().split("\n")[0] if docstring.strip() else ""
-                # Get DOI
-                doi = getattr(dataset_class, "doi", None)
-                typer.echo(f"  {typer.style(dataset_class.name, fg=typer.colors.BRIGHT_CYAN)}")
-                if description:
-                    typer.echo(f"    {description}")
-                if doi:
-                    typer.echo(f"    DOI: https://doi.org/{doi}")
+                _display_dataset(dataset_class)
 
     # Display uncategorized datasets
     if uncategorized:
         typer.echo(f"\n{typer.style('Uncategorized', fg=typer.colors.BRIGHT_YELLOW)}:")
         for dataset_class in sorted(uncategorized, key=lambda x: x.name):
-            docstring = dataset_class.__doc__ or ""
-            description = docstring.strip().split("\n")[0] if docstring.strip() else ""
-            doi = getattr(dataset_class, "doi", None)
-            typer.echo(f"  {typer.style(dataset_class.name, fg=typer.colors.BRIGHT_CYAN)}")
-            if description:
-                typer.echo(f"    {description}")
-            if doi:
-                typer.echo(f"    DOI: https://doi.org/{doi}")
+            _display_dataset(dataset_class)
 
 
 # Automatically register all supported datasets as subcommands to the get app.

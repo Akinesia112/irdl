@@ -1,5 +1,7 @@
 """Tests for dataset category attributes on dataset classes."""
 
+from collections import Counter
+
 import irdl
 from irdl.base import DatasetCategory, _get_dataset_classes
 
@@ -29,8 +31,6 @@ class TestDatasetCategories:
 
     def test_category_distribution(self):
         """Verify datasets are distributed across expected categories."""
-        from collections import Counter
-
         categories = [cls._category for cls in _public_dataset_classes()]
         category_counts = Counter(categories)
 

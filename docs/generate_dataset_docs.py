@@ -6,6 +6,8 @@ from pathlib import Path
 # Add src to path so we can import irdl
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+import enum
+
 import irdl
 from irdl.base import DatasetCategory, _get_dataset_classes
 
@@ -154,9 +156,8 @@ def main() -> None:
     # Process uncategorized datasets
     if uncategorized:
         # Create a special category for uncategorized
-        from enum import Enum
 
-        class UncategorizedCategory(str, Enum):
+        class UncategorizedCategory(enum.StrEnum):
             UNCATEGORIZED = "uncategorized"
 
         uncategorized_category = UncategorizedCategory.UNCATEGORIZED

@@ -123,6 +123,10 @@ max-doc-length = 100
 [tool.ruff.lint.pydocstyle]
 convention = "numpy"
 
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["typer.Option"]
+
 [tool.ruff.lint.per-file-ignores]
-"docs/*" = ["INP001"]
+"docs/*" = ["INP001", "PLR0912", "C901"]
+"src/irdl/cli.py" = ["FBT001", "FBT003"]
 "tests/*" = ["S101"]
