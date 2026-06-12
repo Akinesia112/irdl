@@ -153,11 +153,15 @@ def cache_clean_command(
     return freed
 
 
-@cache_app.command(name="prune", help="Remove unreachable cache items.")
+@cache_app.command(name="prune", help="Remove unreachable cache items for known datasets.")
 def cache_prune_command(
     ctx: typer.Context,
 ) -> int:
-    """Remove unreachable cache items."""
+    """Remove unreachable cache items for known datasets only.
+    
+    Only processes datasets registered in the current IRDL version.
+    Unknown directories in the cache are left untouched.
+    """
     cache_dir = ctx.obj.get("cache_dir") if ctx.obj else None
     root = resolve_cache_dir(cache_dir)
     freed = prune_cache(cache_dir, active_dataset_names=_active_dataset_names())
