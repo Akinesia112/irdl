@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from irdl.base import DatasetCategory
 from irdl.downloader import _fetch, _pooch_from_static_registry
 from irdl.logging import logger
 from irdl.sofa import SofaBaseDataset
@@ -52,6 +53,7 @@ class HutubsDataset(SofacousticsBaseDataset):
     name = "hutubs"
     doi = "10.14279/depositonce-8487"
     dataset_slug = "hutubs"
+    _category = DatasetCategory.HEAD_RELATED_IMPULSE_RESPONSES
 
     @classmethod
     def get(
