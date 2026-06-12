@@ -38,12 +38,13 @@ print(data)
 ```
 
 ``` shell
-INFO     Downloading MIRACLE scenario D1
-INFO     Downloading file 'D1.h5' from
-         'https://api-depositonce.tu-berlin.de/server/api/core/bitstreams/4b6cb9e5-f1e4-42c6-9b41-0a85e6ee9422/cont
-         ent' to '/home/pelling/.cache/irdl/MIRACLE/provider'.
-D1.h5 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 302.3/302.3 MB 43.9 TB/s 0:00:00
-INFO     Convention SingleRoomMIMOSRIR v1.0 is up to date
+INFO     Downloading MIRACLE scenario D1                              
+INFO     Downloading file 'D1.h5' from                                
+         'https://api-depositonce.tu-berlin.de/server/api/core/bitstre
+         ams/4b6cb9e5-f1e4-42c6-9b41-0a85e6ee9422/content' to         
+         '/home/pelling/.cache/irdl/MIRACLE/provider'.                
+D1.h5 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 302.3/302.3 MB 51.8 TB/s 0:00:00
+INFO     Convention SingleRoomMIMOSRIR v1.0 is up to date             
 {'impulse_response': time domain energy Signal:
 (1, 1089, 64) channels with 1024 samples @ 32000.0 Hz sampling rate and none FFT normalization
 , 'source_coordinates': 1D Coordinates object with 1089 points of cshape (1089,)
@@ -57,17 +58,23 @@ Does not contain sampling weights}
 
 Once installed, the package provides a convenient command line script which can be invoked with `irdl`.
 
-``` shell
- Usage: irdl [OPTIONS] COMMAND [ARGS]...
-
-╭─ Options ───────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ --install-completion          Install completion for the current shell.                                         │
-│ --show-completion             Show completion for the current shell, to copy it or customize the installation.  │
-│ --help                        Show this message and exit.                                                       │
-╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
-╭─ Commands ──────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ list   List all available datasets.                                                                             │
-│ cache  Manage cache directory.                                                                                  │
-│ get    Download datasets.                                                                                       │
-╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+``` shell                                                                   
+ Usage: irdl [OPTIONS] COMMAND [ARGS]...                              
+                                                                      
+ Main callback for version flag handling.                             
+                                                                      
+╭─ Options ──────────────────────────────────────────────────────────╮
+│ --version                     Show version and exit.               │
+│ --install-completion          Install completion for the current   │
+│                               shell.                               │
+│ --show-completion             Show completion for the current      │
+│                               shell, to copy it or customize the   │
+│                               installation.                        │
+│ --help                        Show this message and exit.          │
+╰────────────────────────────────────────────────────────────────────╯
+╭─ Commands ─────────────────────────────────────────────────────────╮
+│ list   List all available datasets.                                │
+│ cache  Manage cache directory.                                     │
+│ get    Download datasets.                                          │
+╰────────────────────────────────────────────────────────────────────╯
 ```
