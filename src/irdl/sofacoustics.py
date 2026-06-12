@@ -47,7 +47,7 @@ class SofacousticsBaseDataset(SofaBaseDataset):
 
 
 class HutubsDataset(SofacousticsBaseDataset):
-    """Download and extract the HUTUBS HRTF database from SOFAcoustics."""
+    """Download the HUTUBS HRTF database from SOFAcoustics."""
 
     name = "hutubs"
     doi = "10.14279/depositonce-8487"

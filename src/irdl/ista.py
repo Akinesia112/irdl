@@ -148,7 +148,7 @@ class IstaBaseDataset(BaseDataset):
 
 
 class MiracleDataset(IstaBaseDataset):
-    """Download and extract the MIRACLE database from DepositOnce.
+    """Download the MIRACLE database from DepositOnce.
 
     Attributes
     ----------
@@ -349,7 +349,7 @@ class MiracleDataset(IstaBaseDataset):
 
 
 class SrirachaDataset(IstaBaseDataset):
-    """Download and extract the SRIRACHA database from DepositOnce.
+    """Download and merge the SRIRACHA database from DepositOnce.
 
     Attributes
     ----------

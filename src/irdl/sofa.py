@@ -71,7 +71,7 @@ class SofaBaseDataset(BaseDataset):
 
 
 class FabianDataset(SofaBaseDataset):
-    """Download and extract the FABIAN HRTF Database from DepositOnce.
+    """Download and extract the FABIAN HRTF database from DepositOnce.
 
     Attributes
     ----------
