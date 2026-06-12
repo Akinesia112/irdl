@@ -133,6 +133,7 @@ def main() -> None:
     body_lines = [
         ".. toctree::",
         "   :maxdepth: 1",
+        "   :hidden:",
         "",
     ]
 
