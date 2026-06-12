@@ -11,6 +11,7 @@ runs:
       run: ${{ inputs.command }} python -c "import irdl"
       shell: bash -e {0}
     - name: Check CLI
+      shell: bash -e {0}
       run: |
         ${{ inputs.command }} irdl --help
         ${{ inputs.command }} irdl cache --help
