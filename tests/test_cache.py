@@ -43,7 +43,7 @@ def test_cache_size_counts_all_files(tmp_path):
 
 
 def test_prune_keeps_highest_stage_only(tmp_path):
-    """Verify prune keeps only highest reachable stage."""
+    """Verify prune keeps only highest reachable stage for known datasets."""
     root = tmp_path / "cache"
     dataset = root / "fabian"
     (dataset / "provider").mkdir(parents=True)
@@ -59,8 +59,10 @@ def test_prune_keeps_highest_stage_only(tmp_path):
 
     freed = prune_cache(root, active_dataset_names={"fabian"})
 
-    assert freed == len(b"provider") + len(b"ingest") + len(b"old")
+    # Only known datasets (fabian) are processed; old_dataset is skipped
+    assert freed == len(b"provider") + len(b"ingest")
     assert (dataset / "output").exists()
     assert not (dataset / "provider").exists()
     assert not (dataset / "ingest").exists()
-    assert not old_dataset.exists()
+    # old_dataset is not in active_dataset_names, so it's left untouched
+    assert old_dataset.exists()

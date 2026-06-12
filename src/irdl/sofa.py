@@ -71,7 +71,7 @@ class SofaBaseDataset(BaseDataset):
 
 
 class FabianDataset(SofaBaseDataset):
-    """Download and extract the FABIAN HRTF Database from DepositOnce.
+    """Download and extract the FABIAN HRTF database from DepositOnce.
 
     Attributes
     ----------
@@ -96,7 +96,7 @@ class FabianDataset(SofaBaseDataset):
     ) -> dict | Path | None:
         """
         kind : str, optional
-            Type of HRTF to download. Either 'measured' or 'modeled'. Default is 'measured'.
+            Type of HRTF to download. Either 'measured' or 'simulated'. Default is 'measured'.
         hato : int, optional
             Head-above-torso-rotation of HRTFs in degrees.
             One of: 0, 10, 20, 30, 40, 50, 310, 320, 330, 340, 350. Default is 0.
@@ -131,8 +131,8 @@ class FabianDataset(SofaBaseDataset):
         kind = dataset_kwargs["kind"]
         hato = dataset_kwargs["hato"]
 
-        if kind not in ["measured", "modeled"]:
-            msg = "kind must be either 'measured' or 'modeled'"
+        if kind not in ["measured", "simulated"]:
+            msg = "kind must be either 'measured' or 'simulated'"
             raise ValueError(msg)
         if hato not in [0, 10, 20, 30, 40, 50, 310, 320, 330, 340, 350]:
             msg = "hato must be one of [0, 10, 20, 30, 40, 50, 310, 320, 330, 340, 350]"

@@ -1,5 +1,8 @@
 """Implements download and post-processing based on pooch."""
 
+from collections.abc import Mapping
+from pathlib import Path
+
 import pooch as po
 
 from irdl.cache import IRDL_CACHE_DIR
@@ -54,4 +57,30 @@ def _pooch_from_doi(doi: str, path: str = IRDL_CACHE_DIR) -> po.Pooch:
         pup.file_sizes = {file: repository.file_size(file_name=file) for file in pup.registry}
     else:
         pup.file_sizes = {}
+    return pup
+
+
+def _pooch_from_static_registry(
+    path: str | Path,
+    registry: Mapping[str, str | None],
+    urls: Mapping[str, str],
+) -> po.Pooch:
+    """Create a Pooch instance for direct static-file downloads.
+
+    Parameters
+    ----------
+    path : str or :class:`pathlib.Path`
+        Directory where downloaded files should be stored.
+    registry : mapping
+        Mapping of file names to known hashes.
+    urls : mapping
+        Mapping of file names to direct download URLs.
+
+    Returns
+    -------
+    pup : pooch.Pooch
+        The Pooch instance.
+    """
+    pup = po.create(path=path, base_url="", registry=dict(registry), urls=dict(urls), retry_if_failed=2)
+    pup.file_sizes = {}
     return pup
