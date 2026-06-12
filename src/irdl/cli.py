@@ -97,7 +97,9 @@ def _make_wrapper(cls, method, params, help_text, dataset_name, param_docs):
 #: Typer app that can be invoked by calling ``irdl`` from the CLI.
 app = typer.Typer(no_args_is_help=True)
 cache_app = typer.Typer(no_args_is_help=True, help="Manage cache directory.")
+get_app = typer.Typer(no_args_is_help=True, help="Download datasets.")
 app.add_typer(cache_app, name="cache")
+app.add_typer(get_app, name="get")
 
 
 @cache_app.callback()
@@ -189,16 +191,32 @@ def list_datasets() -> None:
             datasets = datasets_by_category[category]
             typer.echo(f"\n{typer.style(category.value.replace('_', ' ').title(), fg=typer.colors.BRIGHT_MAGENTA)}:")
             for dataset_class in sorted(datasets, key=lambda x: x.name):
+                # Get first line of docstring as description
+                docstring = dataset_class.__doc__ or ""
+                description = docstring.strip().split("\n")[0] if docstring.strip() else ""
+                # Get DOI
+                doi = getattr(dataset_class, "doi", None)
                 typer.echo(f"  {typer.style(dataset_class.name, fg=typer.colors.BRIGHT_CYAN)}")
+                if description:
+                    typer.echo(f"    {description}")
+                if doi:
+                    typer.echo(f"    DOI: https://doi.org/{doi}")
     
     # Display uncategorized datasets
     if uncategorized:
         typer.echo(f"\n{typer.style('Uncategorized', fg=typer.colors.BRIGHT_YELLOW)}:")
         for dataset_class in sorted(uncategorized, key=lambda x: x.name):
+            docstring = dataset_class.__doc__ or ""
+            description = docstring.strip().split("\n")[0] if docstring.strip() else ""
+            doi = getattr(dataset_class, "doi", None)
             typer.echo(f"  {typer.style(dataset_class.name, fg=typer.colors.BRIGHT_CYAN)}")
+            if description:
+                typer.echo(f"    {description}")
+            if doi:
+                typer.echo(f"    DOI: https://doi.org/{doi}")
 
 
-# Automatically register all supported datasets as subcommands to the app.
+# Automatically register all supported datasets as subcommands to the get app.
 for dataset_class in _get_dataset_classes(irdl):
     get_method = dataset_class.get
 
@@ -215,7 +233,7 @@ for dataset_class in _get_dataset_classes(irdl):
     wrapper = _make_wrapper(dataset_class, get_method, sig.parameters, help_text, dataset_class.name, param_docs)
 
     # Register subcommand using dataset_class.name for the command name
-    app.command(
+    get_app.command(
         name=dataset_class.name,
         help=help_text,
     )(wrapper)
