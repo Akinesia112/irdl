@@ -97,7 +97,7 @@ Keep this template intentionally small. Do not copy processing logic from anothe
 unless the new Dataset has the same provider format and needs the same transformation.
 
 Update public API and CLI
-------------------
+-------------------------
 
 After implementing the class, add it to ``src/irdl/__init__.py``. This exposes the Dataset
 as part of the public API:
@@ -145,7 +145,7 @@ docs. Maintainers can refresh generated docs during review by running:
    $ uv run make -C docs html
 
 Manual verification and Evidence
--------------------
+--------------------------------
 
 Final verification should use the public ``get()`` path, not a direct private method call.
 For example:

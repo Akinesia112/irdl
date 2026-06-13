@@ -1,5 +1,5 @@
 Architecture and Processing Flow
-===============
+================================
 
 This page describes the contributor-facing architecture of ``irdl`` and the conceptual flow of
 a ``Dataset.get(...)`` call. It intentionally focuses on stable concepts and extension
