@@ -15,14 +15,14 @@ Core architecture
 
 Optional Dataset Family classes
    When several Datasets share dataset-specific steps in the get pipeline
-   (see :ref:get-processing-flow), a Dataset Family class can be introduced to lift that
+   (see :ref:`get-processing-flow`), a Dataset Family class can be introduced to lift that
    shared logic into an intermediate base class. Do this only when the behavior is genuinely
    shared; otherwise keep it in the individual Dataset class.
 
 Individual Dataset classes
    Each Dataset is implemented as an individual class. Its typed get() classmethod delegates to 
    the shared pipeline, while the class itself implements that pipeline's dataset-specific steps 
-   (see :ref:get-processing-flow). The typed signature and NumPy-style docstring are also used to 
+   (see :ref:`get-processing-flow`). The typed signature and NumPy-style docstring are also used to 
    generate CLI parameters and help text.
 
 Support modules
@@ -54,6 +54,8 @@ Cache stages
 
 Use these names in code comments and documentation. "Ingest-ready" is an adjective for a
 file in the ``ingest`` stage, not a separate stage name.
+
+.. _get-processing-flow:
 
 ``get`` processing flow
 -----------------------
