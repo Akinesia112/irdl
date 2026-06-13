@@ -1,25 +1,13 @@
-"""Datasets shipped as plain WAV room impulse responses inside a single archive.
+"""Datasets with custom provider formats.
 
-Unlike the HDF5-based ISTA datasets or the SOFA-native datasets, the providers
-covered here distribute one (potentially large) ZIP archive that contains the
-RIRs as individual ``.wav`` files plus separate coordinate tables. The shared
-pattern is therefore:
-
-1. download the archive once (``_download``),
-2. extract the WAV/coordinate members needed for the requested selection and
-   build an initial SOFA file holding only the raw data (``_process``),
-3. read that file back and enrich it with descriptive metadata (``_ingest``).
+This module provides Dataset implementations whose provider data requires
+custom processing before ingestion into the internal SOFA representation 
+(e.g. WAV files, proprietary archives).
 
 Currently this module hosts:
 
-- MYRiAD: Multi-arraY Room Acoustic Database (KU Leuven).
+- MYRiAD: A Multi-Array Room Acoustic Database (KU Leuven).
 
-.. note::
-    This is a first draft. Several details are marked ``TODO`` and must be
-    confirmed against the actual ``MYRiAD_V2_econ.zip`` layout before relying on
-    the output. The :class:`~irdl.base.BaseDataset` flow runs ``sofa.verify()``
-    and prints actionable diagnostics; use them to iterate on the convention
-    metadata.
 """
 
 from pathlib import Path
@@ -38,11 +26,6 @@ from irdl.logging import logger
 class MyriadDataset(BaseDataset):
     """Download the MYRiAD database (RIR subset) from Zenodo.
 
-    MYRiAD (Multi-arraY Room Acoustic Database) contains room impulse responses
-    measured in two reverberant rooms (SAL, T20 ~= 2.1 s; AIL, T20 ~= 0.5 s)
-    with several microphone configurations. This loader uses the compact
-    ``MYRiAD_V2_econ.zip`` archive, which holds the *computed RIRs only*.
-
     Attributes
     ----------
     name : str
@@ -55,16 +38,25 @@ class MyriadDataset(BaseDataset):
     doi = "10.5281/zenodo.7389996"
     _category = DatasetCategory.ROOM_IMPULSE_RESPONSES
 
-    # archive layout
-    _ZIP = "MYRiAD_V2_econ.zip"
-    _ROOT = "MYRiAD_V2_econ"
+   # Selectable array-group labels and their corresponding microphone labels
+    _ARRAY_GROUPS: ClassVar[dict[str, list[str]]] = {
+        "dummy_head": ["DHL", "DHR"],
+        "bte-pieces": ["BTELF", "BTELB", "BTERF", "BTERB"],
+        "external-microphones": ["XM1", "XM2", "XM3", "XM4", "XM5"],
+        "circular-microphone-array": [
+            "CMA10_-90", "CMA10_0", "CMA10_90", "CMA10_180",
+            "CMA20_-135", "CMA20_-90", "CMA20_-45", "CMA20_0",
+            "CMA20_45", "CMA20_90", "CMA20_135", "CMA20_180",
+        ],
+    }
+
+    ### WORK FROM HERE ON
 
     # TODO: confirm against the archive. The econ RIRs are 3.0 s @ 44.1 kHz.
     _SAMPLING_RATE = 44100
     _N_SAMPLES = 132300
 
-    _VALID_CONVENTIONS = ("SingleRoomMIMOSRIR", "MultiSpeakerBRIR")
-
+    
     #: Loudspeaker (emitter) labels per room, in canonical order.
     _SPEAKERS: ClassVar[dict[str, list[str]]] = {
         "SAL": [
@@ -79,26 +71,9 @@ class MyriadDataset(BaseDataset):
         ],
     }
 
-    #: Microphone (receiver) labels per array group, in canonical order.
-    _ARRAY_GROUPS: ClassVar[dict[str, list[str]]] = {
-        "dummy_head": ["DHL", "DHR"],
-        "bte-pieces": ["BTELF", "BTELB", "BTERF", "BTERB"],
-        "external-microphones": ["XM1", "XM2", "XM3", "XM4", "XM5"],
-        "circular-microphone-array": [
-            "CMA10_-90", "CMA10_0", "CMA10_90", "CMA10_180",
-            "CMA20_-135", "CMA20_-90", "CMA20_-45", "CMA20_0",
-            "CMA20_45", "CMA20_90", "CMA20_135", "CMA20_180",
-        ],
-    }
+   
 
-    #: Short tokens used to build a unique, filesystem-friendly cache filename.
-    _GROUP_TOKEN: ClassVar[dict[str, str]] = {
-        "dummy_head": "dh",
-        "bte-pieces": "bte",
-        "external-microphones": "xm",
-        "circular-microphone-array": "cma",
-    }
-
+    
     #: Human-readable receiver hardware per group (for ReceiverDescriptions).
     _GROUP_HARDWARE: ClassVar[dict[str, str]] = {
         "dummy_head": "Neumann KU 100 in-ear microphone",
@@ -106,9 +81,6 @@ class MyriadDataset(BaseDataset):
         "external-microphones": "External microphone",
         "circular-microphone-array": "Circular microphone array (DPA 4060 / AKG CK32)",
     }
-
-    #: The circular array only exists in the AIL.
-    _SAL_GROUPS = frozenset({"dummy_head", "bte-pieces", "external-microphones"})
 
     # TODO: replace with measured room volumes [m^3] (paper gives floor plans
     # but not heights). Used for SOFA RoomVolume metadata.
@@ -120,36 +92,36 @@ class MyriadDataset(BaseDataset):
         room: str = "SAL",
         array: str = "all",
         config: str = "P1",
-        convention: str | None = None,
+        convention: str = "SingleRoomMIMOSRIR",
         cache_dir: str | Path | None = None,
         export_dir: str | Path | None = None,
         output_format: str = "pyfar",
     ) -> dict | Path | None:
         """
         room : str
-            Room to load. One of 'SAL' or 'AIL'.
+            Room to load. Either ``'SAL'`` or ``'AIL'``. Default is ``'SAL'``.
         array : str
-            Microphone array group(s) to load. One of 'dummy_head',
-            'bte-pieces', 'external-microphones', 'circular-microphone-array',
-            a comma-separated combination of these (e.g.
-            'dummy_head,bte-pieces'), or 'all' for every group available in the
-            room. A list of group names is also accepted via the Python API.
-            The circular array is only available in 'AIL'.
+            Microphone array group(s) to load. One of ``'dummy_head'``,
+            ``'bte-pieces'``, ``'external-microphones'``, ``'circular-microphone-array'``,
+            a comma-separated combination of these (e.g. ``'dummy_head,bte-pieces'``),
+            or ``'all'`` for every group available in the room.
+            A list of group names is also accepted via the Python API.
+            The circular array is only available in ``'AIL'``. Default is ``'all'``.
         config : str
-            Microphone configuration placement in the AIL. One of 'P1' or 'P2'.
-            Ignored for the SAL.
+            Microphone configuration placement in the AIL. Either ``'P1'`` or ``'P2'``.
+            Ignored for the SAL. Default is ``'P1'``.
         convention : str or None
-            SOFA convention of the output. One of 'SingleRoomMIMOSRIR',
-            'MultiSpeakerBRIR', or None (defaults to 'SingleRoomMIMOSRIR').
-            'MultiSpeakerBRIR' is only valid when ``array`` selects exactly the
-            'dummy_head' group.
+            SOFA convention of the output. Either ``'SingleRoomMIMOSRIR'`` or
+            ``'MultiSpeakerBRIR'``. ``'MultiSpeakerBRIR'`` is only valid when
+            ``array`` selects exactly the ``'dummy_head'`` group. Default is
+            ``'SingleRoomMIMOSRIR'``.
 
         Returns
         -------
         dict or Path
             For 'pyfar' / 'numpy': dict of in-memory objects.
             For 'sofa' / 'hdf5' / 'raw': Path to file on disk.
-        """  # noqa: D205, D403
+        """ 
         return cls()._get(
             room=room,
             array=array,
@@ -161,72 +133,151 @@ class MyriadDataset(BaseDataset):
         )
 
     def _validate_params(self, **dataset_kwargs) -> None:
-        """Validate parameters and resolve the selection onto the instance.
+        """Validate MYRiAD-specific parameters.
 
-        The resolved room, config, convention, loudspeaker list and microphone
-        list are cached on ``self`` so that ``_source_filename``, ``_process``
-        and ``_ingest`` can use them directly. ``_validate_params`` always runs
-        before those methods in the :class:`~irdl.base.BaseDataset` flow.
+        Parameters
+        ----------
+        **dataset_kwargs : dict
+            Must contain ``'room'`` (one of ``'SAL'``, ``'AIL'``), ``'array'`` (one
+            or more valid group names or ``'all'``), ``'config'`` (one of ``'P1'``,
+            ``'P2'``), and ``'convention'`` (one of ``'SingleRoomMIMOSRIR'``,
+            ``'MultiSpeakerBRIR'``). ``output_format`` is also passed but unused here.
+
+        Raises
+        ------
+        ValueError
+            If any parameter is out of range, the circular array is requested for
+            ``'SAL'``, or ``'MultiSpeakerBRIR'`` is combined with more than the
+            ``'dummy_head'`` group.
         """
         room = dataset_kwargs["room"]
         array = dataset_kwargs["array"]
         config = dataset_kwargs.get("config")
         convention = dataset_kwargs.get("convention")
 
+        #room
         if room not in ("SAL", "AIL"):
             msg = "room must be one of ['SAL', 'AIL']"
             raise ValueError(msg)
 
-        if room == "AIL":
-            allowed = list(self._ARRAY_GROUPS)
-        else:
-            allowed = [g for g in self._ARRAY_GROUPS if g in self._SAL_GROUPS]
-        if isinstance(array, str) and array == "all":
-            groups = allowed
-        else:
-            requested = [g.strip() for g in array.split(",")] if isinstance(array, str) else list(array)
-            for group in requested:
-                if group not in self._ARRAY_GROUPS:
-                    msg = f"array group {group!r} must be one of {list(self._ARRAY_GROUPS)} or 'all'"
-                    raise ValueError(msg)
-                if room == "SAL" and group not in self._SAL_GROUPS:
-                    msg = f"array group {group!r} is not available in the SAL"
-                    raise ValueError(msg)
-            groups = [g for g in allowed if g in set(requested)]
+        #array groups
+        groups = self._parse_groups(array, room)
+        for group in groups:
+            if group not in self._ARRAY_GROUPS:
+                raise ValueError(f"array group {group!r} must be one of {list(self._ARRAY_GROUPS)} or 'all'")
+            if room == "SAL" and group == "circular-microphone-array":
+                raise ValueError(f"array group {group!r} is not available in the SAL")
 
+        #config
         if room == "AIL" and config not in ("P1", "P2"):
             msg = "config must be one of ['P1', 'P2'] for the AIL"
             raise ValueError(msg)
 
-        if convention is not None and convention not in self._VALID_CONVENTIONS:
-            msg = f"convention must be None or one of {list(self._VALID_CONVENTIONS)}"
+        #convention
+        if convention not in ["SingleRoomMIMOSRIR", "MultiSpeakerBRIR"]:
+            msg = f"convention must be one of ['SingleRoomMIMOSRIR', 'MultiSpeakerBRIR']"
             raise ValueError(msg)
+        
         if convention == "MultiSpeakerBRIR" and set(groups) != {"dummy_head"}:
             msg = "convention 'MultiSpeakerBRIR' is only valid for array='dummy_head'"
             raise ValueError(msg)
 
-        # cache resolved selection for the remaining stages
-        self._room = room
-        self._config = config
-        self._convention = convention or "SingleRoomMIMOSRIR"
-        self._groups = groups
-        self._speakers = self._SPEAKERS[room]
-        self._mics = [mic for group in groups for mic in self._ARRAY_GROUPS[group]]
+    def _source_filename(self, **dataset_kwargs) -> str:  
+        """Build the ingest filename encoding the full selection.
 
-    def _source_filename(self, **dataset_kwargs) -> str:  # noqa: ARG002
-        """Build a unique ingest filename encoding the full selection."""
-        tokens = "-".join(self._GROUP_TOKEN[g] for g in self._groups)
+        The name has the form ``MYRIAD_<room>[_<config>]_<groups>_<convention>.sofa``,
+        where ``<config>`` is included only for the AIL and ``<groups>`` is the
+        selected array groups as short tokens. The encoding makes each distinct
+        selection map to a unique cache file.
+
+        Returns
+        -------
+        str
+        Filename for the ingest-stage file.
+        """
+        # Short tokens used to build a unique, filesystem-friendly cache filename.
+        _GROUP_TOKEN = {
+            "dummy_head": "dh",
+            "bte-pieces": "bte",
+            "external-microphones": "xm",
+            "circular-microphone-array": "cma",
+        }
+
+        room = dataset_kwargs["room"]
+        array = dataset_kwargs["array"]
+        groups = self._parse_groups(array, room)
+
+        tokens = "-".join(_GROUP_TOKEN[g] for g in groups)
         parts = ["MYRIAD", self._room]
         if self._room == "AIL":
             parts.append(self._config)
-        parts += [tokens, self._convention]
+        parts += [tokens]
         return "_".join(parts) + ".sofa"
 
-    def _download(self, provider_dir: Path, **dataset_kwargs) -> Path:  # noqa: ARG002
-        """Download the compact MYRiAD RIR archive from Zenodo."""
-        logger.info("Downloading MYRiAD (econ RIR archive)")
-        pup = _pooch_from_doi(self.doi, path=provider_dir)
-        return Path(_fetch(pup, self._ZIP))
+    def _download(self, provider_dir: Path, **dataset_kwargs) -> Path: 
+        """Download MYRiAD ZIP archive to the provider directory.
+
+        Only downloads the archive if it is not already cached in the provider
+        directory. Returns the ZIP path so that ``_process`` can extract and process
+        the requested files.
+
+        Parameters
+        ----------
+        provider_dir : :class:`pathlib.Path`
+            Provider directory (e.g., ``cache/MYRiAD/provider/``).
+        **dataset_kwargs : dict
+            Expected keys: kind, hato (unused here because the ZIP contains all
+            variants).
+
+        Returns
+        -------
+        :class:`pathlib.Path`
+            Path to the downloaded ZIP archive.
+        """
+        zipfile_name = "MYRiAD_V2_econ.zip"
+        zip_path = provider_dir / zipfile_name
+        if zip_path.exists():
+            logger.info(f"MYRiAD ZIP archive already cached at {zip_path}, skipping download")
+        else:
+            pup = _pooch_from_doi(self.doi, path=provider_dir)
+            logger.info("Downloading MYRiAD (econ RIR archive)")
+            _fetch(pup, zipfile_name)
+        return zip_path
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     def _process(self, provider_artifact: Path, ingest_path: Path, **dataset_kwargs) -> Path:  # noqa: ARG002
         """Extract the selected RIRs and build the initial SOFA with raw data.
@@ -327,3 +378,41 @@ class MyriadDataset(BaseDataset):
             sofa.ListenerUp = np.tile([0.0, 0.0, 1.0], (m, 1))
 
         return sofa
+
+
+    @classmethod
+    def _parse_groups(cls, array, room) -> list[str]:
+        """Parse the array selection into a deduplicated, fixed-order list, 
+        with any unknown group names kept at the end.
+
+        Unknown group names are preserved so that ``_validate_params`` can reject
+        them; this method itself performs no validation.
+
+        Parameters
+        ----------
+        array : str or list of str
+            Requested group(s): ``'all'``, a comma-separated string, or a list of
+            the array group names.
+        room : str
+            Room being loaded. Used to exclude the circular array from ``'all'``
+            for room SAL.
+
+        Returns
+        -------
+        list of str
+            Requested groups in canonical order, with any unknown names kept at
+            the end.
+        """
+        if array == "all":
+            requested = [g for g in cls._ARRAY_GROUPS
+                        if room != "SAL" or g != "circular-microphone-array"]
+        elif isinstance(array, str):
+            requested = [g.strip() for g in array.split(",")]
+        else:
+            requested = list(array)
+
+        seen = set(requested)
+        known = [g for g in cls._ARRAY_GROUPS if g in seen]
+        unknown = [g for g in requested if g not in cls._ARRAY_GROUPS]
+        return known + unknown
+        
