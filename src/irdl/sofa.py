@@ -15,7 +15,6 @@ import sofar as sf
 from irdl.base import BaseDataset, DatasetCategory
 from irdl.downloader import _fetch, _pooch_from_doi
 from irdl.logging import logger
-from irdl.utils import _process_unzip
 
 
 class SofaBaseDataset(BaseDataset):
@@ -230,7 +229,7 @@ class BrasRs8Dataset(AKTZipBaseDataset):
             File name in format "RS8_{scene}.sofa".
         """
         scene = dataset_kwargs["scene"]
-        return f"RS8_{scene}.sofa"
+        return f"RS8_RIRs_{scene}.sofa"
 
 
 class FabianDataset(AKTZipBaseDataset):
