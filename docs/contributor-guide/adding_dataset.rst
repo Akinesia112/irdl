@@ -133,9 +133,11 @@ To categorize your Dataset, set the ``_category`` class attribute to one of the
        _category = DatasetCategory.ROOM_IMPULSE_RESPONSES  # or HEAD_RELATED_IMPULSE_RESPONSES
 
 If no handwritten prose is needed, the auto-generated page will contain just the
-class documentation. To add custom documentation, create an ``.rst`` file in
-``docs/datasets/`` (e.g., ``new_dataset.rst``) and it will be automatically included
-on the Dataset page. See existing dataset files for examples.
+class documentation. To add custom documentation, create an ``.rst`` fragment in
+``docs/datasets/`` named after the Dataset ``name`` attribute (for example,
+``name = "new"`` maps to ``docs/datasets/new.rst``). The generated Dataset page
+lives under ``docs/_generated/datasets/`` and automatically includes that fragment.
+See existing dataset files for examples.
 
 The documentation Makefile regenerates the dataset docs and CLI help while building the
 docs. Maintainers can refresh generated docs during review by running:

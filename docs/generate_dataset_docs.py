@@ -12,7 +12,8 @@ import irdl
 from irdl.base import DatasetCategory, _get_dataset_classes
 
 DOCS_DIR = Path(__file__).parent
-FRAGMENTS_DIR = DOCS_DIR / "_generated"
+GENERATED_DIR = DOCS_DIR / "_generated"
+GENERATED_DATASETS_DIR = GENERATED_DIR / "datasets"
 DATASETS_DIR = DOCS_DIR / "datasets"
 
 
@@ -25,19 +26,18 @@ def _class_slug(class_name: str) -> str:
     return "".join((f"_{ch.lower()}" if ch.isupper() else ch) for ch in class_name).lstrip("_")
 
 
-def _find_description_rst(dataset_name: str) -> str | None:
+def _find_description_rst(dataset_name: str) -> Path | None:
     """Auto-detect description RST file for a dataset.
 
-    Looks for files like datasets/miracle.rst or datasets/MiracleDataset.rst
+    Looks for files like datasets/miracle.rst or datasets/MiracleDataset.rst.
     """
-    # Try lowercase name first
     candidates = [
         DATASETS_DIR / f"{dataset_name}.rst",
         DATASETS_DIR / f"{dataset_name.capitalize()}.rst",
     ]
     for candidate in candidates:
         if candidate.exists():
-            return str(candidate.relative_to(DOCS_DIR))
+            return candidate
     return None
 
 
@@ -77,9 +77,10 @@ def _write_dataset_page(dataset_class: type) -> None:
     # Auto-detect description RST
     intro_rst = _find_description_rst(dataset_class.name)
     if intro_rst is not None:
+        include_path = intro_rst.relative_to(GENERATED_DATASETS_DIR)
         lines.extend(
             [
-                f".. include:: {intro_rst}",
+                f".. include:: {include_path.as_posix()}",
                 "",
             ]
         )
@@ -93,7 +94,7 @@ def _write_dataset_page(dataset_class: type) -> None:
             "",
         ]
     )
-    (DATASETS_DIR / f"{slug}.rst").write_text("\n".join(lines))
+    (GENERATED_DATASETS_DIR / f"{slug}.rst").write_text("\n".join(lines))
 
 
 def _write_category_page(category: DatasetCategory, dataset_classes: list[type]) -> None:
@@ -106,12 +107,13 @@ def _write_category_page(category: DatasetCategory, dataset_classes: list[type])
         *_autosummary_block(dataset_classes),
         *_hidden_toctree_block(dataset_classes),
     ]
-    (DATASETS_DIR / f"{slug}.rst").write_text("\n".join(lines))
+    (GENERATED_DATASETS_DIR / f"{slug}.rst").write_text("\n".join(lines))
 
 
 def main() -> None:
     """Generate all dataset tables and doc pages."""
-    FRAGMENTS_DIR.mkdir(parents=True, exist_ok=True)
+    GENERATED_DIR.mkdir(parents=True, exist_ok=True)
+    GENERATED_DATASETS_DIR.mkdir(parents=True, exist_ok=True)
     DATASETS_DIR.mkdir(parents=True, exist_ok=True)
 
     # Get all dataset classes
@@ -146,7 +148,7 @@ def main() -> None:
             title = category.value.replace("_", " ").title()
             slug = category.value
 
-            body_lines.append(f"   {title} <{slug}>")
+            body_lines.append(f"   {title} <../_generated/datasets/{slug}>")
 
             _write_category_page(category, datasets)
             for cls in datasets:
@@ -162,7 +164,7 @@ def main() -> None:
             UNCATEGORIZED = "uncategorized"
 
         uncategorized_category = UncategorizedCategory.UNCATEGORIZED
-        body_lines.append(f"   Uncategorized <{uncategorized_category.value}>")
+        body_lines.append(f"   Uncategorized <../_generated/datasets/{uncategorized_category.value}>")
 
         # Write category page
         lines = [
@@ -172,7 +174,7 @@ def main() -> None:
             *_autosummary_block(uncategorized),
             *_hidden_toctree_block(uncategorized),
         ]
-        (DATASETS_DIR / f"{uncategorized_category.value}.rst").write_text("\n".join(lines))
+        (GENERATED_DATASETS_DIR / f"{uncategorized_category.value}.rst").write_text("\n".join(lines))
 
         for cls in uncategorized:
             if cls.name not in seen_datasets:
@@ -205,7 +207,7 @@ def main() -> None:
             ]
         )
 
-    (FRAGMENTS_DIR / "datasets_body.inc").write_text("\n".join(body_lines))
+    (GENERATED_DIR / "datasets_body.inc").write_text("\n".join(body_lines))
 
 
 if __name__ == "__main__":
