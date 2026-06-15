@@ -15,6 +15,7 @@ import sofar as sf
 from irdl.base import BaseDataset, DatasetCategory
 from irdl.downloader import _fetch, _pooch_from_doi
 from irdl.logging import logger
+from irdl.utils import _process_unzip
 
 
 class SofaBaseDataset(BaseDataset):
@@ -70,7 +71,73 @@ class SofaBaseDataset(BaseDataset):
         return sf.read_sofa(ingest_path)
 
 
-class BrasRs8Dataset(SofaBaseDataset):
+class AKTZipBaseDataset(SofaBaseDataset):
+    """Base class for zipped datasets of the Audio Communications Group of TU Berlin."""
+
+    _zipfile: str
+
+    def _process(self, provider_artifact: Path, ingest_path: Path, **_dataset_kwargs) -> Path:
+        """Extract the requested SOFA file from the ZIP into the ingest directory.
+
+        Parameters
+        ----------
+        provider_artifact : :class:`pathlib.Path`
+            Path to the ZIP archive in the provider directory.
+        ingest_path : :class:`pathlib.Path`
+            Path to the SOFA file in the ingest directory.
+        **_dataset_kwargs : dict
+            Unused dataset-specific parameters (accepted for compatibility).
+
+        Returns
+        -------
+        :class:`pathlib.Path`
+            Path to the extracted SOFA file in the ingest directory.
+        """
+        with ZipFile(provider_artifact, "r") as zf:
+            for name in zf.namelist():
+                if name.endswith(ingest_path.name):
+                    # Flatten the extraction (strip any nested ZIP directory)
+                    zf.getinfo(name).filename = Path(name).name
+                    logger.info(f"Extracting {name} to {ingest_path.parent}")
+                    zf.extract(name, path=ingest_path.parent)
+                    return ingest_path
+
+            msg = (
+                f"No entry matching '{ingest_path.name}' found in archive {provider_artifact}. "
+                "Check zf.namelist() for available entries."
+            )
+            raise FileNotFoundError(msg)
+
+    def _download(self, provider_dir: Path, **_dataset_kwargs) -> Path:
+        """Download BRAS-RS8 Scene_descriptions.zip archive to the provider directory.
+
+        Only downloads the archive if it is not already cached in the provider
+        directory. Returns the ZIP path so that ``_process`` can extract the
+        requested SOFA file into the ingest directory.
+
+        Parameters
+        ----------
+        provider_dir : Path
+            Provider directory (e.g., ``cache/BRAS-RS8/provider/``).
+        **_dataset_kwargs : dict
+            Unused dataset-specific parameters (accepted for compatibility).
+
+        Returns
+        -------
+        Path
+            Path to the downloaded ZIP archive.
+        """
+        zip_path = provider_dir / self._zipfile
+        if zip_path.exists():
+            logger.info(f"ZIP archive already cached at {zip_path}, skipping download")
+        else:
+            logger.info(f"Downloading {self.name.upper()} dataset")
+            pup = _pooch_from_doi(self.doi, path=provider_dir)
+            _fetch(pup, self._zipfile)
+        return zip_path
+
+
+class BrasRs8Dataset(AKTZipBaseDataset):
     """Download the BRAS RS8 dataset from DepositOnce.
 
     BRAS RS8 extends the Benchmark for Room Acoustical Simulation (BRAS) by a
@@ -90,6 +157,7 @@ class BrasRs8Dataset(SofaBaseDataset):
     name = "bras-rs8"
     doi = "10.14279/depositonce-25649"
     _category = DatasetCategory.ROOM_IMPULSE_RESPONSES
+    _zipfile = "1_Scene_descriptions.zip"
 
     @classmethod
     def get(
@@ -164,75 +232,8 @@ class BrasRs8Dataset(SofaBaseDataset):
         scene = dataset_kwargs["scene"]
         return f"RS8_{scene}.sofa"
 
-    def _download(self, provider_dir: Path, **_dataset_kwargs) -> Path:
-        """Download BRAS-RS8 Scene_descriptions.zip archive to the provider directory.
 
-        Only downloads the archive if it is not already cached in the provider
-        directory. Returns the ZIP path so that ``_process`` can extract the
-        requested SOFA file into the ingest directory.
-
-        Parameters
-        ----------
-        provider_dir : Path
-            Provider directory (e.g., ``cache/BRAS-RS8/provider/``).
-        **_dataset_kwargs : dict
-            Unused dataset-specific parameters (accepted for compatibility).
-
-        Returns
-        -------
-        Path
-            Path to the downloaded ZIP archive.
-        """
-        zipfile_name = "1_Scene_descriptions.zip"
-        zip_path = provider_dir / zipfile_name
-        if zip_path.exists():
-            logger.info(f"BRAS-RS8 ZIP archive already cached at {zip_path}, skipping download")
-        else:
-            logger.info("Downloading BRAS-RS8 dataset")
-            pup = _pooch_from_doi(self.doi, path=provider_dir)
-            _fetch(pup, zipfile_name)
-        return zip_path
-
-    def _process(self, provider_artifact: Path, ingest_path: Path, **dataset_kwargs) -> Path:
-        """Extract the requested SOFA file from the ZIP into the ingest directory.
-
-        Parameters
-        ----------
-        provider_artifact : Path
-            Path to the ZIP archive in the provider directory.
-        ingest_path : Path
-            Path to the SOFA file in the ingest directory.
-        **dataset_kwargs : dict
-            Expected key: scene.
-
-        Returns
-        -------
-        Path
-            Path to the extracted SOFA file in the ingest directory.
-        """
-        scene = dataset_kwargs["scene"]
-        # The SOFA file inside the zip is named RS8_RIRs_{scene}.sofa
-        sofa_filename = f"RS8_RIRs_{scene}.sofa"
-
-        ingest_path.parent.mkdir(parents=True, exist_ok=True)
-
-        with ZipFile(provider_artifact, "r") as zf:
-            # Find the file that matches our pattern
-            matching_files = [name for name in zf.namelist() if name.endswith(sofa_filename)]
-            if not matching_files:
-                msg = f"SOFA file {sofa_filename} not found in archive {provider_artifact.name}"
-                raise FileNotFoundError(msg)
-            if len(matching_files) > 1:
-                logger.warning(f"Found multiple files matching {sofa_filename}, using first one")
-            source_file = matching_files[0]
-            # Extract to ingest_path
-            with zf.open(source_file) as source, ingest_path.open("wb") as target:
-                target.write(source.read())
-
-        return ingest_path
-
-
-class FabianDataset(SofaBaseDataset):
+class FabianDataset(AKTZipBaseDataset):
     """Download and extract the FABIAN HRTF database from DepositOnce.
 
     Attributes
@@ -246,6 +247,7 @@ class FabianDataset(SofaBaseDataset):
     name = "fabian"
     doi = "10.14279/depositonce-5718.5"
     _category = DatasetCategory.HEAD_RELATED_IMPULSE_RESPONSES
+    _zipfile = "FABIAN_HRTF_DATABASE_v4.zip"
 
     @classmethod
     def get(
@@ -314,64 +316,3 @@ class FabianDataset(SofaBaseDataset):
             File name in format "FABIAN_HRIR_{kind}_HATO_{hato}.sofa".
         """
         return f"FABIAN_HRIR_{dataset_kwargs['kind']}_HATO_{dataset_kwargs['hato']}.sofa"
-
-    def _download(self, provider_dir: Path, **dataset_kwargs) -> Path:  # noqa: ARG002
-        """Download FABIAN ZIP archive to the provider directory.
-
-        Only downloads the archive if it is not already cached in the provider
-        directory. Returns the ZIP path so that ``_process`` can extract the
-        requested SOFA file into the ingest directory.
-
-        Parameters
-        ----------
-        provider_dir : :class:`pathlib.Path`
-            Provider directory (e.g., ``cache/FABIAN/provider/``).
-        **dataset_kwargs : dict
-            Expected keys: kind, hato (unused here because the ZIP contains all
-            variants).
-
-        Returns
-        -------
-        :class:`pathlib.Path`
-            Path to the downloaded ZIP archive.
-        """
-        zipfile_name = "FABIAN_HRTF_DATABASE_v4.zip"
-        zip_path = provider_dir / zipfile_name
-        if zip_path.exists():
-            logger.info(f"FABIAN ZIP archive already cached at {zip_path}, skipping download")
-        else:
-            pup = _pooch_from_doi(self.doi, path=provider_dir)
-            _fetch(pup, zipfile_name)
-        return zip_path
-
-    def _process(self, provider_artifact: Path, ingest_path: Path, **_dataset_kwargs) -> Path:
-        """Extract the requested SOFA file from the ZIP into the ingest directory.
-
-        Parameters
-        ----------
-        provider_artifact : :class:`pathlib.Path`
-            Path to the ZIP archive in the provider directory.
-        ingest_path : :class:`pathlib.Path`
-            Path to the SOFA file in the ingest directory.
-        **_dataset_kwargs : dict
-            Unused dataset-specific parameters (accepted for compatibility).
-
-        Returns
-        -------
-        :class:`pathlib.Path`
-            Path to the extracted SOFA file in the ingest directory.
-        """
-        with ZipFile(provider_artifact, "r") as zf:
-            for name in zf.namelist():
-                if name.endswith(ingest_path.name):
-                    # Flatten the extraction (strip any nested ZIP directory)
-                    zf.getinfo(name).filename = Path(name).name
-                    logger.info(f"Extracting {name} to {ingest_path.parent}")
-                    zf.extract(name, path=ingest_path.parent)
-                    return ingest_path
-
-            msg = (
-                f"No entry matching '{ingest_path.name}' found in archive {provider_artifact}. "
-                "Check zf.namelist() for available entries."
-            )
-            raise FileNotFoundError(msg)
