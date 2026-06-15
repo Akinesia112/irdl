@@ -55,12 +55,14 @@ class BaseDataset(ABC):
     -------
     _validate_params(**dataset_kwargs)
         Validate dataset-specific parameters (including output_format).
-    _download(**dataset_kwargs) -> Path
-        Download and return Path to raw file.
-    _ingest(ingest_path: Path) -> sofar.Sofa
-        Convert raw file to sofar.Sofa object.
     _source_filename(**dataset_kwargs) -> str
         Construct the raw input filename with extension.
+    _download(**dataset_kwargs) -> Path
+        Download and return Path to raw file.
+    _process(provider_artifact: Path, ingest_path: Path, **_dataset_kwargs) -> Path:
+        Post-process downloaded file if needed
+    _ingest(ingest_path: Path) -> sofar.Sofa
+        Convert processed or raw file to sofar.Sofa object.
     get() @classmethod
         Public entry point. Uses explicit type signature for CLI auto-generation.
     """
@@ -223,6 +225,31 @@ output_format : str
             If any parameter is invalid.
         """
 
+    @abstractmethod
+    def _source_filename(self, **dataset_kwargs) -> str:
+        """Construct the ingest-ready filename with extension for the dataset.
+
+        Override in subclass.
+
+        This name is canonical: ``_get``
+        treats the existence of that path as proof that download *and*
+        processing are already done (if so it skips both and ingests the file
+        directly). The name therefore must match the file that actually
+        ends up on disk after ``_download`` + ``_process``: i.e. the *processed*
+        file (merged/extracted), which is not necessarily the raw download.
+
+        Parameters
+        ----------
+        **dataset_kwargs : dict
+            Dataset-specific parameters used to construct the filename.
+
+        Returns
+        -------
+        str
+            The ingest-ready filename including extension (e.g., "A1.h5",
+            "FABIAN_HRIR_measured_HATO_0.sofa").
+        """
+
     def download(self, provider_dir: Path, **dataset_kwargs) -> Path:
         """Download raw files and return Path to the primary artifact.
 
@@ -249,9 +276,68 @@ output_format : str
     def _download(self, provider_dir: Path, **dataset_kwargs) -> Path:
         """Concrete download logic. Override in subclass."""
 
+    def process(self, provider_artifact: Path, ingest_path: Path, **dataset_kwargs) -> Path:
+        """Post-process downloaded file if needed.
+
+        This method wraps _process to enforce ingest_dir existence for all subclasses.
+
+        Parameters
+        ----------
+        provider artifact : Path
+            Path to the freshly downloaded file (or download directory).
+        ingest_path : :class:`pathlib.Path`
+            Path to the ingestible file in the ingest directory.
+        **dataset_kwargs : dict
+            Dataset-specific parameters passed through to ``_process``.
+
+        Returns
+        -------
+        ingest_path : Path
+            The processed, ingest-ready file at ``ingest_path``.
+        """
+        ingest_path.parent.mkdir(parents=True, exist_ok=True)
+        return self._process(provider_artifact, ingest_path, **dataset_kwargs)
+
+    def _process(self, provider_artifact: Path, ingest_path: Path, **_dataset_kwargs) -> Path:
+        """Post-process downloaded file if needed.
+
+        Override in subclass to extract, merge, or otherwise transform the downloaded data. Write
+        the processed, ingest-ready file to ``ingest_path`` and return it.
+
+        The default implementation promotes the provider file to the ingest
+        stage. If the provider path is a file and differs from the ingest path,
+        it creates a hard link (or falls back to a copy) so the ingest file
+        exists.
+
+        Parameters
+        ----------
+        provider artifact : Path
+            Path to the freshly downloaded file (or download directory).
+        ingest_path : :class:`pathlib.Path`
+            Path to the ingestible file in the ingest directory.
+        **dataset_kwargs : dict
+            Dataset-specific parameters (unused by the default implementation).
+
+        Returns
+        -------
+        ingest_path : Path
+            The processed, ingest-ready file at ``ingest_path``.
+        """
+        if provider_artifact.is_file():
+            try:
+                os.link(provider_artifact, ingest_path)
+            except OSError:
+                shutil.copy2(provider_artifact, ingest_path)
+            return ingest_path
+        msg = (
+            "BaseDataset._process can only handle single files."
+            "Override _process with special implementation in subclass."
+        )
+        raise NotImplementedError(msg)
+
     @abstractmethod
     def _ingest(self, ingest_path: Path) -> sf.Sofa:
-        """Convert raw file to sofar.Sofa object.
+        """Convert processed or raw file to sofar.Sofa object.
 
         Override in subclass.
 
@@ -264,31 +350,6 @@ output_format : str
         -------
         sofa : :class:`sofar.Sofa`
             SOFA object representing the Dataset data.
-        """
-
-    @abstractmethod
-    def _source_filename(self, **dataset_kwargs) -> str:
-        """Construct the ingest-ready filename with extension for the dataset.
-
-        Override in subclass.
-
-        This name is canonical: ``_get``
-        treats the existence of that path as proof that download *and*
-        processing are already done (if so it skips both and ingests the file
-        directly). The name therefore must match the file that actually
-        ends up on disk after ``_download`` + ``_process``: i.e. the *processed*
-        file (merged/extracted), which is not necessarily the raw download.
-
-        Parameters
-        ----------
-        **dataset_kwargs : dict
-            Dataset-specific parameters used to construct the filename.
-
-        Returns
-        -------
-        str
-            The ingest-ready filename including extension (e.g., "A1.h5",
-            "FABIAN_HRIR_measured_HATO_0.sofa").
         """
 
     def _output_path(self, output_dir: Path, source_filename: str, output_format: str) -> Path | None:
@@ -352,65 +413,6 @@ output_format : str
             return output_base
         msg = f"Provider artifact must be a file or directory, but {self.name} returned: {provider_artifact}"
         raise ValueError(msg)
-
-    def process(self, provider_artifact: Path, ingest_path: Path, **dataset_kwargs) -> Path:
-        """Post-process downloaded file if needed.
-
-        This method wraps _process to enforce ingest_dir existence for all subclasses.
-
-        Parameters
-        ----------
-        provider artifact : Path
-            Path to the freshly downloaded file (or download directory).
-        ingest_path : :class:`pathlib.Path`
-            Path to the ingestible file in the ingest directory.
-        **dataset_kwargs : dict
-            Dataset-specific parameters passed through to ``_process``.
-
-        Returns
-        -------
-        ingest_path : Path
-            The processed, ingest-ready file at ``ingest_path``.
-        """
-        ingest_path.parent.mkdir(parents=True, exist_ok=True)
-        return self._process(provider_artifact, ingest_path, **dataset_kwargs)
-
-    def _process(self, provider_artifact: Path, ingest_path: Path, **_dataset_kwargs) -> Path:
-        """Post-process downloaded file if needed.
-
-        Override in subclass to extract, merge, or otherwise transform the downloaded data. Write
-        the processed, ingest-ready file to ``ingest_path`` and return it.
-
-        The default implementation promotes the provider file to the ingest
-        stage. If the provider path is a file and differs from the ingest path,
-        it creates a hard link (or falls back to a copy) so the ingest file
-        exists.
-
-        Parameters
-        ----------
-        provider artifact : Path
-            Path to the freshly downloaded file (or download directory).
-        ingest_path : :class:`pathlib.Path`
-            Path to the ingestible file in the ingest directory.
-        **dataset_kwargs : dict
-            Dataset-specific parameters (unused by the default implementation).
-
-        Returns
-        -------
-        ingest_path : Path
-            The processed, ingest-ready file at ``ingest_path``.
-        """
-        if provider_artifact.is_file():
-            try:
-                os.link(provider_artifact, ingest_path)
-            except OSError:
-                shutil.copy2(provider_artifact, ingest_path)
-            return ingest_path
-        msg = (
-            "BaseDataset._process can only handle single files."
-            "Override _process with special implementation in subclass."
-        )
-        raise NotImplementedError(msg)
 
     def _to_output(self, sofa: sf.Sofa, output_format: str, ingest_path: Path, output_path: Path | None) -> dict | Path:
         """Convert sofar.Sofa to the requested output format.
