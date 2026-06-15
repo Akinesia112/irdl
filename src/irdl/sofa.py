@@ -315,3 +315,60 @@ class FabianDataset(AKTZipBaseDataset):
             File name in format "FABIAN_HRIR_{kind}_HATO_{hato}.sofa".
         """
         return f"FABIAN_HRIR_{dataset_kwargs['kind']}_HATO_{dataset_kwargs['hato']}.sofa"
+
+
+class HutubsDataset(AKTZipBaseDataset):
+    """Download the HUTUBS HRTF database from DepositOnce."""
+
+    name = "hutubs"
+    doi = "10.14279/depositonce-8487"
+    _category = DatasetCategory.HEAD_RELATED_IMPULSE_RESPONSES
+    _zipfile = "HRIRs.zip"
+
+    @classmethod
+    def get(
+        cls,
+        subject: int = 1,
+        kind: str = "measured",
+        cache_dir: str | Path | None = None,
+        export_dir: str | Path | None = None,
+        output_format: str = "pyfar",
+    ) -> dict | Path | None:
+        """
+        subject : int, optional
+            Subject identifier. Must be an integer in the range 1 to 96. Default is 1.
+        kind : str, optional
+            HUTUBS HRIR variant. Either 'measured' or 'simulated'. Default is 'measured'.
+
+        Returns
+        -------
+        dict or Path
+            For 'pyfar' / 'numpy': dict of in-memory objects.
+            For 'sofa' / 'hdf5' / 'raw': Path to file on disk.
+        """  # noqa: D205, D403
+        return cls()._get(
+            subject=subject,
+            kind=kind,
+            cache_dir=cache_dir,
+            export_dir=export_dir,
+            output_format=output_format,
+        )
+
+    def _validate_params(self, **dataset_kwargs) -> None:
+        """Validate HUTUBS-specific parameters."""
+        subject = dataset_kwargs["subject"]
+        kind = dataset_kwargs["kind"]
+
+        if not isinstance(subject, int):
+            msg = "subject must be an integer in the range 1 to 96"
+            raise TypeError(msg)
+        if subject not in range(1, 97):
+            msg = "subject must be an integer in the range 1 to 96"
+            raise ValueError(msg)
+        if kind not in ["measured", "simulated"]:
+            msg = "kind must be either 'measured' or 'simulated'"
+            raise ValueError(msg)
+
+    def _source_filename(self, **dataset_kwargs) -> str:
+        """Construct the ingest-ready SOFA file name."""
+        return f"pp{dataset_kwargs['subject']}_HRIRs_{dataset_kwargs['kind']}.sofa"

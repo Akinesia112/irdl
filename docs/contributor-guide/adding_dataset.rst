@@ -16,10 +16,6 @@ If the provider data is already SOFA-native, consider inheriting from
 :class:`~irdl.sofa.SofaBaseDataset`. :class:`~irdl.sofa.SofaBaseDataset` preserves the same shared flow but
 avoids unnecessary SOFA output rewrites when ``output_format="sofa"`` is requested.
 
-For datasets hosted as static files on `sofacoustics.org <https://www.sofaconventions.org/mediawiki/index.php/SOFA_(Spatially_Oriented_Format_for_Acoustics)>`_, inherit from
-:class:`~irdl.sofacoustics.SofacousticsBaseDataset`, which handles direct static downloads
-with hash verification from the checked-in registry.
-
 Start with a concrete Dataset class. Extract an intermediate shared base class only when at
 least two Datasets share provider behavior or source layout.
 
