@@ -560,6 +560,59 @@ output_format : str
         return output_path
 
 
+class SofaBaseDataset(BaseDataset):
+    """Base class for datasets whose ingest-ready format is already SOFA.
+
+    The primary distinction is that ``output_format='sofa'`` can either directly copy or link the
+    ingest-ready file, avoiding having to write the sofa file in memory.
+    """
+
+    def _to_sofa(self, sofa: sf.Sofa, ingest_path: Path, output_path: Path) -> Path:  # noqa: ARG002
+        """Copy sofar.Sofa file from ingest_dir and return Path.
+
+        Parameters
+        ----------
+        sofa : :class:`sofar.Sofa`
+            SOFA object to write.
+        ingest_path : :class:`pathlib.Path`
+            Path to the ingestible file.
+        output_path : :class:`pathlib.Path`
+            Path where the .sofa file should be written to.
+
+        Returns
+        -------
+        :class:`pathlib.Path`
+            Path to the written SOFA file.
+        """
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        if output_path.parent.parent == ingest_path.parent.parent:
+            try:
+                logger.debug(f"Linking {ingest_path} to {output_path}.")
+                os.link(ingest_path, output_path)
+            except OSError as e:
+                logger.debug(f"Linking failed: {e!r}")
+            else:
+                return output_path
+        logger.debug(f"Copying {ingest_path} to {output_path}.")
+        shutil.copy2(ingest_path, output_path)
+        return output_path
+
+    def _ingest(self, ingest_path: Path) -> sf.Sofa:
+        """Load SOFA file into sofar.Sofa object.
+
+        Parameters
+        ----------
+        ingest_path : :class:`pathlib.Path`
+            Path to the SOFA file in the ingest directory.
+
+        Returns
+        -------
+        :class:`sofar.Sofa`
+            SOFA object containing the dataset data.
+        """
+        return sf.read_sofa(ingest_path)
+
+
 def _get_dataset_classes(module: ModuleType) -> list[type]:
     """Return concrete BaseDataset subclasses exported by module."""
     dataset_classes: list[type] = []
