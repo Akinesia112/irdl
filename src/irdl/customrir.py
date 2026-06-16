@@ -1,7 +1,7 @@
 """Datasets with custom provider formats.
 
 This module provides Dataset implementations whose provider data requires
-custom processing before ingestion into the internal SOFA representation 
+custom handling to build the internal SOFA representation
 (e.g. WAV files, proprietary archives).
 
 Currently this module hosts:
@@ -10,9 +10,11 @@ Currently this module hosts:
 
 """
 
+import json
+import tempfile
 from pathlib import Path
 from typing import ClassVar
-from zipfile import ZipFile
+from zipfile import ZIP_DEFLATED, ZipFile
 
 import numpy as np
 import pyfar as pf
@@ -38,16 +40,14 @@ class MyriadDataset(BaseDataset):
     doi = "10.5281/zenodo.7389996"
     _category = DatasetCategory.ROOM_IMPULSE_RESPONSES
 
-   # Selectable array-group labels and their corresponding microphone labels
+    # Selectable array-group labels and their corresponding microphone labels
     _ARRAY_GROUPS: ClassVar[dict[str, list[str]]] = {
         "dummy_head": ["DHL", "DHR"],
         "bte-pieces": ["BTELF", "BTELB", "BTERF", "BTERB"],
         "external-microphones": ["XM1", "XM2", "XM3", "XM4", "XM5"],
-        "circular-microphone-array": [
-            "CMA10_-90", "CMA10_0", "CMA10_90", "CMA10_180",
-            "CMA20_-135", "CMA20_-90", "CMA20_-45", "CMA20_0",
-            "CMA20_45", "CMA20_90", "CMA20_135", "CMA20_180",
-        ],
+        "circular-microphone-array": ["CMA10_-90", "CMA10_0", "CMA10_90",
+            "CMA10_180", "CMA20_-135", "CMA20_-90", "CMA20_-45", "CMA20_0",
+            "CMA20_45", "CMA20_90", "CMA20_135", "CMA20_180",],
     }
 
     ### WORK FROM HERE ON
@@ -56,24 +56,16 @@ class MyriadDataset(BaseDataset):
     _SAMPLING_RATE = 44100
     _N_SAMPLES = 132300
 
-    
     #: Loudspeaker (emitter) labels per room, in canonical order.
     _SPEAKERS: ClassVar[dict[str, list[str]]] = {
-        "SAL": [
-            "S0_1", "S0_2", "S-30_1", "S30_1", "S-45_2",
-            "S45_2", "S-60_1", "S60_1", "S-90_1", "S90_1",
-        ],
-        "AIL": [
-            "SL1", "SL2", "SL3", "SL4", "SL5", "SL6", "SL7", "SL8",
-            "SU1", "SU2", "SU3", "SU4", "SU5", "SU6", "SU7", "SU8",
-            "SU9", "SU10", "SU11", "SU12",
-            "ST1", "ST2", "ST3", "ST4",
-        ],
+        "SAL": ["S0_1", "S0_2", "S-30_1", "S30_1", "S-45_2",
+            "S45_2", "S-60_1", "S60_1", "S-90_1", "S90_1",],
+        "AIL": ["SL1", "SL2", "SL3", "SL4", "SL5", "SL6",
+            "SL7", "SL8", "SU1", "SU2", "SU3", "SU4", "SU5",
+            "SU6", "SU7", "SU8", "SU9", "SU10", "SU11", "SU12",
+            "ST1", "ST2", "ST3", "ST4",],
     }
 
-   
-
-    
     #: Human-readable receiver hardware per group (for ReceiverDescriptions).
     _GROUP_HARDWARE: ClassVar[dict[str, str]] = {
         "dummy_head": "Neumann KU 100 in-ear microphone",
@@ -98,7 +90,7 @@ class MyriadDataset(BaseDataset):
         output_format: str = "pyfar",
     ) -> dict | Path | None:
         """
-        room : str
+        Room : str
             Room to load. Either ``'SAL'`` or ``'AIL'``. Default is ``'SAL'``.
         array : str
             Microphone array group(s) to load. One of ``'dummy_head'``,
@@ -121,7 +113,7 @@ class MyriadDataset(BaseDataset):
         dict or Path
             For 'pyfar' / 'numpy': dict of in-memory objects.
             For 'sofa' / 'hdf5' / 'raw': Path to file on disk.
-        """ 
+        """
         return cls()._get(
             room=room,
             array=array,
@@ -155,12 +147,12 @@ class MyriadDataset(BaseDataset):
         config = dataset_kwargs.get("config")
         convention = dataset_kwargs.get("convention")
 
-        #room
+        # room
         if room not in ("SAL", "AIL"):
             msg = "room must be one of ['SAL', 'AIL']"
             raise ValueError(msg)
 
-        #array groups
+        # array groups
         groups = self._parse_groups(array, room)
         for group in groups:
             if group not in self._ARRAY_GROUPS:
@@ -168,32 +160,34 @@ class MyriadDataset(BaseDataset):
             if room == "SAL" and group == "circular-microphone-array":
                 raise ValueError(f"array group {group!r} is not available in the SAL")
 
-        #config
+        # config
         if room == "AIL" and config not in ("P1", "P2"):
             msg = "config must be one of ['P1', 'P2'] for the AIL"
             raise ValueError(msg)
 
-        #convention
+        # convention
         if convention not in ["SingleRoomMIMOSRIR", "MultiSpeakerBRIR"]:
-            msg = f"convention must be one of ['SingleRoomMIMOSRIR', 'MultiSpeakerBRIR']"
+            msg = "convention must be one of ['SingleRoomMIMOSRIR', 'MultiSpeakerBRIR']"
             raise ValueError(msg)
-        
+
         if convention == "MultiSpeakerBRIR" and set(groups) != {"dummy_head"}:
             msg = "convention 'MultiSpeakerBRIR' is only valid for array='dummy_head'"
             raise ValueError(msg)
 
-    def _source_filename(self, **dataset_kwargs) -> str:  
+    def _source_filename(self, **dataset_kwargs) -> str:
         """Build the ingest filename encoding the full selection.
 
-        The name has the form ``MYRIAD_<room>[_<config>]_<groups>_<convention>.sofa``,
-        where ``<config>`` is included only for the AIL and ``<groups>`` is the
-        selected array groups as short tokens. The encoding makes each distinct
-        selection map to a unique cache file.
+        The name has the form
+        ``MYRIAD_<room>[_<config>]_<groups>_<convention>.zip``, where ``<config>``
+        is included only for the AIL and ``<groups>`` is the selected array groups
+        as short tokens. ``<convention>`` is part of the name because the ingest
+        archive embeds the convention in its metadata sidecar, so each convention
+        must map to a distinct cache file.
 
         Returns
         -------
         str
-        Filename for the ingest-stage file.
+            Filename for the ingest-stage archive.
         """
         # Short tokens used to build a unique, filesystem-friendly cache filename.
         _GROUP_TOKEN = {
@@ -205,16 +199,18 @@ class MyriadDataset(BaseDataset):
 
         room = dataset_kwargs["room"]
         array = dataset_kwargs["array"]
+        config = dataset_kwargs.get("config")
+        convention = dataset_kwargs.get("convention")
         groups = self._parse_groups(array, room)
 
         tokens = "-".join(_GROUP_TOKEN[g] for g in groups)
-        parts = ["MYRIAD", self._room]
-        if self._room == "AIL":
-            parts.append(self._config)
-        parts += [tokens]
-        return "_".join(parts) + ".sofa"
+        parts = ["MYRIAD", room]
+        if room == "AIL":
+            parts.append(config)
+        parts += [tokens, convention]
+        return "_".join(parts) + ".zip"
 
-    def _download(self, provider_dir: Path, **dataset_kwargs) -> Path: 
+    def _download(self, provider_dir: Path, **dataset_kwargs) -> Path:
         """Download MYRiAD ZIP archive to the provider directory.
 
         Only downloads the archive if it is not already cached in the provider
@@ -248,73 +244,115 @@ class MyriadDataset(BaseDataset):
 
 
 
+    def _process(self, provider_artifact: Path, ingest_path: Path, **dataset_kwargs) -> Path:
+        """Copy the selected RIRs from the provider ZIP into the ingest archive.
 
+        This performs no signal processing: it selects the loudspeaker/microphone
+        WAVs and the room coordinate CSV for the requested selection, copies them
+        verbatim into a single ingest-stage ZIP, and adds a ``meta.json`` sidecar
+        recording the resolved selection (room, config, convention, and the
+        ordered speaker/microphone labels). All SOFA construction is deferred to
+        :meth:`_ingest`, which reads this archive.
 
+        Parameters
+        ----------
+        provider_artifact : :class:`pathlib.Path`
+            Path to the downloaded MYRiAD ZIP archive.
+        ingest_path : :class:`pathlib.Path`
+            Target path for the ingest-stage ZIP archive.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    def _process(self, provider_artifact: Path, ingest_path: Path, **dataset_kwargs) -> Path:  # noqa: ARG002
-        """Extract the selected RIRs and build the initial SOFA with raw data.
-
-        Only the data arrays and geometry are written here; descriptive metadata
-        is layered on later in :meth:`_ingest`. Both supported conventions use
-        ``Data.IR`` with dimensions ``(M, R, N, E)``; the loudspeakers are the
-        *emitters* (E) and the selected microphones are the *receivers* (R).
-        This is the inverse of the moving-source ISTA datasets, where the source
-        positions index M.
+        Returns
+        -------
+        :class:`pathlib.Path`
+            Path to the written ingest-stage archive (``ingest_path``).
         """
-        room, config, convention = self._room, self._config, self._convention
-        speakers, mics = self._speakers, self._mics
+        room = dataset_kwargs["room"]
+        config = dataset_kwargs.get("config")
+        convention = dataset_kwargs.get("convention")
+        array = dataset_kwargs["array"]
 
-        work_dir = ingest_path.parent / "_extracted"
-        work_dir.mkdir(parents=True, exist_ok=True)
+        groups = self._parse_groups(array, room)
+        speakers = self._SPEAKERS[room]
+        mics = [mic for group in groups for mic in self._ARRAY_GROUPS[group]]
 
-        # --- stack the impulse responses, shape (M=1, R, N, E) ---------------
-        ir = np.zeros((1, len(mics), self._N_SAMPLES, len(speakers)), dtype=np.float32)
-        with ZipFile(provider_artifact, "r") as zf:
-            for ei, speaker in enumerate(speakers):
+        # Copy only the selected WAVs and the room CSV into the ingest archive,
+        # under a flat, self-describing layout that _ingest reads back.
+        with (
+            ZipFile(provider_artifact, "r") as src,
+            ZipFile(ingest_path, "w", ZIP_DEFLATED) as dst,
+        ):
+            for speaker in speakers:
                 base = f"{self._ROOT}/audio/{room}/{speaker}"
                 if room == "AIL":
                     base = f"{base}/{config}"
-                for ri, mic in enumerate(mics):
+                for mic in mics:
                     member = f"{base}/{mic}_RIR.wav"
-                    logger.debug(f"Extracting {member}")
-                    wav_path = Path(zf.extract(member, path=work_dir))
-                    # pyfar returns time data of shape (channels, samples)
-                    time = pf.io.read_audio(wav_path).time[0]
-                    # TODO: handle length mismatches instead of truncating.
-                    ir[0, ri, : time.shape[0], ei] = time[: self._N_SAMPLES]
+                    logger.debug(f"Copying {member}")
+                    dst.writestr(f"audio/{speaker}/{mic}_RIR.wav", src.read(member))
 
-            csv_path = Path(zf.extract(f"{self._ROOT}/coord/{room}.csv", path=work_dir))
+            dst.writestr("coord.csv", src.read(f"{self._ROOT}/coord/{room}.csv"))
 
-        # --- coordinates: CSV columns are Label, x, y, z ---------------------
-        rows = np.atleast_2d(np.genfromtxt(csv_path, delimiter=",", dtype=str, skip_header=1))
+            meta = {
+                "room": room,
+                "config": config,
+                "convention": convention,
+                "speakers": speakers,
+                "mics": mics,
+            }
+            dst.writestr("meta.json", json.dumps(meta))
+
+        return ingest_path
+
+
+
+
+
+
+
+
+    def _ingest(self, ingest_path: Path) -> sf.Sofa:  # noqa: PLR0915 - single cohesive ingest pipeline
+        """Build the internal SOFA from the ingest archive written by :meth:`_process`.
+
+        Reads the ``meta.json`` sidecar for the resolved selection, stacks the
+        selected loudspeaker/microphone WAVs into a ``Data.IR`` array of shape
+        ``(M, R, N, E)``, attaches the geometry from the room coordinate CSV, and
+        layers on the descriptive metadata. The loudspeakers are the *emitters*
+        (E) and the selected microphones are the *receivers* (R) — the inverse of
+        the moving-source ISTA datasets, where source positions index M.
+
+        Parameters
+        ----------
+        ingest_path : :class:`pathlib.Path`
+            Path to the ingest-stage ZIP archive.
+
+        Returns
+        -------
+        :class:`sofar.Sofa`
+            The fully populated internal SOFA representation.
+        """
+        with ZipFile(ingest_path, "r") as zf:
+            meta = json.loads(zf.read("meta.json"))
+            room = meta["room"]
+            convention = meta["convention"]
+            speakers = meta["speakers"]
+            mics = meta["mics"]
+
+            # --- stack the impulse responses, shape (M=1, R, N, E) -----------
+            ir = np.zeros((1, len(mics), self._N_SAMPLES, len(speakers)), dtype=np.float32)
+            with tempfile.TemporaryDirectory() as tmp:
+                for ei, speaker in enumerate(speakers):
+                    for ri, mic in enumerate(mics):
+                        member = f"audio/{speaker}/{mic}_RIR.wav"
+                        wav_path = Path(zf.extract(member, path=tmp))
+                        # pyfar returns time data of shape (channels, samples)
+                        time = pf.io.read_audio(wav_path).time[0]
+                        # TODO: handle length mismatches instead of truncating.
+                        ir[0, ri, : time.shape[0], ei] = time[: self._N_SAMPLES]
+
+                csv_path = Path(zf.extract("coord.csv", path=tmp))
+                # --- coordinates: CSV columns are Label, x, y, z -------------
+                rows = np.atleast_2d(np.genfromtxt(csv_path, delimiter=",", dtype=str, skip_header=1))
+
         coords = {row[0].strip(): row[1:4].astype(float) for row in rows}
         # TODO: verify CSV labels match the speaker/mic labels exactly.
         source = np.array([coords[s] for s in speakers])  # (E, C)
@@ -324,7 +362,7 @@ class MyriadDataset(BaseDataset):
         listener_pos = receiver.mean(axis=0)  # array centre, (C,)
         source_pos = source.mean(axis=0)  # source frame origin, (C,)
 
-        # --- build the initial SOFA holding only the raw data ----------------
+        # --- build the SOFA holding the raw data and geometry ----------------
         sofa = sf.Sofa(convention)
         sofa.Data_IR = ir  # (M=1, R, N, E)
         sofa.Data_SamplingRate = float(self._SAMPLING_RATE)
@@ -333,15 +371,6 @@ class MyriadDataset(BaseDataset):
         sofa.ReceiverPosition = receiver.reshape(r, 3, 1)  # (R, C, I)
         sofa.SourcePosition = source_pos[np.newaxis, :]  # (M=1, C)
         sofa.EmitterPosition = source.reshape(e, 3, 1)  # (E, C, I)
-
-        sf.write_sofa(ingest_path, sofa)
-        return ingest_path
-
-    def _ingest(self, ingest_path: Path) -> sf.Sofa:
-        """Read the raw-data SOFA and enrich it with descriptive metadata."""
-        room, convention, mics = self._room, self._convention, self._mics
-        sofa = sf.read_sofa(ingest_path)
-        m = sofa.Data_IR.shape[0]
 
         label_to_group = {mic: group for group, labels in self._ARRAY_GROUPS.items() for mic in labels}
         descriptions = [self._GROUP_HARDWARE[label_to_group[mic]] for mic in mics]
@@ -379,10 +408,9 @@ class MyriadDataset(BaseDataset):
 
         return sofa
 
-
     @classmethod
     def _parse_groups(cls, array, room) -> list[str]:
-        """Parse the array selection into a deduplicated, fixed-order list, 
+        """Parse the array selection into a deduplicated, fixed-order list,
         with any unknown group names kept at the end.
 
         Unknown group names are preserved so that ``_validate_params`` can reject
@@ -404,8 +432,7 @@ class MyriadDataset(BaseDataset):
             the end.
         """
         if array == "all":
-            requested = [g for g in cls._ARRAY_GROUPS
-                        if room != "SAL" or g != "circular-microphone-array"]
+            requested = [g for g in cls._ARRAY_GROUPS if room != "SAL" or g != "circular-microphone-array"]
         elif isinstance(array, str):
             requested = [g.strip() for g in array.split(",")]
         else:
@@ -415,4 +442,3 @@ class MyriadDataset(BaseDataset):
         known = [g for g in cls._ARRAY_GROUPS if g in seen]
         unknown = [g for g in requested if g not in cls._ARRAY_GROUPS]
         return known + unknown
-        
