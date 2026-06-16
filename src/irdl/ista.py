@@ -1,8 +1,7 @@
-"""Impulse response datasets from the Department of Engineering Acoustics, TU Berlin.
+"""Datasets from the Department of Engineering Acoustics, TU Berlin, Berlin Germany.
 
 - MIRACLE: Microphone Array Impulse Response Dataset for Acoustic Learning.
 - SRIRACHA: Shoebox Room Impulse Response Archive with Varying Absorption.
-
 """
 
 from pathlib import Path

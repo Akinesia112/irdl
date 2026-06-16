@@ -12,10 +12,10 @@ Dataset modules
    :caption: Core Python modules
    :toctree: ../_autosummary
 
+   akt
    base
    ista
    sofa
-   sofacoustics
 
 Internal modules
 ----------------
