@@ -2,7 +2,5 @@ __pycache__/
 docs/build
 docs/_autosummary
 docs/_generated
-docs/datasets/*
-!docs/datasets/index.rst
 /docs/cli-help.txt
 /docs/cli-miracle-help.txt

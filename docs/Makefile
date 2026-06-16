@@ -26,5 +26,6 @@ generated-docs:
 
 clean:
 	rm -rf build _autosummary _generated
-	rm -f datasets/room_impulse_responses.rst datasets/head_related_impulse_responses.rst
-	rm -f datasets/miracle_dataset.rst datasets/sriracha_dataset.rst datasets/fabian_dataset.rst
+	# Legacy cleanup for generated pages written before the _generated/ migration.
+	rm -f datasets/room_impulse_responses.rst datasets/head_related_impulse_responses.rst datasets/uncategorized.rst
+	rm -f datasets/*_dataset.rst
