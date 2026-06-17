@@ -129,7 +129,7 @@ def test_doi_resolution_warning_includes_doi_resolver_url(monkeypatch):
 
     call_count = {"count": 0}
 
-    def fake_doi_to_url(_doi, timeout):
+    def fake_doi_to_url(_doi, **_kwargs):
         call_count["count"] += 1
         if call_count["count"] == 1:
             msg = "timed out"

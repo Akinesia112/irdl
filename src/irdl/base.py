@@ -244,9 +244,7 @@ provider : str
         if provider == "auto":
             retry_order = [
                 (name, "provider-native") for name in provider_native_providers if name != selected_provider
-            ] + [
-                (name, "ingest-derived") for name in ingest_derived_providers if name != selected_provider
-            ]
+            ] + [(name, "ingest-derived") for name in ingest_derived_providers if name != selected_provider]
             failed_provider = selected_provider
             failed_mode = mode
             failed_error = first_error
