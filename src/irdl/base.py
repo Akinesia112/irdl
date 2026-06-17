@@ -3,9 +3,9 @@
 This module provides the BaseDataset abstract base class which serves as the common interface
 for all Dataset implementations. Each Dataset subclass must implement:
 
-- validate_params()
-- download()
-- ingest()
+- _validate_params()
+- _download()
+- _ingest()
 - _source_filename()
 
 The BaseDataset class handles:

@@ -51,7 +51,7 @@ class AKTZipBaseDataset(SofaBaseDataset):
             raise FileNotFoundError(msg)
 
     def _download(self, provider_dir: Path, **_dataset_kwargs) -> Path:
-        """Download BRAS-RS8 Scene_descriptions.zip archive to the provider directory.
+        """Download the dataset ZIP archive to the provider directory.
 
         Only downloads the archive if it is not already cached in the provider
         directory. Returns the ZIP path so that ``_process`` can extract the
@@ -60,7 +60,7 @@ class AKTZipBaseDataset(SofaBaseDataset):
         Parameters
         ----------
         provider_dir : Path
-            Provider directory (e.g., ``cache/BRAS-RS8/provider/``).
+            Provider directory for the current AKT dataset.
         **_dataset_kwargs : dict
             Unused dataset-specific parameters (accepted for compatibility).
 
