@@ -9,7 +9,8 @@ from pathlib import Path
 from zipfile import ZipFile
 
 from irdl.base import DatasetCategory, SofaBaseDataset
-from irdl.downloader import _fetch, _pooch_from_doi, _pooch_from_static_registry
+from irdl.downloader import _fetch, _pooch_from_doi, _pooch_from_sonicom_database
+from irdl.utils import load_hash_registry
 
 
 class AKTZipBaseDataset(SofaBaseDataset):
@@ -291,16 +292,18 @@ class HutubsDataset(AKTZipBaseDataset):
     """Download the HUTUBS HRTF database from DepositOnce or SONICOM.
 
     DepositOnce remains the canonical Provider and publishes a ZIP archive.
-    The additional ``sonicom`` Provider is used for testing direct SOFA-backed
-    retrieval paths.
+    SONICOM mirrors individual SOFA files and is preferred for non-raw output
+    formats because it avoids the ZIP extraction path.
     """
 
     name = "hutubs"
     doi = "10.14279/depositonce-8487"
-    providers = ("depositonce", "sonicom")
+    providers = ("sonicom", "depositonce")
     _category = DatasetCategory.HEAD_RELATED_IMPULSE_RESPONSES
     _zipfile = "HRIRs.zip"
-    _sonicom_root = "https://sofacoustics.org/data/database/hutubs"
+    _sonicom_root = "https://ecosystem.sonicom.eu/databases/76"
+    _sonicom_registry_name = "sonicom"
+    _sonicom_registry_prefix = "hutubs"
 
     @classmethod
     def get(
@@ -347,16 +350,18 @@ class HutubsDataset(AKTZipBaseDataset):
         """Download HUTUBS data from the selected Provider.
 
         The canonical Provider delegates to the shared AKT ZIP workflow.
-        ``sonicom`` downloads one SOFA file directly from a static URL. Checksums
-        are intentionally omitted for the SONICOM test path until a checked-in
-        Provider registry is introduced.
+        ``sonicom`` resolves one SOFA file from the SONICOM database manifest
+        and downloads it directly from the mirrored file URL. Checksums are
+        intentionally omitted for this path until SONICOM exposes them.
         """
         if provider == "sonicom":
             filename = self._source_filename(**dataset_kwargs)
-            pup = _pooch_from_static_registry(
+            checksum = load_hash_registry(self._sonicom_registry_name)[f"{self._sonicom_registry_prefix}/{filename}"]
+            pup = _pooch_from_sonicom_database(
                 path=provider_dir,
-                registry={filename: None},
-                urls={filename: f"{self._sonicom_root}/{filename}"},
+                database_url=self._sonicom_root,
+                fname=filename,
+                checksum=checksum,
             )
             self.logger.info("Downloading provider artifact %r from %r", filename, provider)
             _fetch(pup, filename)
