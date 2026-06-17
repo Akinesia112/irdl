@@ -9,7 +9,7 @@ from pathlib import Path
 from zipfile import ZipFile
 
 from irdl.base import DatasetCategory, SofaBaseDataset
-from irdl.downloader import _fetch, _pooch_from_doi
+from irdl.downloader import _fetch, _pooch_from_doi, _pooch_from_static_registry
 from irdl.logging import logger
 
 
@@ -289,12 +289,19 @@ class FabianDataset(AKTZipBaseDataset):
 
 
 class HutubsDataset(AKTZipBaseDataset):
-    """Download the HUTUBS HRTF database from DepositOnce."""
+    """Download the HUTUBS HRTF database from DepositOnce or SONICOM.
+
+    DepositOnce remains the canonical Provider and publishes a ZIP archive.
+    The additional ``sonicom`` Provider is used for testing direct SOFA-backed
+    retrieval paths.
+    """
 
     name = "hutubs"
     doi = "10.14279/depositonce-8487"
+    providers = ("depositonce", "sonicom")
     _category = DatasetCategory.HEAD_RELATED_IMPULSE_RESPONSES
     _zipfile = "HRIRs.zip"
+    _sonicom_root = "https://sofacoustics.org/data/database/hutubs"
 
     @classmethod
     def get(
@@ -326,6 +333,36 @@ class HutubsDataset(AKTZipBaseDataset):
             output_format=output_format,
             provider=provider,
         )
+
+    def _provider_artifact_format(self, provider: str, **_dataset_kwargs) -> str:
+        """Return the Provider-side artifact format for HUTUBS.
+
+        ``depositonce`` publishes a ZIP Provider artifact, while ``sonicom``
+        serves SOFA files directly.
+        """
+        if provider == "sonicom":
+            return "sofa"
+        return super()._provider_artifact_format(provider, **_dataset_kwargs)
+
+    def _download(self, provider_dir: Path, provider: str, **dataset_kwargs) -> Path:
+        """Download HUTUBS data from the selected Provider.
+
+        The canonical Provider delegates to the shared AKT ZIP workflow.
+        ``sonicom`` downloads one SOFA file directly from a static URL. Checksums
+        are intentionally omitted for the SONICOM test path until a checked-in
+        Provider registry is introduced.
+        """
+        if provider == "sonicom":
+            filename = self._source_filename(**dataset_kwargs)
+            pup = _pooch_from_static_registry(
+                path=provider_dir,
+                registry={filename: None},
+                urls={filename: f"{self._sonicom_root}/{filename}"},
+            )
+            logger.info(f"Downloading {self.name.upper()} file {filename} from SONICOM")
+            _fetch(pup, filename)
+            return provider_dir / filename
+        return super()._download(provider_dir, provider=provider, **dataset_kwargs)
 
     def _validate_params(self, **dataset_kwargs) -> None:
         """Validate HUTUBS-specific parameters.
