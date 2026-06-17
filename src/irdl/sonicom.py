@@ -18,6 +18,7 @@ class SonicomBaseDataset(SofaBaseDataset):
     subclasses provide the small registry and URL maps needed to download the
     requested file.
     """
+
     @abstractmethod
     def _source_filename(self, **dataset_kwargs) -> str:
         """Return the ingest-ready SOFA filename for the requested SONICOM artifact."""
@@ -61,7 +62,7 @@ class SonicomBaseDataset(SofaBaseDataset):
             msg = f"Unknown provider {provider!r} for {self.name.upper()}"
             raise ValueError(msg)
         source_filename = self._source_filename(**dataset_kwargs)
-        self.logger.info("Downloading provider artifact %r from %r", source_filename, provider)
+        self.logger.info("provider=%r artifact=%r -> download to provider cache", provider, source_filename)
         pup = _pooch_from_static_registry(
             path=provider_dir,
             registry=self._sonicom_registry(**dataset_kwargs),

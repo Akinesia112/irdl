@@ -21,7 +21,7 @@ console = Console()
 _LOGGER_STYLES = {
     "IRDL": "bold blue",
     "POOCH": "bold yellow",
-    "SOFAR": "bold green",
+    "SOFAR": "bold red",
 }
 _DEFAULT_SOURCE_STYLE = "bold white"
 _LEVEL_WIDTH = 8
@@ -151,9 +151,10 @@ class RichProgressBar:
 
     def __init__(self, description: str, preset_total: int = 0):
         source = f"{'IRDL':<{_source_width()}}"
+        irld_style = _LOGGER_STYLES["IRDL"]
         self._progress = Progress(
-            TextColumn(f" {' ' * _LEVEL_WIDTH}[{_LOGGER_STYLES['IRDL']}]{source}[/] [progress.description]{{task.description}}"),
-            BarColumn(),
+            TextColumn(f" {' ' * _LEVEL_WIDTH}[{irld_style}]{source}[/] [progress.description]{{task.description}}"),
+            BarColumn(complete_style=irld_style, finished_style=irld_style),
             DownloadColumn(),
             TransferSpeedColumn(),
             TimeRemainingColumn(),

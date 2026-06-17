@@ -4,6 +4,7 @@ from collections.abc import Mapping
 from pathlib import Path
 
 import pooch as po
+from requests.exceptions import RequestException
 
 from irdl.cache import IRDL_CACHE_DIR
 from irdl.logging import RichProgressBar, logger, pooch_logger
@@ -120,7 +121,7 @@ def _pooch_from_sonicom_database(
         entries = payload.get("data")
         if not isinstance(entries, list):
             msg = f"SONICOM database API at {manifest_url!r} did not return a 'data' list"
-            raise ValueError(msg)
+            raise TypeError(msg)
 
         entry = next((item for item in entries if item.get("Datafile Name") == fname), None)
         if entry is None:
@@ -130,7 +131,7 @@ def _pooch_from_sonicom_database(
         resolved_url = entry.get("Datafile URL")
         if not isinstance(resolved_url, str):
             msg = f"SONICOM database {database_url!r} did not provide a valid URL for {fname!r}"
-            raise ValueError(msg)
+            raise TypeError(msg)
 
         file_size = None
         try:
@@ -140,7 +141,7 @@ def _pooch_from_sonicom_database(
             content_length = head_response.headers.get("Content-Length")
             if content_length is not None:
                 file_size = int(content_length)
-        except Exception as exc:  # pragma: no cover
+        except (OSError, RequestException, ValueError) as exc:  # pragma: no cover
             logger.debug("HEAD resolution failed for %s: %s", resolved_url, exc)
 
     pup = po.create(path=path, base_url="", registry={fname: checksum}, urls={fname: resolved_url}, retry_if_failed=2)

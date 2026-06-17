@@ -94,7 +94,7 @@ class AKTZipBaseDataset(SofaBaseDataset):
         if zip_path.exists():
             self.logger.info("Provider cache hit: %s", zip_path)
         else:
-            self.logger.info("Downloading provider artifact %r from %r", self._zipfile, provider)
+            self.logger.info("provider=%r artifact=%r -> download to provider cache", provider, self._zipfile)
             pup = _pooch_from_doi(self.doi, path=provider_dir)
             _fetch(pup, self._zipfile)
         return zip_path
@@ -363,7 +363,7 @@ class HutubsDataset(AKTZipBaseDataset):
                 fname=filename,
                 checksum=checksum,
             )
-            self.logger.info("Downloading provider artifact %r from %r", filename, provider)
+            self.logger.info("provider=%r artifact=%r -> download to provider cache", provider, filename)
             _fetch(pup, filename)
             return provider_dir / filename
         return super()._download(provider_dir, provider=provider, **dataset_kwargs)

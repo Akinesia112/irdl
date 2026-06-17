@@ -179,8 +179,8 @@ class TestProviderSelection:
         )
 
         assert result == tmp_path / "DUMMY" / "output" / "dummy.sofa"
-        assert any("Using provider 'sonicom'" in message for message in messages)
-        assert not any("depositonce" in message and "using provider" in message for message in messages)
+        assert any("provider='sonicom' requested='auto' output_format='sofa' -> provider-native path" in message for message in messages)
+        assert not any("provider='depositonce'" in message for message in messages)
 
 
 class TestIstaBaseDatasetAbstract:

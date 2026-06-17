@@ -251,7 +251,7 @@ class MiracleDataset(IstaBaseDataset):
             msg = f"Unknown provider {provider!r} for {self.name.upper()}"
             raise ValueError(msg)
         full_path = provider_dir / self._source_filename(**{**dataset_kwargs, "dataset_split": None})
-        self.logger.info("Downloading provider artifact %r from %r", full_path.name, provider)
+        self.logger.info("provider=%r artifact=%r -> download to provider cache", provider, full_path.name)
         pup = _pooch_from_doi(self.doi, path=provider_dir)
         _fetch(pup, full_path.name)
         return full_path
@@ -455,7 +455,7 @@ class SrirachaDataset(IstaBaseDataset):
         if scenario.endswith("D") or split is not None:
             fname = self._source_filename(**dataset_kwargs)
             target_file = provider_dir / fname
-            self.logger.info("Downloading provider artifact %r from %r", target_file.name, provider)
+            self.logger.info("provider=%r artifact=%r -> download to provider cache", provider, target_file.name)
             pup = _pooch_from_doi(self.doi, path=provider_dir)
             _fetch(pup, fname)
             return target_file

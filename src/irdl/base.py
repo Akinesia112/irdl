@@ -76,6 +76,7 @@ class BaseDataset(ABC):
         Public entry point. Uses explicit type signatures for CLI
         auto-generation.
     """
+
     name: str
     doi: str
     providers: tuple[str, ...]
@@ -118,7 +119,11 @@ provider : str
             raise TypeError(msg)
         if hasattr(cls, "canonical_provider") and not hasattr(cls, "providers"):
             cls.providers = (cls.canonical_provider,)
-        if hasattr(cls, "providers") and hasattr(cls, "canonical_provider") and cls.canonical_provider not in cls.providers:
+        if (
+            hasattr(cls, "providers")
+            and hasattr(cls, "canonical_provider")
+            and cls.canonical_provider not in cls.providers
+        ):
             msg = f"{cls.__name__}.canonical_provider must appear in {cls.__name__}.providers"
             raise TypeError(msg)
 
@@ -150,7 +155,7 @@ provider : str
         provider: str,
         **dataset_kwargs,
     ) -> dict | Path | None:
-        """Internal implementation of Dataset retrieval.
+        """Retrieve Dataset data.
 
         Parameters
         ----------
@@ -162,8 +167,8 @@ provider : str
         output_format : str
             Output format: 'pyfar', 'numpy', 'hdf5', 'sofa', or 'raw'.
         provider : str
-            Provider selection. ``"auto"`` tries direct Providers first, then
-            ingest-capable Providers. Any explicit Provider name disables
+            Provider selection. ``"auto"`` tries provider-native Providers first,
+            then ingest-derived Providers. Any explicit Provider name disables
             cross-Provider fallback. ``"raw"`` is restricted to the canonical
             Provider.
         **dataset_kwargs : dict
@@ -197,11 +202,11 @@ provider : str
             **dataset_kwargs,
         )
         self.logger.info(
-            "Using provider %r (%s path, requested=%r, output_format=%r)",
+            "provider=%r requested=%r output_format=%r -> %s path",
             selected_provider,
-            mode,
             provider,
             output_format,
+            mode,
         )
         provider_dir = cache_dir / "provider" / selected_provider
 
@@ -211,13 +216,12 @@ provider : str
                 mode=mode,
                 provider_dir=provider_dir,
                 ingest_path=ingest_path,
-                output_dir=output_dir,
                 output_path=output_path,
                 export_dir=export_dir,
                 output_format=output_format,
                 **dataset_kwargs,
             )
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError) as exc:
             first_error = exc
             if provider != "auto":
                 msg = (
@@ -228,18 +232,20 @@ provider : str
         else:
             return result
 
-        direct_providers, convertible_providers = self._provider_candidates(
+        provider_native_providers, ingest_derived_providers = self._provider_candidates(
             output_format=output_format,
             **dataset_kwargs,
         )
-        attempted = [name for name in [*direct_providers, *convertible_providers] if name == selected_provider]
+        attempted = [
+            name for name in [*provider_native_providers, *ingest_derived_providers] if name == selected_provider
+        ]
         errors = [f"- {selected_provider} ({mode}): {first_error}"]
 
         if provider == "auto":
             retry_order = [
-                (name, "direct") for name in direct_providers if name != selected_provider
+                (name, "provider-native") for name in provider_native_providers if name != selected_provider
             ] + [
-                (name, "convertible") for name in convertible_providers if name != selected_provider
+                (name, "ingest-derived") for name in ingest_derived_providers if name != selected_provider
             ]
             failed_provider = selected_provider
             failed_mode = mode
@@ -247,10 +253,10 @@ provider : str
             for provider_name, candidate_mode in retry_order:
                 attempted.append(provider_name)
                 self.logger.warning(
-                    "Provider %r failed (%s path, output_format=%r): %s. Retrying with %r (%s path).",
+                    "provider=%r output_format=%r failed on %s path: %s. Retrying with provider=%r -> %s path.",
                     failed_provider,
-                    failed_mode,
                     output_format,
+                    failed_mode,
                     failed_error,
                     provider_name,
                     candidate_mode,
@@ -262,13 +268,12 @@ provider : str
                         mode=candidate_mode,
                         provider_dir=provider_dir,
                         ingest_path=ingest_path,
-                        output_dir=output_dir,
                         output_path=output_path,
                         export_dir=export_dir,
                         output_format=output_format,
                         **dataset_kwargs,
                     )
-                except Exception as inner_exc:
+                except (OSError, RuntimeError, ValueError) as inner_exc:
                     errors.append(f"- {provider_name} ({candidate_mode}): {inner_exc}")
                     failed_provider = provider_name
                     failed_mode = candidate_mode
@@ -311,24 +316,24 @@ provider : str
             raise ValueError(msg)
 
     def _provider_candidates(self, output_format: str, **dataset_kwargs) -> tuple[list[str], list[str]]:
-        """Return direct and convertible Provider candidates in priority order.
+        """Return provider-native and ingest-derived candidates in priority order.
 
         The first list contains Providers that can serve the requested Output
-        Format directly from their Provider artifact. The second contains
+        Format natively from their Provider artifact. The second contains
         Providers that can satisfy it only after ingest or conversion.
         """
-        direct: list[str] = []
-        convertible: list[str] = []
+        provider_native: list[str] = []
+        ingest_derived: list[str] = []
         for provider in self.providers:
             if not self._provider_available(provider, output_format=output_format, **dataset_kwargs):
                 continue
             if output_format in self._direct_output_formats(provider, **dataset_kwargs):
-                direct.append(provider)
+                provider_native.append(provider)
             elif output_format != "raw" and self._can_materialize_from_provider(
                 provider, output_format=output_format, **dataset_kwargs
             ):
-                convertible.append(provider)
-        return direct, convertible
+                ingest_derived.append(provider)
+        return provider_native, ingest_derived
 
     def _select_provider(self, *, provider: str, output_format: str, **dataset_kwargs) -> tuple[str, str]:
         """Select Provider and retrieval mode.
@@ -336,34 +341,34 @@ provider : str
         Returns
         -------
         tuple[str, str]
-            ``(provider_name, mode)`` where ``mode`` is ``"direct"`` when the
-            requested Output Format is available directly from the Provider
-            artifact and ``"convertible"`` when IRDL must ingest or convert the
-            artifact first.
+            ``(provider_name, mode)`` where ``mode`` is ``"provider-native"``
+            when the requested Output Format is available directly from the
+            Provider artifact and ``"ingest-derived"`` when IRDL must ingest or
+            convert the artifact first.
         """
         if output_format == "raw":
             self.logger.debug("Raw output uses canonical provider %r", self.canonical_provider)
-            return self.canonical_provider, "direct"
+            return self.canonical_provider, "provider-native"
 
-        direct_providers, convertible_providers = self._provider_candidates(
+        provider_native_providers, ingest_derived_providers = self._provider_candidates(
             output_format=output_format,
             **dataset_kwargs,
         )
 
         if provider == "auto":
             self.logger.debug(
-                "Provider candidates for output_format=%r: direct=%s, convertible=%s",
+                "Provider candidates for output_format=%r: provider-native=%s, ingest-derived=%s",
                 output_format,
-                direct_providers or ["<none>"],
-                convertible_providers or ["<none>"],
+                provider_native_providers or ["<none>"],
+                ingest_derived_providers or ["<none>"],
             )
-            if direct_providers:
-                return direct_providers[0], "direct"
-            if convertible_providers:
-                return convertible_providers[0], "convertible"
+            if provider_native_providers:
+                return provider_native_providers[0], "provider-native"
+            if ingest_derived_providers:
+                return ingest_derived_providers[0], "ingest-derived"
             msg = (
                 f"No provider can satisfy output_format={output_format!r} for {self.name.upper()}. "
-                "Need either a direct SOFA-capable provider or an ingest-capable non-SOFA provider."
+                "Need either a provider-native SOFA-capable provider or an ingest-capable non-SOFA provider."
             )
             raise ValueError(msg)
 
@@ -371,9 +376,9 @@ provider : str
             msg = f"provider {provider!r} is not available for the requested parameters"
             raise ValueError(msg)
         if output_format in self._direct_output_formats(provider, **dataset_kwargs):
-            return provider, "direct"
+            return provider, "provider-native"
         if self._can_materialize_from_provider(provider, output_format=output_format, **dataset_kwargs):
-            return provider, "convertible"
+            return provider, "ingest-derived"
         msg = f"provider {provider!r} cannot satisfy output_format={output_format!r} for the requested parameters"
         raise ValueError(msg)
 
@@ -384,7 +389,6 @@ provider : str
         mode: str,
         provider_dir: Path,
         ingest_path: Path,
-        output_dir: Path,
         output_path: Path | None,
         export_dir: Path | None,
         output_format: str,
@@ -393,54 +397,80 @@ provider : str
         """Retrieve Dataset data from one concrete Provider.
 
         This method executes one Provider path after selection is complete. It
-        handles raw export, direct SOFA-backed materialization, ingest reuse,
-        Dataset-specific processing, and final conversion.
+        handles raw export, provider-native SOFA-backed materialization,
+        ingest reuse, Dataset-specific processing, and final conversion.
         """
-        if mode == "direct" and output_format != "raw" and output_path is not None and output_path.exists():
+        if mode == "provider-native" and output_format != "raw" and output_path is not None and output_path.exists():
             self.logger.info("Output cache hit: %s", output_path)
             return output_path
 
         provider_artifact = self.download(provider_dir, provider=provider_name, **dataset_kwargs)
+        result: dict | Path | None
 
         if output_format == "raw":
-            if export_dir is None:
-                return provider_artifact
-            return self._export_raw(provider_artifact, export_dir)
-
-        if mode == "direct":
-            return self._materialize_direct_output(provider_artifact, output_format, output_path)
-
-        if output_path is not None and output_path.exists():
+            result = provider_artifact if export_dir is None else self._export_raw(provider_artifact, export_dir)
+        elif mode == "provider-native":
+            result = self._materialize_direct_output(provider_artifact, output_format, output_path)
+        elif output_path is not None and output_path.exists():
             self.logger.info("Output cache hit: %s", output_path)
-            return output_path
+            result = output_path
+        elif self._provider_artifact_format(provider_name, **dataset_kwargs) == "sofa":
+            result = self._finalize_sofa_provider_artifact(provider_artifact, output_format, output_path)
+        else:
+            result = self._materialize_via_ingest(
+                provider_artifact,
+                ingest_path,
+                provider_name=provider_name,
+                output_format=output_format,
+                output_path=output_path,
+                **dataset_kwargs,
+            )
 
-        if self._provider_artifact_format(provider_name, **dataset_kwargs) == "sofa":
-            if not _fits_in_memory(provider_artifact):
-                self.logger.warning(
-                    "Conversion skipped for %s: dataset exceeds available memory; returning file path instead.",
-                    provider_artifact,
-                )
-                return provider_artifact
-            self.logger.debug("Reading provider SOFA artifact %s directly", provider_artifact)
-            sofa = sf.read_sofa(provider_artifact)
-            return self._finalize_output(sofa, output_format, provider_artifact, output_path)
+        return result
 
+    def _finalize_sofa_provider_artifact(
+        self,
+        provider_artifact: Path,
+        output_format: str,
+        output_path: Path | None,
+    ) -> dict | Path | None:
+        """Materialize output directly from a SOFA provider artifact."""
+        if not _fits_in_memory(provider_artifact):
+            self.logger.warning(
+                "Conversion skipped for %s: dataset exceeds available memory; returning file path instead.",
+                provider_artifact,
+            )
+            return provider_artifact
+        self.logger.debug("Reading provider SOFA artifact %s directly", provider_artifact)
+        sofa = sf.read_sofa(provider_artifact)
+        return self._finalize_output(sofa, output_format, provider_artifact, output_path)
+
+    def _materialize_via_ingest(
+        self,
+        provider_artifact: Path,
+        ingest_path: Path,
+        *,
+        provider_name: str,
+        output_format: str,
+        output_path: Path | None,
+        **dataset_kwargs,
+    ) -> dict | Path | None:
+        """Materialize output by processing a provider artifact into the ingest stage."""
         if ingest_path.exists():
             self.logger.info("Ingest cache hit: %s", ingest_path)
         else:
             self.logger.debug("Processing provider artifact %s -> %s", provider_artifact, ingest_path)
             ingest_path = self.process(provider_artifact, ingest_path, provider=provider_name, **dataset_kwargs)
 
-        if _fits_in_memory(ingest_path):
-            self.logger.debug("Reading ingest artifact %s into SOFA", ingest_path)
-            sofa = self._ingest(ingest_path)
-        else:
+        if not _fits_in_memory(ingest_path):
             self.logger.warning(
                 "Conversion skipped for %s: dataset exceeds available memory; returning file path instead.",
                 ingest_path,
             )
             return ingest_path
 
+        self.logger.debug("Reading ingest artifact %s into SOFA", ingest_path)
+        sofa = self._ingest(ingest_path)
         return self._finalize_output(sofa, output_format, ingest_path, output_path)
 
     def _finalize_output(
@@ -460,11 +490,10 @@ provider : str
             sofa.verify(issue_handling="raise")
             with sofar_logger.as_stdout:
                 sofa.upgrade_convention()
-        except ValueError as e:
-            self.logger.error(
-                "SOFA convention not satisfied!\n%s\n"
-                "See https://sofar.readthedocs.io/en/stable/resources/conventions.html#conventions for details.",
-                e,
+        except ValueError:
+            self.logger.exception(
+                "SOFA convention not satisfied!\n"
+                "See https://sofar.readthedocs.io/en/stable/resources/conventions.html#conventions for details."
             )
             return None
 
@@ -711,6 +740,7 @@ class SofaBaseDataset(BaseDataset):
     ingest-ready SOFA file directly instead of rewriting it through
     :func:`sofar.write_sofa`.
     """
+
     def _to_sofa(self, sofa: sf.Sofa, ingest_path: Path, output_path: Path) -> Path:  # noqa: ARG002
         """Copy sofar.Sofa file from ingest_dir and return Path."""
         return self._copy_or_link(ingest_path, output_path)

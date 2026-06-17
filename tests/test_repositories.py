@@ -14,10 +14,12 @@ def test_dspace_initialize_requires_only_url_match(monkeypatch):
     monkeypatch.setattr(
         DSpaceRepository,
         "_probe_repository",
-        classmethod(lambda cls, archive_url: pytest.fail(f"unexpected probe for {archive_url}")),
+        classmethod(lambda _cls, archive_url: pytest.fail(f"unexpected probe for {archive_url}")),
     )
 
-    repo = DSpaceRepository.initialize("10.14279/depositonce-123", "https://depositonce.tu-berlin.de/handle/11303/12345")
+    repo = DSpaceRepository.initialize(
+        "10.14279/depositonce-123", "https://depositonce.tu-berlin.de/handle/11303/12345"
+    )
 
     assert isinstance(repo, DSpaceRepository)
 
@@ -27,7 +29,7 @@ def test_dspace_initialize_rejects_non_matching_host(monkeypatch):
     monkeypatch.setattr(
         DSpaceRepository,
         "_probe_repository",
-        classmethod(lambda cls, archive_url: pytest.fail(f"unexpected probe for {archive_url}")),
+        classmethod(lambda _cls, archive_url: pytest.fail(f"unexpected probe for {archive_url}")),
     )
 
     repo = DSpaceRepository.initialize("10.0000/example", "https://example.org/handle/11303/12345")
@@ -52,7 +54,7 @@ def test_radar_initialize_requires_only_url_match(monkeypatch):
     monkeypatch.setattr(
         RadarRepository,
         "_probe_repository",
-        classmethod(lambda cls, archive_url: pytest.fail(f"unexpected probe for {archive_url}")),
+        classmethod(lambda _cls, archive_url: pytest.fail(f"unexpected probe for {archive_url}")),
     )
 
     repo = RadarRepository.initialize("10.60887/example", "https://datathek.oeaw.ac.at/radar/en/dataset/example")
@@ -127,26 +129,29 @@ def test_doi_resolution_warning_includes_doi_resolver_url(monkeypatch):
 
     call_count = {"count": 0}
 
-    def fake_doi_to_url(doi, timeout):
+    def fake_doi_to_url(_doi, timeout):
         call_count["count"] += 1
         if call_count["count"] == 1:
-            raise Timeout("timed out")
+            msg = "timed out"
+            raise Timeout(msg)
         return "https://datathek.oeaw.ac.at/radar/en/dataset/example"
 
     monkeypatch.setattr(repositories_module, "doi_to_url", fake_doi_to_url)
-    monkeypatch.setattr(repositories_module, "sleep", lambda seconds: None)
+    monkeypatch.setattr(repositories_module, "sleep", lambda _seconds: None)
     monkeypatch.setattr(repositories_module.logger, "warning", fake_warning)
     monkeypatch.setattr(repositories_module.logger, "debug", fake_debug)
     monkeypatch.setattr(
         RadarRepository,
         "api_response",
-        property(lambda self: {"10.60887-example.tar": {"url": "u", "checksum": "md5:x", "size": 1}}),
+        property(lambda _self: {"10.60887-example.tar": {"url": "u", "checksum": "md5:x", "size": 1}}),
     )
 
     repo = doi_to_repository("10.60887/example")
 
+    expected_warning = (
+        "Failed to resolve DOI 10.60887/example via https://doi.org/10.60887/example "
+        "due to a connection or timeout error, retrying with exponential backoff..."
+    )
     assert isinstance(repo, RadarRepository)
-    assert warnings == [
-        "Failed to resolve DOI 10.60887/example via https://doi.org/10.60887/example due to a connection or timeout error, retrying with exponential backoff..."
-    ]
+    assert warnings == [expected_warning]
     assert any("Attempt 1/5 failed (Timeout)" in message for message in debug_messages)

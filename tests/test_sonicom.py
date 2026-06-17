@@ -18,7 +18,8 @@ class ConcreteSonicomDataset(SonicomBaseDataset):
 
     def _validate_params(self, **dataset_kwargs) -> None:
         if "sofa_file" not in dataset_kwargs:
-            raise ValueError("missing sofa_file")
+            msg = "missing sofa_file"
+            raise ValueError(msg)
 
     def _source_filename(self, **dataset_kwargs) -> str:
         return dataset_kwargs["sofa_file"]
@@ -110,7 +111,7 @@ class TestHutubsSonicomProvider:
         monkeypatch.setattr("irdl.akt._fetch", fake_fetch)
         monkeypatch.setattr(
             "irdl.akt.load_hash_registry",
-            lambda provider_name: {"hutubs/pp1_HRIRs_measured.sofa": "sha256:abc"},
+            lambda _provider_name: {"hutubs/pp1_HRIRs_measured.sofa": "sha256:abc"},
         )
 
         result = HutubsDataset()._download(tmp_path, provider="sonicom", subject=1, kind="measured")

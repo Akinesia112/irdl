@@ -207,9 +207,7 @@ def _display_dataset(dataset_class: type) -> None:
     providers = getattr(dataset_class, "providers", ())
     canonical_provider = getattr(dataset_class, "canonical_provider", None)
     if providers:
-        provider_line = ", ".join(
-            f"{name} (canonical)" if name == canonical_provider else name for name in providers
-        )
+        provider_line = ", ".join(f"{name} (canonical)" if name == canonical_provider else name for name in providers)
         typer.echo(f"    Providers: {provider_line}")
 
 
