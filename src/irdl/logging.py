@@ -24,11 +24,17 @@ _LOGGER_STYLES = {
     "SOFAR": "bold green",
 }
 _DEFAULT_SOURCE_STYLE = "bold white"
+_LEVEL_WIDTH = 8
 
 
 def _source_width() -> int:
     """Return the current source-column width."""
     return max(len(name) for name in _LOGGER_STYLES | {"DEFAULT": _DEFAULT_SOURCE_STYLE})
+
+
+def _log_message_indent() -> str:
+    """Return the left padding needed to align with log message text."""
+    return " " * (_LEVEL_WIDTH + _source_width() + 1)
 
 
 class IrdlRichHandler(RichHandler):
@@ -144,8 +150,9 @@ class RichProgressBar:
     """
 
     def __init__(self, description: str, preset_total: int = 0):
+        source = f"{'IRDL':<{_source_width()}}"
         self._progress = Progress(
-            TextColumn("[progress.description]{task.description}"),
+            TextColumn(f" {' ' * _LEVEL_WIDTH}[{_LOGGER_STYLES['IRDL']}]{source}[/] [progress.description]{{task.description}}"),
             BarColumn(),
             DownloadColumn(),
             TransferSpeedColumn(),
