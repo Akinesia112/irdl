@@ -12,7 +12,6 @@ import sofar as sf
 
 from irdl.base import BaseDataset, DatasetCategory
 from irdl.downloader import _fetch, _pooch_from_doi
-from irdl.logging import logger
 
 
 class IstaBaseDataset(BaseDataset):
@@ -252,7 +251,7 @@ class MiracleDataset(IstaBaseDataset):
             msg = f"Unknown provider {provider!r} for {self.name.upper()}"
             raise ValueError(msg)
         full_path = provider_dir / self._source_filename(**{**dataset_kwargs, "dataset_split": None})
-        logger.info(f"Downloading MIRACLE scenario {dataset_kwargs['scenario']}")
+        self.logger.info("Downloading provider artifact %r from %r", full_path.name, provider)
         pup = _pooch_from_doi(self.doi, path=provider_dir)
         _fetch(pup, full_path.name)
         return full_path
@@ -289,7 +288,7 @@ class MiracleDataset(IstaBaseDataset):
         :class:`pathlib.Path`
             Path to the extracted split HDF5 file.
         """
-        logger.info(f"Extracting split {dataset_split} from {ingest_path.name}")
+        self.logger.info("Extracting split %s from %s -> %s", dataset_split, ingest_path.name, output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         with h5.File(ingest_path, "r") as f:
             data = {
@@ -456,12 +455,12 @@ class SrirachaDataset(IstaBaseDataset):
         if scenario.endswith("D") or split is not None:
             fname = self._source_filename(**dataset_kwargs)
             target_file = provider_dir / fname
-            logger.info(f"Downloading SRIRACHA scenario {scenario}")
+            self.logger.info("Downloading provider artifact %r from %r", target_file.name, provider)
             pup = _pooch_from_doi(self.doi, path=provider_dir)
             _fetch(pup, fname)
             return target_file
 
-        logger.info(f"Downloading SRIRACHA scenario {scenario} (4 split files)")
+        self.logger.info("Downloading split provider artifacts for scenario %s from %r", scenario, provider)
         pup = _pooch_from_doi(self.doi, path=provider_dir)
         for split_file in ["C1", "C2", "C3", "C4"]:
             fname = f"{scenario}-{split_file}.h5"
@@ -480,7 +479,7 @@ class SrirachaDataset(IstaBaseDataset):
 
         if scenario.endswith("D") or split is not None:
             return super()._process(provider_artifact, ingest_path, **dataset_kwargs)
-        logger.debug("Merging split files")
+        self.logger.debug("Merging split provider artifacts")
         return self._merge_split_files(scenario, provider_artifact, ingest_path)
 
     def _merge_split_files(self, scenario: str, provider_artifact: Path, ingest_path: Path) -> Path:
@@ -557,6 +556,6 @@ class SrirachaDataset(IstaBaseDataset):
             for f in split_files.values():
                 f.unlink()
 
-        logger.debug("Split files merged")
+        self.logger.debug("Split provider artifacts merged")
 
         return ingest_path

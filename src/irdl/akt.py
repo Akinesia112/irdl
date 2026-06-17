@@ -10,7 +10,6 @@ from zipfile import ZipFile
 
 from irdl.base import DatasetCategory, SofaBaseDataset
 from irdl.downloader import _fetch, _pooch_from_doi, _pooch_from_static_registry
-from irdl.logging import logger
 
 
 class AKTZipBaseDataset(SofaBaseDataset):
@@ -57,7 +56,7 @@ class AKTZipBaseDataset(SofaBaseDataset):
             for name in zf.namelist():
                 if name.endswith(ingest_path.name):
                     zf.getinfo(name).filename = Path(name).name
-                    logger.info(f"Extracting {name} to {ingest_path.parent}")
+                    self.logger.info("Extracting provider artifact %s -> %s", name, ingest_path)
                     zf.extract(name, path=ingest_path.parent)
                     return ingest_path
 
@@ -92,9 +91,9 @@ class AKTZipBaseDataset(SofaBaseDataset):
 
         zip_path = provider_dir / self._zipfile
         if zip_path.exists():
-            logger.info(f"ZIP archive already cached at {zip_path}, skipping download")
+            self.logger.info("Provider cache hit: %s", zip_path)
         else:
-            logger.info(f"Downloading {self.name.upper()} dataset")
+            self.logger.info("Downloading provider artifact %r from %r", self._zipfile, provider)
             pup = _pooch_from_doi(self.doi, path=provider_dir)
             _fetch(pup, self._zipfile)
         return zip_path
@@ -359,7 +358,7 @@ class HutubsDataset(AKTZipBaseDataset):
                 registry={filename: None},
                 urls={filename: f"{self._sonicom_root}/{filename}"},
             )
-            logger.info(f"Downloading {self.name.upper()} file {filename} from SONICOM")
+            self.logger.info("Downloading provider artifact %r from %r", filename, provider)
             _fetch(pup, filename)
             return provider_dir / filename
         return super()._download(provider_dir, provider=provider, **dataset_kwargs)

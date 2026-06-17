@@ -6,7 +6,7 @@ from pathlib import Path
 import pooch as po
 
 from irdl.cache import IRDL_CACHE_DIR
-from irdl.logging import RichProgressBar, logger
+from irdl.logging import RichProgressBar, pooch_logger
 from irdl.repositories import doi_to_repository
 
 
@@ -26,7 +26,7 @@ def _fetch(pup: po.Pooch, fname: str) -> str:
         The absolute path to the fetched file on disk.
 
     """
-    logger.debug(f"Fetching {fname}")
+    pooch_logger.debug("Fetching %s", fname)
     preset_total = getattr(pup, "file_sizes", {}).get(fname) or 0
     return pup.fetch(fname, progressbar=RichProgressBar(fname, preset_total=preset_total))
 

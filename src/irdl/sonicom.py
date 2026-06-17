@@ -8,7 +8,6 @@ from pathlib import Path
 
 from irdl.base import SofaBaseDataset
 from irdl.downloader import _fetch, _pooch_from_static_registry
-from irdl.logging import logger
 
 
 class SonicomBaseDataset(SofaBaseDataset):
@@ -62,7 +61,7 @@ class SonicomBaseDataset(SofaBaseDataset):
             msg = f"Unknown provider {provider!r} for {self.name.upper()}"
             raise ValueError(msg)
         source_filename = self._source_filename(**dataset_kwargs)
-        logger.info(f"Downloading {self.name.upper()} dataset from SONICOM")
+        self.logger.info("Downloading provider artifact %r from %r", source_filename, provider)
         pup = _pooch_from_static_registry(
             path=provider_dir,
             registry=self._sonicom_registry(**dataset_kwargs),

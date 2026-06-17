@@ -163,10 +163,15 @@ class TestProviderSelection:
             def _source_filename(self, **_dataset_kwargs):
                 return "dummy.sofa"
 
+        dataset = DummyDataset()
         messages: list[str] = []
-        monkeypatch.setattr("irdl.base.logger.info", messages.append)
 
-        result = DummyDataset()._get(
+        def capture_info(message, *args):
+            messages.append(message % args if args else message)
+
+        monkeypatch.setattr(dataset.logger, "info", capture_info)
+
+        result = dataset._get(
             cache_dir=tmp_path,
             export_dir=None,
             output_format="sofa",
@@ -174,8 +179,8 @@ class TestProviderSelection:
         )
 
         assert result == tmp_path / "DUMMY" / "output" / "dummy.sofa"
-        assert any("direct=['sonicom']" in message for message in messages)
-        assert any("resolved to 'sonicom'" in message for message in messages)
+        assert any("Using provider 'sonicom'" in message for message in messages)
+        assert not any("depositonce" in message and "using provider" in message for message in messages)
 
 
 class TestIstaBaseDatasetAbstract:

@@ -31,7 +31,7 @@ import pyfar as pf
 import sofar as sf
 
 from irdl.cache import IRDL_CACHE_DIR
-from irdl.logging import logger
+from irdl.logging import get_logger, sofar_logger
 from irdl.utils import _fits_in_memory
 
 
@@ -96,6 +96,18 @@ output_format : str
 provider : str
     Provider selection. Use 'auto' (default) to try providers in the documented order.
 """
+
+    def __init__(self) -> None:
+        """Initialize per-dataset logging."""
+        self.logger = get_logger(self.name.upper(), style=self._logger_style())
+
+    def _logger_style(self) -> str:
+        """Return the Rich style for this Dataset's log source."""
+        if getattr(self, "_category", None) == DatasetCategory.ROOM_IMPULSE_RESPONSES:
+            return "bold cyan"
+        if getattr(self, "_category", None) == DatasetCategory.HEAD_RELATED_IMPULSE_RESPONSES:
+            return "bold magenta"
+        return "bold white"
 
     def __init_subclass__(cls, **dataset_kwargs) -> None:
         """Initialize subclass with automatic docstring composition for get() classmethod."""
@@ -168,7 +180,7 @@ provider : str
             msg = "output_format must be one of 'pyfar', 'hdf5', 'numpy', 'sofa', 'raw'"
             raise ValueError(msg)
 
-        logger.debug(f"Validating parameters for {self.name}")
+        self.logger.debug("Validating dataset parameters")
         self._validate_params(output_format=output_format, provider=provider, **dataset_kwargs)
         self._validate_provider_request(provider=provider, output_format=output_format)
 
@@ -179,10 +191,17 @@ provider : str
         output_path = self._output_path(output_dir, source_filename, output_format)
         ingest_path = cache_dir / "ingest" / source_filename
 
-        selected_provider, mode = self._select_provider(provider=provider, output_format=output_format, **dataset_kwargs)
-        logger.info(
-            f"provider={provider!r} trying {selected_provider!r} for {self.name.upper()} "
-            f"({mode} path, output_format={output_format!r})"
+        selected_provider, mode = self._select_provider(
+            provider=provider,
+            output_format=output_format,
+            **dataset_kwargs,
+        )
+        self.logger.info(
+            "Using provider %r (%s path, requested=%r, output_format=%r)",
+            selected_provider,
+            mode,
+            provider,
+            output_format,
         )
         provider_dir = cache_dir / "provider" / selected_provider
 
@@ -207,13 +226,12 @@ provider : str
                 )
                 raise RuntimeError(msg) from exc
         else:
-            logger.info(
-                f"provider={provider!r} resolved to {selected_provider!r} for {self.name.upper()} "
-                f"({mode} path, output_format={output_format!r})"
-            )
             return result
 
-        direct_providers, convertible_providers = self._provider_candidates(output_format=output_format, **dataset_kwargs)
+        direct_providers, convertible_providers = self._provider_candidates(
+            output_format=output_format,
+            **dataset_kwargs,
+        )
         attempted = [name for name in [*direct_providers, *convertible_providers] if name == selected_provider]
         errors = [f"- {selected_provider} ({mode}): {first_error}"]
 
@@ -223,8 +241,20 @@ provider : str
             ] + [
                 (name, "convertible") for name in convertible_providers if name != selected_provider
             ]
+            failed_provider = selected_provider
+            failed_mode = mode
+            failed_error = first_error
             for provider_name, candidate_mode in retry_order:
                 attempted.append(provider_name)
+                self.logger.warning(
+                    "Provider %r failed (%s path, output_format=%r): %s. Retrying with %r (%s path).",
+                    failed_provider,
+                    failed_mode,
+                    output_format,
+                    failed_error,
+                    provider_name,
+                    candidate_mode,
+                )
                 provider_dir = cache_dir / "provider" / provider_name
                 try:
                     result = self._get_from_provider(
@@ -240,10 +270,10 @@ provider : str
                     )
                 except Exception as inner_exc:
                     errors.append(f"- {provider_name} ({candidate_mode}): {inner_exc}")
+                    failed_provider = provider_name
+                    failed_mode = candidate_mode
+                    failed_error = inner_exc
                     continue
-                logger.info(
-                    f"provider='auto' resolved to {provider_name!r} after trying: {' -> '.join(attempted)}"
-                )
                 return result
 
         msg = (
@@ -312,17 +342,20 @@ provider : str
             artifact first.
         """
         if output_format == "raw":
-            logger.info(
-                f"provider={provider!r} with output_format='raw' uses canonical provider {self.canonical_provider!r}"
-            )
+            self.logger.debug("Raw output uses canonical provider %r", self.canonical_provider)
             return self.canonical_provider, "direct"
 
-        direct_providers, convertible_providers = self._provider_candidates(output_format=output_format, **dataset_kwargs)
+        direct_providers, convertible_providers = self._provider_candidates(
+            output_format=output_format,
+            **dataset_kwargs,
+        )
 
         if provider == "auto":
-            logger.info(
-                f"provider='auto' candidate order for {self.name.upper()} and output_format={output_format!r}: "
-                f"direct={direct_providers or ['<none>']}, convertible={convertible_providers or ['<none>']}"
+            self.logger.debug(
+                "Provider candidates for output_format=%r: direct=%s, convertible=%s",
+                output_format,
+                direct_providers or ["<none>"],
+                convertible_providers or ["<none>"],
             )
             if direct_providers:
                 return direct_providers[0], "direct"
@@ -364,7 +397,7 @@ provider : str
         Dataset-specific processing, and final conversion.
         """
         if mode == "direct" and output_format != "raw" and output_path is not None and output_path.exists():
-            logger.info(f"Output file already exists at {output_path}, skipping provider fetch.")
+            self.logger.info("Output cache hit: %s", output_path)
             return output_path
 
         provider_artifact = self.download(provider_dir, provider=provider_name, **dataset_kwargs)
@@ -378,28 +411,34 @@ provider : str
             return self._materialize_direct_output(provider_artifact, output_format, output_path)
 
         if output_path is not None and output_path.exists():
-            logger.info(f"Output file already exists at {output_path}, skipping download and conversion.")
+            self.logger.info("Output cache hit: %s", output_path)
             return output_path
 
         if self._provider_artifact_format(provider_name, **dataset_kwargs) == "sofa":
             if not _fits_in_memory(provider_artifact):
-                logger.warning(f"Not enough memory for conversion, returning {provider_artifact} instead ...")
+                self.logger.warning(
+                    "Conversion skipped for %s: dataset exceeds available memory; returning file path instead.",
+                    provider_artifact,
+                )
                 return provider_artifact
-            logger.debug(f"Reading provider SOFA artifact {provider_artifact} directly.")
+            self.logger.debug("Reading provider SOFA artifact %s directly", provider_artifact)
             sofa = sf.read_sofa(provider_artifact)
             return self._finalize_output(sofa, output_format, provider_artifact, output_path)
 
         if ingest_path.exists():
-            logger.info(f"Ingestible file already exists at {ingest_path}, skipping download and processing.")
+            self.logger.info("Ingest cache hit: %s", ingest_path)
         else:
-            logger.debug(f"Processing {provider_artifact} to {ingest_path}")
+            self.logger.debug("Processing provider artifact %s -> %s", provider_artifact, ingest_path)
             ingest_path = self.process(provider_artifact, ingest_path, provider=provider_name, **dataset_kwargs)
 
         if _fits_in_memory(ingest_path):
-            logger.debug(f"Ingesting {ingest_path} to SOFA format. Nom nom ...")
+            self.logger.debug("Reading ingest artifact %s into SOFA", ingest_path)
             sofa = self._ingest(ingest_path)
         else:
-            logger.warning(f"Not enough memory for conversion, returning {ingest_path} instead ...")
+            self.logger.warning(
+                "Conversion skipped for %s: dataset exceeds available memory; returning file path instead.",
+                ingest_path,
+            )
             return ingest_path
 
         return self._finalize_output(sofa, output_format, ingest_path, output_path)
@@ -419,16 +458,17 @@ provider : str
         """
         try:
             sofa.verify(issue_handling="raise")
-            with logger.as_stdout:
+            with sofar_logger.as_stdout:
                 sofa.upgrade_convention()
         except ValueError as e:
-            logger.error(
-                f"SOFA convention not satisfied!\n{e}\n"
-                "See https://sofar.readthedocs.io/en/stable/resources/conventions.html#conventions for details."
+            self.logger.error(
+                "SOFA convention not satisfied!\n%s\n"
+                "See https://sofar.readthedocs.io/en/stable/resources/conventions.html#conventions for details.",
+                e,
             )
             return None
 
-        logger.debug(f"Converting to {output_format} format")
+        self.logger.debug("Converting to %s format", output_format)
         return self._to_output(sofa, output_format, source_path, output_path)
 
     @abstractmethod
@@ -582,7 +622,10 @@ provider : str
         if output_format == "sofa":
             return self._copy_or_link(provider_artifact, output_path)
         if not _fits_in_memory(provider_artifact):
-            logger.warning(f"Not enough memory for conversion, returning {provider_artifact} instead ...")
+            self.logger.warning(
+                "Conversion skipped for %s: dataset exceeds available memory; returning file path instead.",
+                provider_artifact,
+            )
             return provider_artifact
         sofa = sf.read_sofa(provider_artifact)
         return self._finalize_output(sofa, output_format, provider_artifact, output_path)
