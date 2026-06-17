@@ -179,8 +179,53 @@ class TestProviderSelection:
         )
 
         assert result == tmp_path / "DUMMY" / "output" / "dummy.sofa"
-        assert any("provider='sonicom' requested='auto' output_format='sofa' -> provider-native path" in message for message in messages)
+        expected = "provider='sonicom' requested='auto' output_format='sofa' -> provider-native path"
+        assert any(expected in message for message in messages)
         assert not any("provider='depositonce'" in message for message in messages)
+
+    def test_explicit_provider_reuses_existing_output_without_download(self, tmp_path):
+        """Verify explicit non-raw provider requests reuse cached output before download."""
+
+        class DummyDataset(BaseDataset):
+            name = "dummy"
+            doi = "10.0000/dummy"
+            canonical_provider = "depositonce"
+            providers = ("depositonce", "sonicom")
+
+            def _validate_params(self, **dataset_kwargs):
+                pass
+
+            def _provider_artifact_format(self, provider: str, **_dataset_kwargs):
+                return "sofa" if provider == "sonicom" else "zip"
+
+            def _download(self, provider_dir: Path, provider: str, **_dataset_kwargs):
+                if provider == "depositonce":
+                    msg = "depositonce download should not run when output cache exists"
+                    raise AssertionError(msg)
+                target = provider_dir / "dummy.sofa"
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text("sonicom-sofa")
+                return target
+
+            def _ingest(self, ingest_path: Path):
+                raise NotImplementedError
+
+            def _source_filename(self, **_dataset_kwargs):
+                return "dummy.sofa"
+
+        dataset = DummyDataset()
+        output_path = tmp_path / "DUMMY" / "output" / "dummy.h5"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text("cached-output")
+
+        result = dataset._get(
+            cache_dir=tmp_path,
+            export_dir=None,
+            output_format="hdf5",
+            provider="depositonce",
+        )
+
+        assert result == output_path
 
 
 class TestIstaBaseDatasetAbstract:

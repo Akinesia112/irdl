@@ -400,7 +400,7 @@ provider : str
         handles raw export, provider-native SOFA-backed materialization,
         ingest reuse, Dataset-specific processing, and final conversion.
         """
-        if mode == "provider-native" and output_format != "raw" and output_path is not None and output_path.exists():
+        if output_format != "raw" and output_path is not None and output_path.exists():
             self.logger.info("Output cache hit: %s", output_path)
             return output_path
 
@@ -411,9 +411,6 @@ provider : str
             result = provider_artifact if export_dir is None else self._export_raw(provider_artifact, export_dir)
         elif mode == "provider-native":
             result = self._materialize_direct_output(provider_artifact, output_format, output_path)
-        elif output_path is not None and output_path.exists():
-            self.logger.info("Output cache hit: %s", output_path)
-            result = output_path
         elif self._provider_artifact_format(provider_name, **dataset_kwargs) == "sofa":
             result = self._finalize_sofa_provider_artifact(provider_artifact, output_format, output_path)
         else:
