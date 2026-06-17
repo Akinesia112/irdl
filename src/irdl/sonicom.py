@@ -3,33 +3,55 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from collections.abc import Mapping
 from pathlib import Path
 
 from irdl.base import SofaBaseDataset
-from irdl.downloader import _fetch, _pooch_from_static_registry
+from irdl.downloader import _fetch, _pooch_from_sonicom_database
+from irdl.utils import load_hash_registry
 
 
 class SonicomBaseDataset(SofaBaseDataset):
     """Abstract base class for SOFA-backed datasets served from SONICOM.
 
     SONICOM is modeled as a non-canonical Provider that serves SOFA artifacts
-    through direct fetch specifications rather than DOI resolution. Concrete
-    subclasses provide the small registry and URL maps needed to download the
-    requested file.
+    from SONICOM database manifests. Concrete subclasses provide the requested
+    file name, while the base class derives the SONICOM database URL and
+    packaged checksum lookup.
     """
+
+    _sonicom_root = "https://ecosystem.sonicom.eu/databases"
+    _sonicom_database_id: int | None = None
 
     @abstractmethod
     def _source_filename(self, **dataset_kwargs) -> str:
         """Return the ingest-ready SOFA filename for the requested SONICOM artifact."""
 
-    @abstractmethod
-    def _sonicom_registry(self, **dataset_kwargs) -> Mapping[str, str | None]:
-        """Return pooch registry entries for SONICOM downloads."""
+    def _sonicom_database_url(self) -> str:
+        """Return the SONICOM database landing URL for manifest-backed downloads."""
+        if self._sonicom_database_id is None:
+            msg = f"{self.__class__.__name__} must define _sonicom_database_id for manifest-backed SONICOM downloads"
+            raise NotImplementedError(msg)
+        return f"{self._sonicom_root}/{self._sonicom_database_id}"
 
-    @abstractmethod
-    def _sonicom_urls(self, **dataset_kwargs) -> Mapping[str, str]:
-        """Return direct download URLs for SONICOM downloads."""
+    def _sonicom_registry_key(self, **dataset_kwargs) -> str:
+        """Return the packaged SONICOM registry key for one artifact."""
+        source_filename = self._source_filename(**dataset_kwargs)
+        return f"{self.name}/{source_filename}"
+
+    def _sonicom_checksum(self, **dataset_kwargs) -> str | None:
+        """Return the checksum for one SONICOM artifact."""
+        return load_hash_registry("sonicom")[self._sonicom_registry_key(**dataset_kwargs)]
+
+    def _sonicom_pooch(self, provider_dir: Path, **dataset_kwargs):
+        """Return a configured pooch instance for one SONICOM download."""
+        source_filename = self._source_filename(**dataset_kwargs)
+        checksum = self._sonicom_checksum(**dataset_kwargs)
+        return _pooch_from_sonicom_database(
+            path=provider_dir,
+            database_url=self._sonicom_database_url(),
+            fname=source_filename,
+            checksum=checksum,
+        )
 
     def _provider_artifact_format(self, provider: str, **_dataset_kwargs) -> str:
         """Return the Provider-side artifact Data Format for SONICOM datasets.
@@ -63,9 +85,5 @@ class SonicomBaseDataset(SofaBaseDataset):
             raise ValueError(msg)
         source_filename = self._source_filename(**dataset_kwargs)
         self.logger.info("provider=%r artifact=%r -> download to provider cache", provider, source_filename)
-        pup = _pooch_from_static_registry(
-            path=provider_dir,
-            registry=self._sonicom_registry(**dataset_kwargs),
-            urls=self._sonicom_urls(**dataset_kwargs),
-        )
+        pup = self._sonicom_pooch(provider_dir, **dataset_kwargs)
         return Path(_fetch(pup, source_filename))

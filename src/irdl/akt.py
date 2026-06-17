@@ -9,8 +9,8 @@ from pathlib import Path
 from zipfile import ZipFile
 
 from irdl.base import DatasetCategory, SofaBaseDataset
-from irdl.downloader import _fetch, _pooch_from_doi, _pooch_from_sonicom_database
-from irdl.utils import load_hash_registry
+from irdl.downloader import _fetch, _pooch_from_doi
+from irdl.sonicom import SonicomBaseDataset
 
 
 class AKTZipBaseDataset(SofaBaseDataset):
@@ -288,7 +288,7 @@ class FabianDataset(AKTZipBaseDataset):
         return f"FABIAN_HRIR_{dataset_kwargs['kind']}_HATO_{dataset_kwargs['hato']}.sofa"
 
 
-class HutubsDataset(AKTZipBaseDataset):
+class HutubsDataset(AKTZipBaseDataset, SonicomBaseDataset):
     """Download the HUTUBS HRTF database from DepositOnce or SONICOM.
 
     DepositOnce remains the canonical Provider and publishes a ZIP archive.
@@ -301,9 +301,7 @@ class HutubsDataset(AKTZipBaseDataset):
     providers = ("sonicom", "depositonce")
     _category = DatasetCategory.HEAD_RELATED_IMPULSE_RESPONSES
     _zipfile = "HRIRs.zip"
-    _sonicom_root = "https://ecosystem.sonicom.eu/databases/76"
-    _sonicom_registry_name = "sonicom"
-    _sonicom_registry_prefix = "hutubs"
+    _sonicom_database_id = 76
 
     @classmethod
     def get(
@@ -344,29 +342,19 @@ class HutubsDataset(AKTZipBaseDataset):
         """
         if provider == "sonicom":
             return "sofa"
-        return super()._provider_artifact_format(provider, **_dataset_kwargs)
+        return AKTZipBaseDataset._provider_artifact_format(self, provider, **_dataset_kwargs)
 
     def _download(self, provider_dir: Path, provider: str, **dataset_kwargs) -> Path:
         """Download HUTUBS data from the selected Provider.
 
         The canonical Provider delegates to the shared AKT ZIP workflow.
-        ``sonicom`` resolves one SOFA file from the SONICOM database manifest
-        and downloads it directly from the mirrored file URL, verifying the
-        artifact against the packaged SONICOM hash registry.
+        ``sonicom`` delegates to :class:`~irdl.sonicom.SonicomBaseDataset`,
+        which resolves the mirrored file from the SONICOM database manifest and
+        verifies it against the packaged SONICOM hash registry.
         """
         if provider == "sonicom":
-            filename = self._source_filename(**dataset_kwargs)
-            checksum = load_hash_registry(self._sonicom_registry_name)[f"{self._sonicom_registry_prefix}/{filename}"]
-            pup = _pooch_from_sonicom_database(
-                path=provider_dir,
-                database_url=self._sonicom_root,
-                fname=filename,
-                checksum=checksum,
-            )
-            self.logger.info("provider=%r artifact=%r -> download to provider cache", provider, filename)
-            _fetch(pup, filename)
-            return provider_dir / filename
-        return super()._download(provider_dir, provider=provider, **dataset_kwargs)
+            return SonicomBaseDataset._download(self, provider_dir, provider=provider, **dataset_kwargs)
+        return AKTZipBaseDataset._download(self, provider_dir, provider=provider, **dataset_kwargs)
 
     def _validate_params(self, **dataset_kwargs) -> None:
         """Validate HUTUBS-specific parameters.
