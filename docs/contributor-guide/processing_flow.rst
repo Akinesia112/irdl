@@ -107,8 +107,10 @@ Output behavior
 ``output_format="raw"`` returns the canonical provider-stage artifact before ``irdl`` processing.
 For all other Output Formats, ``irdl`` either materializes the output directly from a SOFA
 provider artifact or ingests the data to SOFA first and then converts from SOFA to the requested
-representation. ``provider="auto"`` is transparent: IRDL logs the direct and convertible Provider
-order, then reports which Provider won. See the public class docs in :doc:`/reference/python_api`.
+representation. ``provider="auto"`` is transparent: IRDL logs the provider-native and
+ingest-derived Provider order, then reports which Provider won. Final non-raw output is reused
+from the ``output`` cache before any Provider download starts, even for explicit Provider
+requests. See the public class docs in :doc:`/reference/python_api`.
 
 When ``export_dir`` is provided, ``irdl`` copies the requested artifact to the Export Directory.
 The cache remains intact so later calls can reuse provider, ingest, or output artifacts.

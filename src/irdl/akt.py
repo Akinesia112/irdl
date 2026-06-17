@@ -351,8 +351,8 @@ class HutubsDataset(AKTZipBaseDataset):
 
         The canonical Provider delegates to the shared AKT ZIP workflow.
         ``sonicom`` resolves one SOFA file from the SONICOM database manifest
-        and downloads it directly from the mirrored file URL. Checksums are
-        intentionally omitted for this path until SONICOM exposes them.
+        and downloads it directly from the mirrored file URL, verifying the
+        artifact against the packaged SONICOM hash registry.
         """
         if provider == "sonicom":
             filename = self._source_filename(**dataset_kwargs)

@@ -31,6 +31,7 @@ Use the MIRACLE Dataset class directly:
 By default, ``get()`` returns in-memory ``pyfar`` objects. Use ``output_format`` when you
 want NumPy arrays or a file-backed return such as ``"sofa"`` or ``"hdf5"``. Use
 ``provider`` to pin a concrete fetch endpoint or leave the default ``"auto"`` in place.
+For non-raw outputs, ``"auto"`` prefers a provider-native path when one is available.
 
 CLI
 ---
@@ -44,6 +45,9 @@ The CLI exposes the same MIRACLE retrieval flow as a Dataset subcommand:
 Add ``--output-format sofa`` or ``--output-format hdf5`` when you want a file-backed
 result. Use ``--provider depositonce`` to pin a specific Provider, or keep ``--provider auto``
 for transparent automatic selection. Use ``--export-dir`` to copy the requested artifact to an Export Directory.
+
+``--output-format raw`` is special: it always returns the canonical Provider artifact, even
+when ``--provider auto`` would otherwise prefer a mirrored provider for processed outputs.
 
 Next steps
 ----------

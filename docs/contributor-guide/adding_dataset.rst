@@ -102,6 +102,8 @@ Keep this template intentionally small. Do not copy processing logic from anothe
 unless the new Dataset has the same provider format and needs the same transformation.
 When adding multiple Providers, keep the Provider-specific part limited to availability facts
 and download mechanics; the Dataset or Dataset Group should still own ingest semantics.
+List ``providers`` in the preference order you want ``provider="auto"`` to try: first
+provider-native candidates, then ingest-derived ones.
 
 Update public API and CLI
 -------------------------
@@ -151,7 +153,28 @@ docs. Maintainers can refresh generated docs during review by running:
 
 .. code-block:: console
 
+   $ uv run make -C docs generated-docs
+
+Then build the full documentation set with:
+
+.. code-block:: console
+
    $ uv run make -C docs html
+
+Provider registries and mirrored files
+--------------------------------------
+
+If a non-canonical Provider mirrors files directly rather than exposing checksums through a DOI
+resolver, package a static registry under ``src/irdl/registry/`` and load it from the Dataset
+code. For example, the SONICOM registry is generated with:
+
+.. code-block:: console
+
+   $ uv run python scripts/update_sonicom_hashes.py
+
+Store keys as provider-relative paths (for example ``hutubs/pp1_HRIRs_measured.sofa``) and values
+as ``sha256:...`` digests. Commit the regenerated registry together with the code change that
+starts relying on it.
 
 Manual verification and Evidence
 --------------------------------

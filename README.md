@@ -12,9 +12,10 @@ Python package to download, unpack and process impulse response datasets in a un
   - a path to an HDF5-file for partial data access not having to load the entire data into memory (`'hdf5'`)
   - a path to a SOFA-file, the standardised format for spatially oriented acoustic data (`'sofa'`)
   - a path to the unprocessed provider files as downloaded (`'raw'`)
-- Leverages [`pooch`](https://www.fatiando.org/pooch/latest/) to download impulse response datasets and verifies their integrity with a checksum. 
+- Leverages [`pooch`](https://www.fatiando.org/pooch/latest/) to download impulse response datasets and verifies their integrity with DOI metadata or packaged hash registries.
 - Only downloads, extracts and processes what is actually needed.
 - Supports provider selection via ``provider=...`` / ``--provider ...`` with transparent ``auto`` resolution.
+- Restricts ``output_format="raw"`` to the canonical Provider while allowing ``auto`` to prefer mirrored SOFA-native Providers for processed outputs.
 - Adds `pooch`-support for dSpace repositories, such as TU Berlin [depositonce](https://depositonce.tu-berlin.de/home).
 - Data storage location can be set by the `IRDL_CACHE_DIR` environment variable (defaults to the user cache directory).
 - Output can be processed and exported to a custom location via the `export_dir` argument.
@@ -86,3 +87,9 @@ Example:
 ``` shell
 $ irdl get miracle --scenario D1 --provider auto
 ```
+
+Provider selection rules:
+
+- ``--provider auto`` prefers a provider-native path when one is available for the requested output format.
+- ``--provider <name>`` pins a concrete Provider but still reuses any matching cached final output.
+- ``--output-format raw`` always uses the canonical Provider artifact.
