@@ -1,11 +1,21 @@
 """Tests for ISTA-specific file processing helpers."""
 
+import os
 from pathlib import Path
 
 import h5py
 import numpy as np
 
 from irdl.ista import MiracleDataset, SrirachaDataset
+
+
+def _assert_permissions_preserved(source_mode: int, target_path: Path) -> None:
+    """Assert permission preservation with Windows-compatible semantics."""
+    target_mode = target_path.stat().st_mode & 0o777
+    if os.name == "nt":
+        assert bool(source_mode & 0o200) == bool(target_mode & 0o200)
+    else:
+        assert target_mode == source_mode
 
 
 def _write_ista_hdf5(path: Path, *, n_sources: int, start: int = 0) -> None:
@@ -42,7 +52,7 @@ class TestMiracleProcessing:
         output_path = tmp_path / "ingest" / "A1-C1.h5"
         result = dataset._extract_split(provider_artifact, "C1", output_path)
 
-        assert result.stat().st_mode & 0o777 == provider_artifact.stat().st_mode & 0o777
+        _assert_permissions_preserved(provider_artifact.stat().st_mode & 0o777, result)
 
 
 class TestSrirachaProcessing:
@@ -54,14 +64,19 @@ class TestSrirachaProcessing:
         provider_dir = tmp_path / "provider"
         provider_dir.mkdir()
 
+        first_split_path = None
         for index, split in enumerate(("C1", "C2", "C3", "C4")):
             split_path = provider_dir / f"SR1-{split}.h5"
             _write_ista_hdf5(split_path, n_sources=1, start=index * 100)
             split_path.chmod(0o640)
+            if first_split_path is None:
+                first_split_path = split_path
 
+        assert first_split_path is not None
+        source_mode = first_split_path.stat().st_mode & 0o777
         ingest_path = tmp_path / "ingest" / "SR1.h5"
         ingest_path.parent.mkdir()
         result = dataset._merge_split_files("SR1", provider_dir, ingest_path)
 
-        assert result.stat().st_mode & 0o777 == 0o640  # noqa: PLR2004
+        _assert_permissions_preserved(source_mode, result)
         assert not any(provider_dir.glob("SR1-C*.h5"))

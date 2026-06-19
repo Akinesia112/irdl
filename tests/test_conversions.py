@@ -1,5 +1,6 @@
 """Tests for Dataset conversion methods."""
 
+import os
 import tempfile
 from pathlib import Path
 
@@ -35,6 +36,16 @@ class TestDataset(BaseDataset):
 
 # Create the TestDataset instance to use for all conversion tests
 test_dataset = TestDataset()
+
+
+def _assert_permissions_preserved(source_path: Path, target_path: Path) -> None:
+    """Assert permission preservation with Windows-compatible semantics."""
+    source_mode = source_path.stat().st_mode & 0o777
+    target_mode = target_path.stat().st_mode & 0o777
+    if os.name == "nt":
+        assert bool(source_mode & 0o200) == bool(target_mode & 0o200)
+    else:
+        assert target_mode == source_mode
 
 
 class TestConversionToPyFar:
@@ -139,7 +150,7 @@ class TestConversionToSofa:
         output_path = tmp_path / "test.sofa"
         result = test_dataset._to_sofa(sofa_object, ingest_path, output_path)
 
-        assert result.stat().st_mode & 0o777 == ingest_path.stat().st_mode & 0o777
+        _assert_permissions_preserved(ingest_path, result)
 
 
 class TestConversionToHdf5:
@@ -195,4 +206,4 @@ class TestConversionToHdf5:
         output_path = tmp_path / "test.h5"
         result = test_dataset._to_hdf5(sofa_object, ingest_path, output_path)
 
-        assert result.stat().st_mode & 0o777 == ingest_path.stat().st_mode & 0o777
+        _assert_permissions_preserved(ingest_path, result)
