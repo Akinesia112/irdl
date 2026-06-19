@@ -5,8 +5,8 @@ Adding a new Dataset
 
 A new Dataset should fit into the shared :class:`~irdl.base.BaseDataset` ``get()`` flow
 rather than implementing its own retrieval pipeline. The Dataset-specific code covers three
-responsibilities: acquiring provider data, preparing a single file for the ``ingest`` stage,
-and reading that file into the internal SOFA representation. See
+responsibilities: acquiring provider data, preparing an artifact for the ``ingest`` stage,
+and writing that artifact to the retained internal SOFA file. See
 :ref:`get-processing-flow` for the full list of extension points.
 
 Choose a base class
@@ -16,9 +16,9 @@ Always inherit from :class:`~irdl.base.BaseDataset` unless a more specific base 
 Introduce a new Dataset Family class only when at least two Datasets share dataset-specific steps 
 in the ``get`` pipeline.
 
-If the provider data is already SOFA-native, consider inheriting from
-:class:`~irdl.sofa.SofaBaseDataset`. :class:`~irdl.sofa.SofaBaseDataset` preserves the same shared flow but
-avoids unnecessary SOFA output rewrites when ``output_format="sofa"`` is requested.
+If the provider data is already SOFA-native, keep inheriting from
+:class:`~irdl.base.BaseDataset`. The default ``_ingest()`` promotes SOFA files directly
+without rewriting them.
 
 Implement the Dataset class
 ---------------------------
@@ -28,8 +28,6 @@ A skeletal Dataset looks like this:
 .. code-block:: python
 
    from pathlib import Path
-
-   import sofar as sf
 
    from irdl.base import BaseDataset
 
@@ -85,8 +83,8 @@ A skeletal Dataset looks like this:
            # Note: The public process() method is a wrapper that calls this _process() method.
            raise NotImplementedError
 
-       def _ingest(self, ingest_path: Path) -> sf.Sofa:
-           # Read ingest_path and return a sofar.Sofa object.
+       def _ingest(self, ingest_path: Path, sofa_path: Path, **dataset_kwargs) -> Path:
+           # Write ingest_path to sofa_path and return sofa_path.
            raise NotImplementedError
 
 Keep this template intentionally small. Do not copy processing logic from another Dataset

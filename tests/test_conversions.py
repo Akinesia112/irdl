@@ -4,6 +4,7 @@ import tempfile
 from pathlib import Path
 
 import h5py
+import netCDF4
 import numpy as np
 import pyfar as pf
 import sofar as sf
@@ -117,15 +118,18 @@ class TestConversionToSofa:
     def test_conversion_to_sofa_returns_path(self, sofa_object):
         """Verify _to_sofa returns a Path object."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            result = test_dataset._to_sofa(sofa_object, Path(tmpdir), Path(tmpdir) / "test.sofa")
+            sofa_path = Path(tmpdir) / "cached.sofa"
+            sf.write_sofa(sofa_path, sofa_object)
+            result = test_dataset._to_sofa(sofa_path, Path(tmpdir) / "test.sofa")
             assert isinstance(result, Path)
             assert result.exists()
 
     def test_conversion_to_sofa_writable(self, sofa_object, tmpdir):
-        """Verify _to_sofa writes a valid SOFA file."""
-        result = test_dataset._to_sofa(sofa_object, Path(tmpdir), Path(tmpdir) / "test.sofa")
+        """Verify _to_sofa returns a readable SOFA file."""
+        sofa_path = Path(tmpdir) / "cached.sofa"
+        sf.write_sofa(sofa_path, sofa_object)
+        result = test_dataset._to_sofa(sofa_path, Path(tmpdir) / "test.sofa")
 
-        # Verify file can be read back
         loaded_sofa = sf.read_sofa(str(result))
         assert loaded_sofa.Data_IR.shape == sofa_object.Data_IR.shape
         assert loaded_sofa.Data_SamplingRate == sofa_object.Data_SamplingRate
@@ -137,14 +141,18 @@ class TestConversionToHdf5:
     def test_conversion_to_hdf5_returns_path(self, sofa_object):
         """Verify _to_hdf5 returns a Path object."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            result = test_dataset._to_hdf5(sofa_object, Path(tmpdir), Path(tmpdir) / "test.h5")
+            sofa_path = Path(tmpdir) / "test.sofa"
+            sf.write_sofa(sofa_path, sofa_object)
+            result = test_dataset._to_hdf5_file(sofa_path, Path(tmpdir) / "test.h5")
             assert isinstance(result, Path)
             assert result.exists()
 
     def test_conversion_to_hdf5_structure(self, sofa_object):
         """Verify _to_hdf5 writes file with expected HDF5 structure."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            result = test_dataset._to_hdf5(sofa_object, Path(tmpdir), Path(tmpdir) / "test.h5")
+            sofa_path = Path(tmpdir) / "test.sofa"
+            sf.write_sofa(sofa_path, sofa_object)
+            result = test_dataset._to_hdf5_file(sofa_path, Path(tmpdir) / "test.h5")
 
             with h5py.File(result, "r") as f:
                 # Check data group exists
@@ -158,17 +166,26 @@ class TestConversionToHdf5:
                 assert "metadata" in f
                 assert "sampling_rate" in f["metadata"]
 
-    def test_conversion_to_hdf5_optional_fields(self, sofa_object):
-        """Verify _to_hdf5 includes optional temperature/humidity fields when present."""
-        # Manually add optional fields to the sofa object
-        # Note: This bypasses SOFA's protected mode for testing purposes
-        sofa_object._protected = False
-        sofa_object.RoomTemperature = np.array([20.0, 20.0])
-        sofa_object.Humidity = np.array([50.0, 50.0])
-        sofa_object.SpeedOfSound = np.array([[343.0], [343.0]])
-
+    def test_conversion_to_hdf5_optional_fields(self):
+        """Verify _to_hdf5_file includes optional temperature/humidity fields."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            result = test_dataset._to_hdf5(sofa_object, Path(tmpdir), Path(tmpdir) / "test.h5")
+            sofa_path = Path(tmpdir) / "test.sofa"
+            with netCDF4.Dataset(sofa_path, "w") as sofa:
+                sofa.createDimension("M", 2)
+                sofa.createDimension("R", 2)
+                sofa.createDimension("N", 3)
+                sofa.createDimension("E", 1)
+                sofa.createDimension("C", 3)
+                sofa.createDimension("I", 1)
+                sofa.createVariable("Data.IR", "f8", ("M", "R", "N", "E"))[:] = 0
+                sofa.createVariable("SourcePosition", "f8", ("M", "C"))[:] = 0
+                sofa.createVariable("ReceiverPosition", "f8", ("R", "C", "I"))[:] = 0
+                sofa.createVariable("Data.SamplingRate", "f8", ("I",))[:] = 48_000
+                sofa.createVariable("RoomTemperature", "f8", ("M",))[:] = 293.15
+                sofa.createVariable("Humidity", "f8", ("M", "I"))[:] = 50
+                sofa.createVariable("SpeedOfSound", "f8", ("M", "I"))[:] = 343
+
+            result = test_dataset._to_hdf5_file(sofa_path, Path(tmpdir) / "test.h5")
 
             with h5py.File(result, "r") as f:
                 assert "temperature" in f["metadata"]

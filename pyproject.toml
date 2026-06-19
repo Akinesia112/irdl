@@ -36,7 +36,8 @@ dependencies = [
     "rich>=13.0.0",
     "typer>=0.26.7,<0.27",
     "psutil>=7.0.0",
-    "sofar>=1.2.3",
+    "sofar @ git+https://github.com/pyfar/sofar.git@verify-stream",
+    "netcdf4>=1.7.3",
 ]
 
 [dependency-groups]

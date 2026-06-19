@@ -1,6 +1,8 @@
 """Utility functions for IRDL."""
 
 import json
+import os
+import shutil
 from functools import cache
 from importlib import resources
 from pathlib import Path
@@ -57,6 +59,24 @@ def _validate_hash_registry(provider_name: str, registry: object) -> None:
         if not isinstance(value, str) or not value.startswith("sha256:"):
             msg = f"Hash registry '{provider_name}' contains invalid digest for {key!r}: {value!r}"
             raise ValueError(msg)
+
+
+def _link_or_copy(source_path: Path, target_path: Path) -> Path:
+    """Hard-link a file, falling back to copy."""
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    if target_path.parent.parent == source_path.parent.parent:
+        try:
+            logger.debug(f"Linking {source_path} to {target_path}.")
+            with logger.spin(f"Linking {target_path.name}..."):
+                os.link(source_path, target_path)
+        except OSError as e:
+            logger.debug(f"Linking failed: {e!r}")
+        else:
+            return target_path
+    logger.debug(f"Copying {source_path} to {target_path}.")
+    with logger.spin(f"Copying {target_path.name}..."):
+        shutil.copy2(source_path, target_path)
+    return target_path
 
 
 def _fits_in_memory(ingest_path: Path) -> bool:

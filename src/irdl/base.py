@@ -25,13 +25,16 @@ from pathlib import Path
 from types import ModuleType
 
 import h5py as h5
+import netCDF4
 import numpy as np
 import pyfar as pf
 import sofar as sf
 
 from irdl.cache import IRDL_CACHE_DIR
 from irdl.logging import logger
-from irdl.utils import _fits_in_memory
+from irdl.utils import _link_or_copy
+
+_SOFA_FIR_E_DIMS = 4
 
 
 class DatasetCategory(StrEnum):
@@ -61,8 +64,8 @@ class BaseDataset(ABC):
         Download and return Path to raw file.
     _process(provider_artifact: Path, ingest_path: Path, **_dataset_kwargs) -> Path:
         Post-process downloaded file if needed
-    _ingest(ingest_path: Path) -> sofar.Sofa
-        Convert processed or raw file to sofar.Sofa object.
+    _ingest(ingest_artifact: Path, sofa_path: Path) -> Path
+        Write processed/provider artifact to an on-disk SOFA file.
     get() @classmethod
         Public entry point. Uses explicit type signature for CLI auto-generation.
     """
@@ -170,41 +173,56 @@ output_format : str
             return self._export_raw(provider_artifact, export_dir)
 
         # Early exit if output file already exists (not applicable for raw format, handled above)
-        if output_path is not None and output_path.exists():
+        if output_format != "sofa" and output_path is not None and output_path.exists():
             logger.info(f"Output file already exists at {output_path}, skipping download and conversion.")
             return output_path
 
-        # Check if ingest-ready file already exists
-        if ingest_path.exists():
-            logger.info(f"Ingestible file already exists at {ingest_path}, skipping download and processing.")
-        else:
-            # Download to provider directory
-            provider_artifact = self.download(provider_dir, **dataset_kwargs)
-            logger.debug(f"Processing {provider_artifact} to {ingest_path}")
-            ingest_path = self.process(provider_artifact, ingest_path, **dataset_kwargs)
+        sofa_path = self._output_path(cache_dir / "output", source_filename, "sofa")
+        if sofa_path.exists():
+            logger.info(f"Cache hit: {sofa_path}.")
+            with logger.spin(f"Checking cached SOFA {sofa_path.name}..."):
+                cache_ok = self._sofa_stream_verify_ok(sofa_path)
+            if cache_ok:
+                logger.debug("Cached SOFA file passed validation.")
+            else:
+                logger.warning(f"Cached SOFA file at {sofa_path} is invalid, rebuilding.")
+                sofa_path.unlink()
+        if not sofa_path.exists():
+            if ingest_path.exists():
+                logger.info(f"Ingestible file already exists at {ingest_path}, skipping download and processing.")
+                ingest_artifact = ingest_path
+            else:
+                provider_artifact = self.download(provider_dir, **dataset_kwargs)
+                ingest_artifact = self.process(provider_artifact, ingest_path, **dataset_kwargs)
+            logger.debug(f"Ingesting {ingest_artifact} to SOFA file {sofa_path}")
+            with logger.spin(f"Writing SOFA {sofa_path.name}..."):
+                self._ingest(ingest_artifact, sofa_path, **dataset_kwargs)
 
-        # Ingest to SOFA (internal standard)
-        if _fits_in_memory(ingest_path):
-            logger.debug(f"Ingesting {ingest_path} to SOFA format. Nom nom ...")
-            sofa = self._ingest(ingest_path)
-        else:
-            logger.warning(f"Not enough memory for conversion, returning {ingest_path} instead ...")
-            return ingest_path
+        return self._to_output(output_format, sofa_path, output_path)
 
-        # Check for correct SOFA conventions. This gives instant feedback when adding new datasets.
+    def _sofa_stream_verify_ok(self, sofa_path: Path) -> bool:
+        """Check SOFA convention without loading payload data."""
         try:
-            sofa.verify(issue_handling="raise")
+            self._verify_sofa_convention(sofa_path)
+        except (OSError, ValueError):
+            return False
+        return True
+
+    def _verify_sofa_convention(self, sofa_path: Path) -> None:
+        """Verify SOFA convention like main, but through SofaStream."""
+        try:
+            with sf.SofaStream(sofa_path) as sofa, logger.as_stdout:
+                sofa.verify(issue_handling="raise", mode="read")
+                convention = sofa.GLOBAL_SOFAConventions
+                version = sofa.GLOBAL_SOFAConventionsVersion
             with logger.as_stdout:
-                sofa.upgrade_convention()
-        except ValueError as e:
+                sf.Sofa(convention, version=version, verify=False).upgrade_convention(verify=False)
+        except (OSError, ValueError) as error:
             logger.error(
-                f"SOFA convention not satisfied!\n{e}\n"
+                f"SOFA convention not satisfied!\n{error}\n"
                 "See https://sofar.readthedocs.io/en/stable/resources/conventions.html#conventions for details."
             )
-            return None
-
-        logger.debug(f"Converting to {output_format} format")
-        return self._to_output(sofa, output_format, ingest_path, output_path)
+            raise
 
     @abstractmethod
     def _validate_params(self, **dataset_kwargs) -> None:
@@ -335,22 +353,18 @@ output_format : str
         )
         raise NotImplementedError(msg)
 
-    @abstractmethod
-    def _ingest(self, ingest_path: Path) -> sf.Sofa:
-        """Convert processed or raw file to sofar.Sofa object.
+    def _ingest(self, ingest_artifact: Path, sofa_path: Path, **_dataset_kwargs) -> Path:
+        """Ingest an artifact to a retained SOFA file.
 
-        Override in subclass.
-
-        Parameters
-        ----------
-        ingest_path : :class:`pathlib.Path`
-            Path to the ingest-ready file in the ``ingest/`` subdirectory.
-
-        Returns
-        -------
-        sofa : :class:`sofar.Sofa`
-            SOFA object representing the Dataset data.
+        SOFA ingest-ready artifacts can be promoted directly. Other Datasets
+        override this method with a Dataset-specific writer.
         """
+        if ingest_artifact.suffix == ".sofa":
+            result = _link_or_copy(ingest_artifact, sofa_path)
+            self._verify_sofa_convention(result)
+            return result
+        msg = f"{type(self).__name__} must implement _ingest"
+        raise NotImplementedError(msg)
 
     def _output_path(self, output_dir: Path, source_filename: str, output_format: str) -> Path | None:
         """Return the canonical Path where a file-based output would be written.
@@ -414,18 +428,15 @@ output_format : str
         msg = f"Provider artifact must be a file or directory, but {self.name} returned: {provider_artifact}"
         raise ValueError(msg)
 
-    def _to_output(self, sofa: sf.Sofa, output_format: str, ingest_path: Path, output_path: Path | None) -> dict | Path:
-        """Convert sofar.Sofa to the requested output format.
+    def _to_output(self, output_format: str, sofa_path: Path, output_path: Path | None) -> dict | Path:
+        """Convert the retained SOFA file to the requested output format.
 
         Parameters
         ----------
-        sofa : :class:`sofar.Sofa`
-            SOFA object to convert.
         output_format : str
             One of "pyfar", "numpy", "hdf5", "sofa".
-        ingest_path : :class:`pathlib.Path`
-            Path to the ingestible file. We also pass to allow for file-based export mechanics that
-            avoid loading into memory.
+        sofa_path : :class:`pathlib.Path`
+            Retained SOFA file to convert from.
         output_path : :class:`pathlib.Path` or None
             Path where file-based outputs should be written.
 
@@ -438,14 +449,17 @@ output_format : str
             - "hdf5" : :class:`pathlib.Path` to .h5 file
             - "sofa" : :class:`pathlib.Path` to .sofa file
         """
-        if output_format == "pyfar":
-            return self._to_pyfar(sofa)
-        if output_format == "numpy":
-            return self._to_numpy(sofa)
         if output_format == "sofa":
-            return self._to_sofa(sofa, ingest_path, output_path)
+            return self._to_sofa(sofa_path, output_path)
         if output_format == "hdf5":
-            return self._to_hdf5(sofa, ingest_path, output_path)
+            return self._to_hdf5_file(sofa_path, output_path)
+        if output_format in ("pyfar", "numpy"):
+            logger.info(f"Loading SOFA file for {output_format} conversion.")
+            with logger.spin(f"Loading {sofa_path.name}..."):
+                sofa = sf.read_sofa(sofa_path, verify=False)
+            if output_format == "pyfar":
+                return self._to_pyfar(sofa)
+            return self._to_numpy(sofa)
         msg = f"Unknown output_format: {output_format}"
         raise ValueError(msg)
 
@@ -497,122 +511,50 @@ output_format : str
             "sampling_rate": float(sofa.Data_SamplingRate),
         }
 
-    def _to_sofa(self, sofa: sf.Sofa, ingest_path: Path, output_path: Path) -> Path:  # noqa: ARG002
-        """Write sofar.Sofa to file and return Path.
+    def _to_sofa(self, sofa_path: Path, output_path: Path | None) -> Path:
+        """Return or export the retained SOFA file."""
+        if output_path is None or output_path == sofa_path:
+            logger.info(f"Returning cached SOFA file {sofa_path}.")
+            return sofa_path
+        logger.info(f"Exporting SOFA file to {output_path}.")
+        return _link_or_copy(sofa_path, output_path)
 
-        Parameters
-        ----------
-        sofa : :class:`sofar.Sofa`
-            SOFA object to write.
-        ingest_path : :class:`pathlib.Path`
-            Path to the ingestible file.
-        output_path : :class:`pathlib.Path`
-            Path where the .sofa file should be written.
+    def _to_hdf5_file(self, sofa_path: Path, output_path: Path, *, chunk_size: int = 64) -> Path:
+        """Convert a SOFA file to IRDL HDF5 without loading all IR data."""
+        if chunk_size <= 0:
+            msg = "chunk_size must be > 0"
+            raise ValueError(msg)
 
-        Returns
-        -------
-        :class:`pathlib.Path`
-            Path to the written SOFA file.
-        """
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        sf.write_sofa(output_path, sofa)
-        return output_path
-
-    def _to_hdf5(self, sofa: sf.Sofa, ingest_path: Path, output_path: Path) -> Path:  # noqa: ARG002
-        """Convert sofar.Sofa to HDF5 file and return Path.
-
-        Parameters
-        ----------
-        sofa : :class:`sofar.Sofa`
-            SOFA object to convert.
-        ingest_path : :class:`pathlib.Path`
-            Path to the ingestible file.
-        output_path : :class:`pathlib.Path`
-            Path where the .h5 file should be written.
-
-        Returns
-        -------
-        :class:`pathlib.Path`
-            Path to the written HDF5 file.
-        """
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-
-        with h5.File(output_path, "w") as f:
-            # Create data group
+        with (
+            logger.spin(f"Writing HDF5 {output_path.name}..."),
+            netCDF4.Dataset(sofa_path, "r") as sofa,
+            h5.File(output_path, "w") as f,
+        ):
             data_group = f.create_group("data")
-            data_group.create_dataset("impulse_response", data=sofa.Data_IR)
+            ir = sofa.variables["Data.IR"]
+            has_single_emitter = len(ir.shape) == _SOFA_FIR_E_DIMS and ir.shape[-1] == 1
+            ir_shape = ir.shape[:-1] if has_single_emitter else ir.shape
+            output_ir = data_group.create_dataset("impulse_response", shape=ir_shape, dtype=ir.dtype)
+            for start in range(0, ir_shape[0], chunk_size):
+                row_slice = slice(start, min(start + chunk_size, ir_shape[0]))
+                output_ir[row_slice] = ir[row_slice, :, :, 0] if has_single_emitter else ir[row_slice]
 
-            # Create location group
             loc_group = data_group.create_group("location")
-            loc_group.create_dataset("source", data=sofa.SourcePosition)
-            loc_group.create_dataset("receiver", data=sofa.ReceiverPosition)
+            loc_group.create_dataset("source", data=sofa.variables["SourcePosition"][:])
+            receiver = sofa.variables["ReceiverPosition"][:]
+            loc_group.create_dataset("receiver", data=np.squeeze(receiver))
 
-            # Create metadata group
             meta_group = f.create_group("metadata")
-            meta_group.create_dataset("sampling_rate", data=sofa.Data_SamplingRate)
-
-            # Add other metadata if present
-            if hasattr(sofa, "RoomTemperature"):
-                meta_group.create_dataset("temperature", data=sofa.RoomTemperature)
-            if hasattr(sofa, "SpeedOfSound"):
-                meta_group.create_dataset("c0", data=sofa.SpeedOfSound)
-            if hasattr(sofa, "Humidity"):
-                meta_group.create_dataset("humidity", data=sofa.Humidity)
-
+            meta_group.create_dataset("sampling_rate", data=sofa.variables["Data.SamplingRate"][:])
+            for sofa_name, hdf5_name in (
+                ("RoomTemperature", "temperature"),
+                ("SpeedOfSound", "c0"),
+                ("Humidity", "humidity"),
+            ):
+                if sofa_name in sofa.variables:
+                    meta_group.create_dataset(hdf5_name, data=np.squeeze(sofa.variables[sofa_name][:]))
         return output_path
-
-
-class SofaBaseDataset(BaseDataset):
-    """Base class for datasets whose ingest-ready format is already SOFA.
-
-    The primary distinction is that ``output_format='sofa'`` can either directly copy or link the
-    ingest-ready file, avoiding having to write the sofa file in memory.
-    """
-
-    def _to_sofa(self, sofa: sf.Sofa, ingest_path: Path, output_path: Path) -> Path:  # noqa: ARG002
-        """Copy sofar.Sofa file from ingest_dir and return Path.
-
-        Parameters
-        ----------
-        sofa : :class:`sofar.Sofa`
-            SOFA object to write.
-        ingest_path : :class:`pathlib.Path`
-            Path to the ingestible file.
-        output_path : :class:`pathlib.Path`
-            Path where the .sofa file should be written to.
-
-        Returns
-        -------
-        :class:`pathlib.Path`
-            Path to the written SOFA file.
-        """
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        if output_path.parent.parent == ingest_path.parent.parent:
-            try:
-                logger.debug(f"Linking {ingest_path} to {output_path}.")
-                os.link(ingest_path, output_path)
-            except OSError as e:
-                logger.debug(f"Linking failed: {e!r}")
-            else:
-                return output_path
-        logger.debug(f"Copying {ingest_path} to {output_path}.")
-        shutil.copy2(ingest_path, output_path)
-        return output_path
-
-    def _ingest(self, ingest_path: Path) -> sf.Sofa:
-        """Load SOFA file into sofar.Sofa object.
-
-        Parameters
-        ----------
-        ingest_path : :class:`pathlib.Path`
-            Path to the SOFA file in the ingest directory.
-
-        Returns
-        -------
-        :class:`sofar.Sofa`
-            SOFA object containing the dataset data.
-        """
-        return sf.read_sofa(ingest_path)
 
 
 def _get_dataset_classes(module: ModuleType) -> list[type]:
