@@ -15,7 +15,6 @@ Dataset modules
    akt
    base
    ista
-   sofa
 
 Internal modules
 ----------------
