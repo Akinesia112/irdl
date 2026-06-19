@@ -99,6 +99,23 @@ def _extract_filename_from_content_disposition(content_disposition: str | None) 
     return None
 
 
+def _fetch_paginated_embedded(session: requests.Session, url: str, embedded_key: str) -> list[dict]:
+    """Fetch a paginated DSpace collection until all pages are exhausted."""
+    results = []
+    next_url = url
+    while next_url is not None:
+        response = session.get(next_url, timeout=DEFAULT_TIMEOUT)
+        response.raise_for_status()
+        payload = response.json()
+        embedded = payload.get("_embedded", {}).get(embedded_key)
+        if not isinstance(embedded, list):
+            msg = f"DSpace response did not return an embedded {embedded_key} list"
+            raise RepositoryProbeError(msg)
+        results.extend(embedded)
+        next_url = payload.get("_links", {}).get("next", {}).get("href")
+    return results
+
+
 class ProbedRepository(DataRepository):
     """Base class for repository types identified by archive URL patterns."""
 
@@ -141,12 +158,7 @@ class DSpaceRepository(ProbedRepository):
     def _probe_repository(cls, archive_url: str) -> None:
         item_uuid = cls._resolve_item_uuid(archive_url)
         with _make_session() as session:
-            response = session.get(cls._bundles_url(archive_url, item_uuid), timeout=DEFAULT_TIMEOUT)
-            response.raise_for_status()
-            bundles = response.json().get("_embedded", {}).get("bundles")
-
-        if not isinstance(bundles, list):
-            raise RepositoryProbeError("DSpace probe did not return a bundles list")
+            _fetch_paginated_embedded(session, cls._bundles_url(archive_url, item_uuid), "bundles")
 
     @staticmethod
     def _api_base_url(archive_url: str) -> str:
@@ -192,19 +204,15 @@ class DSpaceRepository(ProbedRepository):
         """
         if self._api_response is None:
             with _make_session() as session:
-                response = session.get(
-                    self._bundles_url(self.archive_url, self._item_uuid_value()), timeout=DEFAULT_TIMEOUT
+                bundles = _fetch_paginated_embedded(
+                    session, self._bundles_url(self.archive_url, self._item_uuid_value()), "bundles"
                 )
-                response.raise_for_status()
-                bundles = response.json()["_embedded"]["bundles"]
 
                 original = next((b for b in bundles if b["name"] == "ORIGINAL"), None)
                 if original is None:
                     raise ValueError(f"No 'ORIGINAL' bundle found for item {self._item_uuid_value()}.")
 
-                response = session.get(original["_links"]["bitstreams"]["href"], timeout=DEFAULT_TIMEOUT)
-                response.raise_for_status()
-                bitstreams = response.json()["_embedded"]["bitstreams"]
+                bitstreams = _fetch_paginated_embedded(session, original["_links"]["bitstreams"]["href"], "bitstreams")
 
             self._api_response = {
                 bs["name"]: {

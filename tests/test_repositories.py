@@ -49,6 +49,89 @@ def test_dspace_api_base_url_derives_api_host():
     )
 
 
+def test_dspace_api_response_follows_paginated_bitstreams(monkeypatch):
+    """Verify DSpace repository collects all bitstreams across API pages."""
+
+    class FakeResponse:
+        def __init__(self, payload):
+            self.payload = payload
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return self.payload
+
+    class FakeSession:
+        def __init__(self):
+            self.urls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def get(self, url, timeout=None):
+            del timeout
+            self.urls.append(url)
+            payload = responses[url]
+            return FakeResponse(payload)
+
+    responses = {
+        "https://api-depositonce.tu-berlin.de/server/api/core/items/item-uuid/bundles": {
+            "_embedded": {
+                "bundles": [
+                    {
+                        "name": "ORIGINAL",
+                        "_links": {
+                            "bitstreams": {
+                                "href": "https://api-depositonce.tu-berlin.de/server/api/core/bundles/original/bitstreams"
+                            }
+                        },
+                    }
+                ]
+            },
+            "_links": {},
+        },
+        "https://api-depositonce.tu-berlin.de/server/api/core/bundles/original/bitstreams": {
+            "_embedded": {
+                "bitstreams": [
+                    {
+                        "name": "SR1-D.h5",
+                        "sizeBytes": 123,
+                        "checkSum": {"checkSumAlgorithm": "MD5", "value": "aaa"},
+                        "_links": {"content": {"href": "https://example.org/SR1-D.h5"}},
+                    }
+                ]
+            },
+            "_links": {"next": {"href": "https://api-depositonce.tu-berlin.de/server/api/core/bundles/original/bitstreams?page=1"}},
+        },
+        "https://api-depositonce.tu-berlin.de/server/api/core/bundles/original/bitstreams?page=1": {
+            "_embedded": {
+                "bitstreams": [
+                    {
+                        "name": "SRA2-D.h5",
+                        "sizeBytes": 456,
+                        "checkSum": {"checkSumAlgorithm": "MD5", "value": "bbb"},
+                        "_links": {"content": {"href": "https://example.org/SRA2-D.h5"}},
+                    }
+                ]
+            },
+            "_links": {},
+        },
+    }
+
+    monkeypatch.setattr(repositories_module, "_make_session", FakeSession)
+    repo = DSpaceRepository("10.14279/depositonce-23943", "https://depositonce.tu-berlin.de/items/item-uuid")
+    repo._item_uuid = "item-uuid"
+
+    assert repo.api_response == {
+        "SR1-D.h5": {"url": "https://example.org/SR1-D.h5", "checksum": "MD5:aaa", "size": 123},
+        "SRA2-D.h5": {"url": "https://example.org/SRA2-D.h5", "checksum": "MD5:bbb", "size": 456},
+    }
+
+
 def test_radar_initialize_requires_only_url_match(monkeypatch):
     """Verify RADAR initialization returns directly for matching URLs."""
     monkeypatch.setattr(
