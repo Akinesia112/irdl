@@ -130,6 +130,17 @@ class TestConversionToSofa:
         assert loaded_sofa.Data_IR.shape == sofa_object.Data_IR.shape
         assert loaded_sofa.Data_SamplingRate == sofa_object.Data_SamplingRate
 
+    def test_conversion_to_sofa_preserves_permissions(self, sofa_object, tmp_path):
+        """Verify _to_sofa reuses the ingest file's permission bits."""
+        ingest_path = tmp_path / "ingest.sofa"
+        ingest_path.write_text("source")
+        ingest_path.chmod(0o640)
+
+        output_path = tmp_path / "test.sofa"
+        result = test_dataset._to_sofa(sofa_object, ingest_path, output_path)
+
+        assert result.stat().st_mode & 0o777 == ingest_path.stat().st_mode & 0o777
+
 
 class TestConversionToHdf5:
     """Tests for _to_hdf5 conversion method."""
@@ -174,3 +185,14 @@ class TestConversionToHdf5:
                 assert "temperature" in f["metadata"]
                 assert "humidity" in f["metadata"]
                 assert "c0" in f["metadata"]
+
+    def test_conversion_to_hdf5_preserves_permissions(self, sofa_object, tmp_path):
+        """Verify _to_hdf5 reuses the ingest file's permission bits."""
+        ingest_path = tmp_path / "ingest.h5"
+        ingest_path.write_text("source")
+        ingest_path.chmod(0o640)
+
+        output_path = tmp_path / "test.h5"
+        result = test_dataset._to_hdf5(sofa_object, ingest_path, output_path)
+
+        assert result.stat().st_mode & 0o777 == ingest_path.stat().st_mode & 0o777

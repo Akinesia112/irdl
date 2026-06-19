@@ -59,6 +59,19 @@ def _validate_hash_registry(provider_name: str, registry: object) -> None:
             raise ValueError(msg)
 
 
+def _preserve_permissions(source_path: Path, target_path: Path) -> None:
+    """Copy permission bits from one file to another.
+
+    Parameters
+    ----------
+    source_path : Path
+        Existing file whose permission bits should be reused.
+    target_path : Path
+        Existing file that should receive the same permission bits.
+    """
+    target_path.chmod(source_path.stat().st_mode & 0o777)
+
+
 def _fits_in_memory(ingest_path: Path) -> bool:
     """Check if a file can be loaded into available RAM.
 

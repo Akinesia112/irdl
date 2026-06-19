@@ -31,7 +31,7 @@ import sofar as sf
 
 from irdl.cache import IRDL_CACHE_DIR
 from irdl.logging import logger
-from irdl.utils import _fits_in_memory
+from irdl.utils import _fits_in_memory, _preserve_permissions
 
 
 class DatasetCategory(StrEnum):
@@ -497,7 +497,7 @@ output_format : str
             "sampling_rate": float(sofa.Data_SamplingRate),
         }
 
-    def _to_sofa(self, sofa: sf.Sofa, ingest_path: Path, output_path: Path) -> Path:  # noqa: ARG002
+    def _to_sofa(self, sofa: sf.Sofa, ingest_path: Path, output_path: Path) -> Path:
         """Write sofar.Sofa to file and return Path.
 
         Parameters
@@ -516,9 +516,10 @@ output_format : str
         """
         output_path.parent.mkdir(parents=True, exist_ok=True)
         sf.write_sofa(output_path, sofa)
+        _preserve_permissions(ingest_path, output_path)
         return output_path
 
-    def _to_hdf5(self, sofa: sf.Sofa, ingest_path: Path, output_path: Path) -> Path:  # noqa: ARG002
+    def _to_hdf5(self, sofa: sf.Sofa, ingest_path: Path, output_path: Path) -> Path:
         """Convert sofar.Sofa to HDF5 file and return Path.
 
         Parameters
@@ -559,6 +560,7 @@ output_format : str
             if hasattr(sofa, "Humidity"):
                 meta_group.create_dataset("humidity", data=sofa.Humidity)
 
+        _preserve_permissions(ingest_path, output_path)
         return output_path
 
 
