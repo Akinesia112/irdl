@@ -7,8 +7,7 @@ import netCDF4
 import numpy as np
 import sofar as sf
 
-from irdl.ista import SrirachaDataset, ista_hdf5_checksum_check, sriracha_split_checksum_check
-from irdl.sofa_validation import SofaValidationIssue
+from irdl.ista import SofaValidationIssue, SrirachaDataset, ista_hdf5_checksum_check, sriracha_split_checksum_check
 
 
 def test_ista_streaming_sofa_writer_produces_valid_checked_sofa(tmp_path):

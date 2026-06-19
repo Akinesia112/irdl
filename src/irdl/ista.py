@@ -7,6 +7,7 @@
 import hashlib
 from collections.abc import Callable
 from pathlib import Path
+from typing import NamedTuple
 
 import h5py as h5
 import netCDF4
@@ -15,7 +16,21 @@ import numpy as np
 from irdl.base import BaseDataset, DatasetCategory
 from irdl.downloader import _fetch, _pooch_from_doi
 from irdl.logging import logger
-from irdl.sofa_validation import SofaValidationIssue
+
+
+class SofaValidationIssue(NamedTuple):
+    """Validation issue found while checking a SOFA file."""
+
+    code: str
+    message: str
+    variable: str | None = None
+
+    def __str__(self) -> str:
+        """Return a compact human-readable issue description."""
+        if self.variable is None:
+            return f"{self.code}: {self.message}"
+        return f"{self.code}: {self.variable}: {self.message}"
+
 
 IstaSofaCheck = Callable[[netCDF4.Dataset], list[SofaValidationIssue]]
 _SOFA_FIR_E_DIMS = 4

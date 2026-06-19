@@ -50,7 +50,7 @@ class StdoutCapture:
         sys.stdout = self.capture_buffer
         return self.capture_buffer
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(self, *_exc_info) -> None:
         """Exit the context manager and restore stdout."""
         sys.stdout = self.old_stdout
         output = self.capture_buffer.getvalue()

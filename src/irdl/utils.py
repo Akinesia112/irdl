@@ -1,64 +1,10 @@
 """Utility functions for IRDL."""
 
-import json
 import os
 import shutil
-from functools import cache
-from importlib import resources
 from pathlib import Path
 
-import psutil
-
 from irdl.logging import logger
-
-
-@cache
-def load_hash_registry(provider_name: str) -> dict[str, str]:
-    """Load and validate a packaged provider hash registry.
-
-    Parameters
-    ----------
-    provider_name : str
-        Provider identifier used to resolve ``<provider_name>_hashes.json`` from
-        ``irdl/registry/`` package data.
-
-    Returns
-    -------
-    dict
-        Flat mapping of provider-relative paths to ``sha256:...`` digests.
-    """
-    resource = resources.files("irdl").joinpath("registry", f"{provider_name}_hashes.json")
-    with resource.open("r", encoding="utf-8") as handle:
-        registry = json.load(handle)
-    _validate_hash_registry(provider_name, registry)
-    return registry
-
-
-def _validate_hash_registry(provider_name: str, registry: object) -> None:
-    """Validate the common flat hash-registry schema.
-
-    Parameters
-    ----------
-    provider_name : str
-        Provider identifier used in error messages.
-    registry : object
-        Parsed JSON payload to validate.
-
-    Raises
-    ------
-    ValueError
-        If the registry does not match the required flat ``dict[str, str]`` schema.
-    """
-    if not isinstance(registry, dict):
-        msg = f"Hash registry '{provider_name}' must be a JSON object"
-        raise TypeError(msg)
-    for key, value in registry.items():
-        if not isinstance(key, str) or "/" not in key:
-            msg = f"Hash registry '{provider_name}' contains invalid path key: {key!r}"
-            raise ValueError(msg)
-        if not isinstance(value, str) or not value.startswith("sha256:"):
-            msg = f"Hash registry '{provider_name}' contains invalid digest for {key!r}: {value!r}"
-            raise ValueError(msg)
 
 
 def _link_or_copy(source_path: Path, target_path: Path) -> Path:
@@ -77,30 +23,3 @@ def _link_or_copy(source_path: Path, target_path: Path) -> Path:
     with logger.spin(f"Copying {target_path.name}..."):
         shutil.copy2(source_path, target_path)
     return target_path
-
-
-def _fits_in_memory(ingest_path: Path) -> bool:
-    """Check if a file can be loaded into available RAM.
-
-    Needed when an entire dataset is loaded into memory.
-
-    Parameters
-    ----------
-    ingest_path : Path
-        Path to the ingestable file.
-
-    Returns
-    -------
-    fits : bool
-        True if the file fits into available RAM with headroom.
-    """
-    file_size = ingest_path.stat().st_size
-    available = psutil.virtual_memory().available
-    if file_size < available * 0.9:  # Headroom
-        return True
-    logger.warning(
-        f"Dataset too large for available memory "
-        f"({file_size / 1e9:.1f} GB needed, "
-        f"{available / 1e9:.1f} GB available). "
-    )
-    return False
