@@ -13,6 +13,7 @@ import sofar as sf
 from irdl.base import BaseDataset, DatasetCategory
 from irdl.downloader import _fetch, _pooch_from_doi
 from irdl.logging import logger
+from irdl.utils import _preserve_permissions
 
 
 class IstaBaseDataset(BaseDataset):
@@ -344,6 +345,7 @@ class MiracleDataset(IstaBaseDataset):
             if "humidity" in data:
                 metadata_group.create_dataset("humidity", data=data["humidity"])
 
+        _preserve_permissions(ingest_path, output_path)
         return output_path
 
 
@@ -591,6 +593,8 @@ class SrirachaDataset(IstaBaseDataset):
             finally:
                 for fh in handles.values():
                     fh.close()
+
+            _preserve_permissions(split_files["C1"], ingest_path)
 
             # delete split files from provider directory
             for f in split_files.values():
