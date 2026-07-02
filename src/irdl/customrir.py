@@ -50,7 +50,7 @@ class MyriadDataset(BaseDataset):
             "CMA20_45", "CMA20_90", "CMA20_135", "CMA20_180",],
     }
 
-    ### WORK FROM HERE ON
+    # WORK ON VARIABLES FROM HERE ON 
 
     # TODO: confirm against the archive. The econ RIRs are 3.0 s @ 44.1 kHz.
     _SAMPLING_RATE = 44100
@@ -243,7 +243,7 @@ class MyriadDataset(BaseDataset):
 
 
 
-
+    # WORK ON FUNCTIONS FROM HERE ON 
     def _process(self, provider_artifact: Path, ingest_path: Path, **dataset_kwargs) -> Path:
         """Copy the selected RIRs from the provider ZIP into the ingest archive.
 
@@ -431,6 +431,7 @@ class MyriadDataset(BaseDataset):
             Requested groups in canonical order, with any unknown names kept at
             the end.
         """
+        # get requested arrays 
         if array == "all":
             requested = [g for g in cls._ARRAY_GROUPS if room != "SAL" or g != "circular-microphone-array"]
         elif isinstance(array, str):
@@ -438,6 +439,7 @@ class MyriadDataset(BaseDataset):
         else:
             requested = list(array)
 
+        # deduplicate and order
         seen = set(requested)
         known = [g for g in cls._ARRAY_GROUPS if g in seen]
         unknown = [g for g in requested if g not in cls._ARRAY_GROUPS]
