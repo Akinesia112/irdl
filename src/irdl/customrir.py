@@ -409,38 +409,56 @@ class MyriadDataset(BaseDataset):
         return sofa
 
     @classmethod
-    def _parse_groups(cls, array, room) -> list[str]:
-        """Parse the array selection into a deduplicated, fixed-order list,
-        with any unknown group names kept at the end.
+    def _resolve(cls, *, room, array, config=None, convention=None, **_ignored) -> dict:
+        """Resolve the raw get() parameters into a concrete selection.
 
-        Unknown group names are preserved so that ``_validate_params`` can reject
-        them; this method itself performs no validation.
+        Parses the array selection into a deduplicated, canonical-order group list
+        and bundles it with the room, config, convention, and the resolved speaker
+        and microphone labels. This method performs no validation: unknown group
+        names are kept at the end of ``'groups'`` so that ``_validate_params`` can
+        reject them, and ``config`` is passed through untouched.
 
         Parameters
         ----------
+        room : str
+            Room being loaded. Used to look up the speakers and to exclude the
+            circular array from ``'all'`` for room SAL.
         array : str or list of str
             Requested group(s): ``'all'``, a comma-separated string, or a list of
             the array group names.
-        room : str
-            Room being loaded. Used to exclude the circular array from ``'all'``
-            for room SAL.
+        config : str or None
+            Microphone configuration placement in the AIL (``'P1'`` or ``'P2'``).
+            Ignored for the SAL.
+        convention : str or None
+            Requested SOFA convention, or None to default to
+            ``'SingleRoomMIMOSRIR'``.
 
         Returns
         -------
-        list of str
-            Requested groups in canonical order, with any unknown names kept at
-            the end.
+        dict
+            Resolved selection with keys ``'room'``, ``'config'``, ``'convention'``,
+            ``'groups'`` (requested groups in canonical order, unknowns kept at the
+            end), ``'speakers'`` (emitter labels) and ``'mics'`` (receiver labels
+            for the known groups).
         """
-        # get requested arrays 
+        #get groups
         if array == "all":
-            requested = [g for g in cls._ARRAY_GROUPS if room != "SAL" or g != "circular-microphone-array"]
+            groups = [g for g in cls._ARRAY_GROUPS if room != "SAL" or g != "circular-microphone-array"]
         elif isinstance(array, str):
-            requested = [g.strip() for g in array.split(",")]
+            groups = [g.strip() for g in array.split(",")]
         else:
-            requested = list(array)
+            groups = list(array)
 
-        # deduplicate and order
-        seen = set(requested)
-        known = [g for g in cls._ARRAY_GROUPS if g in seen]
-        unknown = [g for g in requested if g not in cls._ARRAY_GROUPS]
-        return known + unknown
+        # canonical order for known groups, unknowns kept at the end for validation
+        seen = set(groups)
+        groups = [g for g in cls._ARRAY_GROUPS if g in seen] + [g for g in groups if g not in cls._ARRAY_GROUPS]
+
+        return {
+            "room": room,
+            "config": config,
+            "convention": convention or "SingleRoomMIMOSRIR",
+            "groups": groups,
+            # do we need this?
+            "speakers": cls._SPEAKERS[room],
+            "mics": [mic for g in groups if g in cls._ARRAY_GROUPS for mic in cls._ARRAY_GROUPS[g]],
+        }
