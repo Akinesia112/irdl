@@ -142,37 +142,25 @@ class MyriadDataset(BaseDataset):
             ``'SAL'``, or ``'MultiSpeakerBRIR'`` is combined with more than the
             ``'dummy_head'`` group.
         """
-        room = dataset_kwargs["room"]
-        array = dataset_kwargs["array"]
-        config = dataset_kwargs.get("config")
-        convention = dataset_kwargs.get("convention")
+        parameters = self._resolve(**dataset_kwargs)
 
-        # room
-        if room not in ("SAL", "AIL"):
-            msg = "room must be one of ['SAL', 'AIL']"
-            raise ValueError(msg)
+        if parameters["room"] not in ("SAL", "AIL"):
+            raise ValueError("room must be one of ['SAL', 'AIL']")
 
-        # array groups
-        groups = self._parse_groups(array, room)
-        for group in groups:
+        for group in parameters["groups"]:
             if group not in self._ARRAY_GROUPS:
-                raise ValueError(f"array group {group!r} must be one of {list(self._ARRAY_GROUPS)} or 'all'")
-            if room == "SAL" and group == "circular-microphone-array":
+                raise ValueError(f"array group(s) {group!r} must be one of {list(self._ARRAY_GROUPS)} or 'all'")
+            if parameters["room"] == "SAL" and group == "circular-microphone-array":
                 raise ValueError(f"array group {group!r} is not available in the SAL")
 
-        # config
-        if room == "AIL" and config not in ("P1", "P2"):
-            msg = "config must be one of ['P1', 'P2'] for the AIL"
-            raise ValueError(msg)
+        if parameters["room"] == "AIL" and sel["config"] not in ("P1", "P2"):
+            raise ValueError("config must be one of ['P1', 'P2'] for the AIL")
 
-        # convention
-        if convention not in ["SingleRoomMIMOSRIR", "MultiSpeakerBRIR"]:
-            msg = "convention must be one of ['SingleRoomMIMOSRIR', 'MultiSpeakerBRIR']"
-            raise ValueError(msg)
-
-        if convention == "MultiSpeakerBRIR" and set(groups) != {"dummy_head"}:
-            msg = "convention 'MultiSpeakerBRIR' is only valid for array='dummy_head'"
-            raise ValueError(msg)
+        if parameters["convention"] not in ("SingleRoomMIMOSRIR", "MultiSpeakerBRIR"):
+            raise ValueError("convention must be one of ['SingleRoomMIMOSRIR', 'MultiSpeakerBRIR']")
+        
+        if parameters["convention"] == "MultiSpeakerBRIR" and set(sel["groups"]) != {"dummy_head"}:
+            raise ValueError("convention 'MultiSpeakerBRIR' is only valid for array='dummy_head'")
 
     def _source_filename(self, **dataset_kwargs) -> str:
         """Build the ingest filename encoding the full selection.
@@ -196,35 +184,27 @@ class MyriadDataset(BaseDataset):
             "external-microphones": "xm",
             "circular-microphone-array": "cma",
         }
+        parameters = self._resolve(**dataset_kwargs)
 
-        room = dataset_kwargs["room"]
-        array = dataset_kwargs["array"]
-        config = dataset_kwargs.get("config")
-        convention = dataset_kwargs.get("convention")
-        groups = self._parse_groups(array, room)
-
-        tokens = "-".join(_GROUP_TOKEN[g] for g in groups)
-        parts = ["MYRIAD", room]
-        if room == "AIL":
-            parts.append(config)
-        parts += [tokens, convention]
-        return "_".join(parts) + ".zip"
+        tokens = "-".join(_GROUP_TOKEN[g] for g in parameters["groups"])
+        parts = ["MYRIAD", parameters["room"]]
+        if parameters["room"] == "AIL":
+            parts.append(parameters["config"])
+        parts += [tokens, parameters["convention"]]
+        return "_".join(parts)
 
     def _download(self, provider_dir: Path, **dataset_kwargs) -> Path:
         """Download MYRiAD ZIP archive to the provider directory.
 
-        Only downloads the archive if it is not already cached in the provider
-        directory. Returns the ZIP path so that ``_process`` can extract and process
-        the requested files.
+        Only downloads the archive if it is not already cached. Returns the 
+        ZIP path so that ``_process`` can extract and process the requested files.
 
         Parameters
         ----------
         provider_dir : :class:`pathlib.Path`
             Provider directory (e.g., ``cache/MYRiAD/provider/``).
         **dataset_kwargs : dict
-            Expected keys: kind, hato (unused here because the ZIP contains all
-            variants).
-
+            
         Returns
         -------
         :class:`pathlib.Path`
@@ -235,71 +215,47 @@ class MyriadDataset(BaseDataset):
         if zip_path.exists():
             logger.info(f"MYRiAD ZIP archive already cached at {zip_path}, skipping download")
         else:
-            pup = _pooch_from_doi(self.doi, path=provider_dir)
             logger.info("Downloading MYRiAD (econ RIR archive)")
+            pup = _pooch_from_doi(self.doi, path=provider_dir)
             _fetch(pup, zipfile_name)
         return zip_path
 
-
-
-
-    # WORK ON FUNCTIONS FROM HERE ON 
     def _process(self, provider_artifact: Path, ingest_path: Path, **dataset_kwargs) -> Path:
-        """Copy the selected RIRs from the provider ZIP into the ingest archive.
+        """Extract only the selected RIR WAVs and coordinate CSV into the ingest directory.
 
-        This performs no signal processing: it selects the loudspeaker/microphone
-        WAVs and the room coordinate CSV for the requested selection, copies them
-        verbatim into a single ingest-stage ZIP, and adds a ``meta.json`` sidecar
-        recording the resolved selection (room, config, convention, and the
-        ordered speaker/microphone labels). All SOFA construction is deferred to
-        :meth:`_ingest`, which reads this archive.
+        Performs no signal processing: selects the WAVs and the room coordinate CSV for 
+        the requested selection and extracts them, preserving the archive tree, into 
+        ``ingest_path``. All SOFA construction is deferred to :meth:`_ingest`.
 
         Parameters
         ----------
         provider_artifact : :class:`pathlib.Path`
             Path to the downloaded MYRiAD ZIP archive.
         ingest_path : :class:`pathlib.Path`
-            Target path for the ingest-stage ZIP archive.
+            Target directory for the extracted files.
 
         Returns
         -------
         :class:`pathlib.Path`
-            Path to the written ingest-stage archive (``ingest_path``).
+            Path to the ingest directory (``ingest_path``).
         """
-        room = dataset_kwargs["room"]
-        config = dataset_kwargs.get("config")
-        convention = dataset_kwargs.get("convention")
-        array = dataset_kwargs["array"]
+        parameters = self._resolve(**dataset_kwargs)
+        ingest_path.mkdir(parents=True, exist_ok=True)
 
-        groups = self._parse_groups(array, room)
-        speakers = self._SPEAKERS[room]
-        mics = [mic for group in groups for mic in self._ARRAY_GROUPS[group]]
+        # build strings for each file that needs to be extracted
+        files = []
+        for speaker in parameters["speakers"]:
+            base = f"MYRiAD_V2_econ/audio/{parameters['room']}/{speaker}"
+            if parameters["room"] == "AIL":
+                base = f"{base}/{parameters['config']}"
+            files += [f"{base}/{mic}_RIR.wav" for mic in parameters["mics"]]
+        files.append(f"MYRiAD_V2_econ/coord/{parameters['room']}.csv")
 
-        # Copy only the selected WAVs and the room CSV into the ingest archive,
-        # under a flat, self-describing layout that _ingest reads back.
-        with (
-            ZipFile(provider_artifact, "r") as src,
-            ZipFile(ingest_path, "w", ZIP_DEFLATED) as dst,
-        ):
-            for speaker in speakers:
-                base = f"{self._ROOT}/audio/{room}/{speaker}"
-                if room == "AIL":
-                    base = f"{base}/{config}"
-                for mic in mics:
-                    member = f"{base}/{mic}_RIR.wav"
-                    logger.debug(f"Copying {member}")
-                    dst.writestr(f"audio/{speaker}/{mic}_RIR.wav", src.read(member))
-
-            dst.writestr("coord.csv", src.read(f"{self._ROOT}/coord/{room}.csv"))
-
-            meta = {
-                "room": room,
-                "config": config,
-                "convention": convention,
-                "speakers": speakers,
-                "mics": mics,
-            }
-            dst.writestr("meta.json", json.dumps(meta))
+        # extract files while preserving the archive tree
+        with ZipFile(provider_artifact, "r") as zf:
+            for member in files:
+                logger.debug(f"Extracting {member}")
+                zf.extract(member, path=ingest_path)  
 
         return ingest_path
 
@@ -441,7 +397,6 @@ class MyriadDataset(BaseDataset):
             end), ``'speakers'`` (emitter labels) and ``'mics'`` (receiver labels
             for the known groups).
         """
-        #get groups
         if array == "all":
             groups = [g for g in cls._ARRAY_GROUPS if room != "SAL" or g != "circular-microphone-array"]
         elif isinstance(array, str):
@@ -458,7 +413,7 @@ class MyriadDataset(BaseDataset):
             "config": config,
             "convention": convention or "SingleRoomMIMOSRIR",
             "groups": groups,
-            # do we need this?
+            #check if we need this
             "speakers": cls._SPEAKERS[room],
             "mics": [mic for g in groups if g in cls._ARRAY_GROUPS for mic in cls._ARRAY_GROUPS[g]],
         }
