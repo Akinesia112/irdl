@@ -43,9 +43,20 @@ class MyriadDataset(BaseDataset):
         "dummy_head": ["DHL", "DHR"],
         "bte-pieces": ["BTELF", "BTELB", "BTERF", "BTERB"],
         "external-microphones": ["XM1", "XM2", "XM3", "XM4", "XM5"],
-        "circular-microphone-array": ["CMA10_-90", "CMA10_0", "CMA10_90",
-            "CMA10_180", "CMA20_-135", "CMA20_-90", "CMA20_-45", "CMA20_0",
-            "CMA20_45", "CMA20_90", "CMA20_135", "CMA20_180"],
+        "circular-microphone-array": [
+            "CMA10_-90",
+            "CMA10_0",
+            "CMA10_90",
+            "CMA10_180",
+            "CMA20_-135",
+            "CMA20_-90",
+            "CMA20_-45",
+            "CMA20_0",
+            "CMA20_45",
+            "CMA20_90",
+            "CMA20_135",
+            "CMA20_180",
+        ],
     }
 
     @classmethod
@@ -59,8 +70,11 @@ class MyriadDataset(BaseDataset):
         export_dir: str | Path | None = None,
         output_format: str = "pyfar",
     ) -> dict | Path | None:
-        """
-        Room : str
+        """Download the MYRiAD dataset.
+
+        Parameters
+        ----------
+        room : str
             Room to load. Either ``'SAL'`` or ``'AIL'``. Default is ``'SAL'``.
         array : str
             Microphone array group(s) to load. One of ``'dummy_head'``,
@@ -115,30 +129,36 @@ class MyriadDataset(BaseDataset):
         selection = self._resolve(**dataset_kwargs)
 
         if selection["room"] not in ("SAL", "AIL"):
-            raise ValueError("room must be one of ['SAL', 'AIL']")
+            msg = "room must be one of ['SAL', 'AIL']"
+            raise ValueError(msg)
 
         for group in selection["groups"]:
             if group not in self._ARRAY_GROUPS:
-                raise ValueError(f"array group(s) {group!r} must be one of {list(self._ARRAY_GROUPS)} or 'all'")
+                msg = f"array group(s) {group!r} must be one of {list(self._ARRAY_GROUPS)} or 'all'"
+                raise ValueError(msg)
             if selection["room"] == "SAL" and group == "circular-microphone-array":
-                raise ValueError(f"array group {group!r} is not available in the SAL")
+                msg = f"array group {group!r} is not available in the SAL"
+                raise ValueError(msg)
 
         if selection["room"] == "AIL" and selection["config"] not in ("P1", "P2"):
-            raise ValueError("config must be one of ['P1', 'P2'] for the AIL")
+            msg = "config must be one of ['P1', 'P2'] for the AIL"
+            raise ValueError(msg)
 
         if selection["convention"] not in ("SingleRoomMIMOSRIR", "MultiSpeakerBRIR"):
-            raise ValueError("convention must be one of ['SingleRoomMIMOSRIR', 'MultiSpeakerBRIR']")
+            msg = "convention must be one of ['SingleRoomMIMOSRIR', 'MultiSpeakerBRIR']"
+            raise ValueError(msg)
 
         if selection["convention"] == "MultiSpeakerBRIR" and set(selection["groups"]) != {"dummy_head"}:
-            raise ValueError("convention 'MultiSpeakerBRIR' is only valid for array='dummy_head'")
+            msg = "convention 'MultiSpeakerBRIR' is only valid for array='dummy_head'"
+            raise ValueError(msg)
 
     def _source_filename(self, **dataset_kwargs) -> str:
         """Build the ingest filename encoding the full selection.
 
-        The name has the form ``MYRIAD_<room>[_<config>]_<groups>_<convention>``, 
-        where ``<config>`` is included only for the AIL and ``<groups>`` is the 
-        selected array groups as short tokens. ``<convention>`` is part of the name 
-        because the ingest archive embeds the convention in its metadata sidecar, 
+        The name has the form ``MYRIAD_<room>[_<config>]_<groups>_<convention>``,
+        where ``<config>`` is included only for the AIL and ``<groups>`` is the
+        selected array groups as short tokens. ``<convention>`` is part of the name
+        because the ingest archive embeds the convention in its metadata sidecar,
         so each convention must map to a distinct cache file.
 
         Returns
@@ -162,10 +182,10 @@ class MyriadDataset(BaseDataset):
         parts += [tokens, selection["convention"]]
         return "_".join(parts)
 
-    def _download(self, provider_dir: Path, **dataset_kwargs) -> Path:
+    def _download(self, provider_dir: Path, **dataset_kwargs) -> Path:  # noqa: ARG002
         """Download MYRiAD ZIP archive to the provider directory.
 
-        Only downloads the archive if it is not already cached. Returns the 
+        Only downloads the archive if it is not already cached. Returns the
         ZIP path so that ``_process`` can extract and process the requested files.
 
         Parameters
@@ -193,8 +213,8 @@ class MyriadDataset(BaseDataset):
     def _process(self, provider_artifact: Path, ingest_path: Path, **dataset_kwargs) -> Path:
         """Extract only the selected RIR WAVs and coordinate CSV into the ingest directory.
 
-        Performs no signal processing: selects the WAVs and the room coordinate CSV for 
-        the requested selection and extracts them, preserving the archive tree, into 
+        Performs no signal processing: selects the WAVs and the room coordinate CSV for
+        the requested selection and extracts them, preserving the archive tree, into
         ``ingest_path``. All SOFA construction is deferred to :meth:`_ingest`.
 
         Parameters
@@ -266,7 +286,9 @@ class MyriadDataset(BaseDataset):
         # --- stack the impulse responses, shape (M=1, R, N, E) -------------------
         ir = np.zeros((1, len(selection["mics"]), n_samples, len(selection["speakers"])), dtype=np.float32)
         for ei, speaker in enumerate(selection["speakers"]):
-            speaker_dir = audio_root / speaker / selection["config"] if selection["room"] == "AIL" else audio_root / speaker
+            speaker_dir = (
+                audio_root / speaker / selection["config"] if selection["room"] == "AIL" else audio_root / speaker
+            )
             for ri, mic in enumerate(selection["mics"]):
                 ir[0, ri, :, ei] = pf.io.read_audio(speaker_dir / f"{mic}_RIR.wav").time[0]
 
@@ -276,17 +298,17 @@ class MyriadDataset(BaseDataset):
         mic_type = "MIC" if selection["room"] == "SAL" else f"MIC {selection['config']}"
 
         speaker_coords, mic_coords = {}, {}
-        for kind, label, *xyz in rows:
-            xyz = np.array(xyz[:3], dtype=float)
+        for kind, label, *raw in rows:
+            xyz = np.array(raw[:3], dtype=float)
             if kind.strip() == "LS":
                 speaker_coords[label.strip()] = xyz
             elif kind.strip() == mic_type:
                 mic_coords[label.strip()] = xyz
 
         source = np.array([speaker_coords[s] for s in selection["speakers"]])  # (E, C)
-        receiver = np.array([mic_coords[mic] for mic in selection["mics"]])    # (R, C)
+        receiver = np.array([mic_coords[mic] for mic in selection["mics"]])  # (R, C)
 
-        m, r, n, e = ir.shape
+        m, r, _n, e = ir.shape
 
         label_to_group = {mic: group for group, labels in self._ARRAY_GROUPS.items() for mic in labels}
         descriptions = [group_hardware[label_to_group[mic]] for mic in selection["mics"]]
@@ -296,10 +318,10 @@ class MyriadDataset(BaseDataset):
         sofa.Data_IR = ir  # (M=1, R, N, E)
         sofa.Data_SamplingRate = float(sampling_rate)
         sofa.Data_Delay = np.zeros((m, r, e))
-        sofa.ListenerPosition = np.zeros((1, 3))       # (M=1, C) origin
-        sofa.ReceiverPosition = receiver.reshape(r, 3, 1)   # (R, C, I) absolute room coords
-        sofa.SourcePosition   = np.zeros((1, 3))       # (M=1, C) origin
-        sofa.EmitterPosition  = source.reshape(e, 3, 1)     # (R, C, I) absolute room coords
+        sofa.ListenerPosition = np.zeros((1, 3))  # (M=1, C) origin
+        sofa.ReceiverPosition = receiver.reshape(r, 3, 1)  # (R, C, I) absolute room coords
+        sofa.SourcePosition = np.zeros((1, 3))  # (M=1, C) origin
+        sofa.EmitterPosition = source.reshape(e, 3, 1)  # (R, C, I) absolute room coords
 
         sofa.GLOBAL_Title = "MYRiAD"
         sofa.GLOBAL_DatabaseName = "MYRiAD"
@@ -364,15 +386,36 @@ class MyriadDataset(BaseDataset):
         """
         # Loudspeaker labels per room, in canonical order
         speakers = {
-            "SAL": ["S0_1", "S0_2", "S-30_1", "S30_1", "S-45_2",
-                "S45_2", "S-60_1", "S60_1", "S-90_1", "S90_1"],
-            "AIL": ["SL1", "SL2", "SL3", "SL4", "SL5", "SL6",
-                "SL7", "SL8", "SU1", "SU2", "SU3", "SU4", "SU5",
-                "SU6", "SU7", "SU8", "SU9", "SU10", "SU11", "SU12",
-                "ST1", "ST2", "ST3", "ST4"],
+            "SAL": ["S0_1", "S0_2", "S-30_1", "S30_1", "S-45_2", "S45_2", "S-60_1", "S60_1", "S-90_1", "S90_1"],
+            "AIL": [
+                "SL1",
+                "SL2",
+                "SL3",
+                "SL4",
+                "SL5",
+                "SL6",
+                "SL7",
+                "SL8",
+                "SU1",
+                "SU2",
+                "SU3",
+                "SU4",
+                "SU5",
+                "SU6",
+                "SU7",
+                "SU8",
+                "SU9",
+                "SU10",
+                "SU11",
+                "SU12",
+                "ST1",
+                "ST2",
+                "ST3",
+                "ST4",
+            ],
         }
 
-        #get requested array groups
+        # get requested array groups
         if array == "all":
             groups = [g for g in cls._ARRAY_GROUPS if room != "SAL" or g != "circular-microphone-array"]
         elif isinstance(array, str):
