@@ -511,9 +511,9 @@ output_format : str
             "sampling_rate": float(sofa.Data_SamplingRate),
         }
 
-    def _to_sofa(self, sofa_path: Path, output_path: Path | None) -> Path:
+    def _to_sofa(self, sofa_path: Path, output_path: Path) -> Path:
         """Return or export the retained SOFA file."""
-        if output_path is None or output_path == sofa_path:
+        if output_path == sofa_path:
             logger.info(f"Returning cached SOFA file {sofa_path}.")
             return sofa_path
         logger.info(f"Exporting SOFA file to {output_path}.")
