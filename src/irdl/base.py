@@ -187,7 +187,7 @@ output_format : str
             else:
                 logger.warning(f"Cached SOFA file at {sofa_path} is invalid, rebuilding.")
                 sofa_path.unlink()
-        if not sofa_path.exists():
+        else:
             if ingest_path.exists():
                 logger.info(f"Ingestible file already exists at {ingest_path}, skipping download and processing.")
                 ingest_artifact = ingest_path
