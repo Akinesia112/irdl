@@ -209,10 +209,12 @@ output_format : str
         return True
 
     def _verify_sofa_convention(self, sofa_path: Path) -> None:
-        """Verify SOFA convention like main, but through SofaStream."""
+        """Verify SOFA convention through SofaStream."""
         try:
             with sf.SofaStream(sofa_path) as sofa, logger.as_stdout:
                 sofa.verify(issue_handling="raise", mode="read")
+                # the following lines can be removed once/if
+                # SofaStream.upgrade_conventions exists in upstream sofar
                 convention = sofa.GLOBAL_SOFAConventions
                 version = sofa.GLOBAL_SOFAConventionsVersion
             with logger.as_stdout:
