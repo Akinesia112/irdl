@@ -53,10 +53,6 @@ class IstaBaseDataset(BaseDataset):
             raise NotImplementedError(msg)
         return self._write_sofa_from_hdf5(ingest_path, sofa_path)
 
-    def _mark_checksum_validated(self, sofa_path: Path) -> None:
-        with netCDF4.Dataset(sofa_path, "a") as sofa:
-            setattr(sofa, _ISTA_CHECKSUM_VALIDATED, "1")
-
     def _write_sofa_from_hdf5(  # noqa: PLR0915
         self,
         ingest_path: Path,
@@ -167,7 +163,6 @@ class IstaBaseDataset(BaseDataset):
             if issues:
                 msg = f"SOFA checksum validation failed for {sofa_path}: {'; '.join(str(issue) for issue in issues)}"
                 raise ValueError(msg)
-            self._mark_checksum_validated(sofa_path)
         logger.info(f"Finished SOFA file {sofa_path}.")
         return sofa_path
 
@@ -789,6 +784,5 @@ class SrirachaDataset(IstaBaseDataset):
             if issues:
                 msg = f"SOFA checksum validation failed for {sofa_path}: {'; '.join(str(issue) for issue in issues)}"
                 raise ValueError(msg)
-            self._mark_checksum_validated(sofa_path)
         logger.info(f"Finished SOFA file {sofa_path}.")
         return sofa_path
