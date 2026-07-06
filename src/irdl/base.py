@@ -180,9 +180,7 @@ output_format : str
         sofa_path = self._output_path(cache_dir / "output", source_filename, "sofa")
         if sofa_path.exists():
             logger.info(f"Cache hit: {sofa_path}.")
-            with logger.spin(f"Checking cached SOFA {sofa_path.name}..."):
-                cache_ok = self._sofa_stream_verify_ok(sofa_path)
-            if cache_ok:
+            if self._sofa_convention_valid(sofa_path):
                 logger.debug("Cached SOFA file passed validation.")
             else:
                 logger.warning(f"Cached SOFA file at {sofa_path} is invalid, rebuilding.")
@@ -200,31 +198,26 @@ output_format : str
 
         return self._to_output(output_format, sofa_path, output_path)
 
-    def _sofa_stream_verify_ok(self, sofa_path: Path) -> bool:
-        """Check SOFA convention without loading payload data."""
-        try:
-            self._verify_sofa_convention(sofa_path)
-        except (OSError, ValueError):
-            return False
-        return True
-
-    def _verify_sofa_convention(self, sofa_path: Path) -> None:
+    def _sofa_convention_valid(self, sofa_path: Path) -> None:
         """Verify SOFA convention through SofaStream."""
         try:
-            with sf.SofaStream(sofa_path) as sofa, logger.as_stdout:
-                sofa.verify(issue_handling="raise", mode="read")
-                # the following lines can be removed once/if
-                # SofaStream.upgrade_conventions exists in upstream sofar
-                convention = sofa.GLOBAL_SOFAConventions
-                version = sofa.GLOBAL_SOFAConventionsVersion
-            with logger.as_stdout:
-                sf.Sofa(convention, version=version, verify=False).upgrade_convention(verify=False)
+            with logger.spin(f"Checking cached SOFA {sofa_path.name}..."):
+                with sf.SofaStream(sofa_path) as sofa, logger.as_stdout:
+                    sofa.verify(issue_handling="raise", mode="read")
+                    # the following lines can be removed once/if
+                    # SofaStream.upgrade_conventions exists in upstream sofar
+                    convention = sofa.GLOBAL_SOFAConventions
+                    version = sofa.GLOBAL_SOFAConventionsVersion
+                with logger.as_stdout:
+                    sf.Sofa(convention, version=version, verify=False).upgrade_convention(verify=False)
         except (OSError, ValueError) as error:
             logger.error(
                 f"SOFA convention not satisfied!\n{error}\n"
                 "See https://sofar.readthedocs.io/en/stable/resources/conventions.html#conventions for details."
             )
-            raise
+            return False
+        else:
+            return True
 
     @abstractmethod
     def _validate_params(self, **dataset_kwargs) -> None:
@@ -363,8 +356,8 @@ output_format : str
         """
         if ingest_artifact.suffix == ".sofa":
             result = _link_or_copy(ingest_artifact, sofa_path)
-            self._verify_sofa_convention(result)
-            return result
+            if self.__sofa_convention_valid(result):
+                return result
         msg = f"{type(self).__name__} must implement _ingest"
         raise NotImplementedError(msg)
 
