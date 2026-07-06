@@ -54,13 +54,6 @@ class IstaBaseDataset(BaseDataset):
             raise NotImplementedError(msg)
         return self._write_sofa_from_hdf5(ingest_path, sofa_path)
 
-    def _cached_sofa_is_valid(self, sofa_path: Path) -> bool:
-        """Reuse only SOFA files that already passed first-write checksum validation."""
-        if not self._sofa_stream_verify_ok(sofa_path):
-            return False
-        with netCDF4.Dataset(sofa_path) as sofa:
-            return bool(getattr(sofa, _ISTA_CHECKSUM_VALIDATED, False))
-
     def _mark_checksum_validated(self, sofa_path: Path) -> None:
         with netCDF4.Dataset(sofa_path, "a") as sofa:
             setattr(sofa, _ISTA_CHECKSUM_VALIDATED, "1")
