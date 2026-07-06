@@ -13,7 +13,7 @@ import h5py as h5
 import netCDF4
 import numpy as np
 
-from irdl.base import BaseDataset, DatasetCategory
+from irdl.base import BaseDataset, DatasetCategory, DEFAULT_CHUNK_SIZE
 from irdl.downloader import _fetch, _pooch_from_doi
 from irdl.logging import logger
 
@@ -34,7 +34,6 @@ class SofaValidationIssue(NamedTuple):
 
 IstaSofaCheck = Callable[[netCDF4.Dataset], list[SofaValidationIssue]]
 _SOFA_FIR_E_DIMS = 4
-_DEFAULT_CHUNK_SIZE = 256
 _ISTA_CHECKSUM_VALIDATED = "irdl_ista_checksum_validated"
 
 
@@ -63,7 +62,7 @@ class IstaBaseDataset(BaseDataset):
         ingest_path: Path,
         sofa_path: Path,
         *,
-        chunk_size: int = _DEFAULT_CHUNK_SIZE,
+        chunk_size: int = DEFAULT_CHUNK_SIZE,
     ) -> Path:
         """Stream one ISTA HDF5 file to SOFA."""
         if chunk_size <= 0:
@@ -227,7 +226,7 @@ def sriracha_split_checksum_check(split_files: dict[str, Path]) -> IstaSofaCheck
     return check
 
 
-def ista_hdf5_checksum_check(ingest_path: str | Path, *, chunk_size: int = _DEFAULT_CHUNK_SIZE) -> IstaSofaCheck:
+def ista_hdf5_checksum_check(ingest_path: str | Path, *, chunk_size: int = DEFAULT_CHUNK_SIZE) -> IstaSofaCheck:
     """Return a SOFA validation check comparing ISTA HDF5 ingest data."""
     hdf5_path = Path(ingest_path)
 

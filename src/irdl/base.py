@@ -35,7 +35,7 @@ from irdl.logging import logger
 from irdl.utils import _link_or_copy
 
 _SOFA_FIR_E_DIMS = 4
-
+DEFAULT_CHUNK_SIZE = 256
 
 class DatasetCategory(StrEnum):
     """Categories for grouping datasets."""
@@ -439,7 +439,7 @@ output_format : str
         if output_format == "sofa":
             return self._to_sofa(sofa_path, output_path)
         if output_format == "hdf5":
-            return self._to_hdf5_file(sofa_path, output_path)
+            return self._to_hdf5(sofa_path, output_path)
         if output_format in ("pyfar", "numpy"):
             logger.info(f"Loading SOFA file for {output_format} conversion.")
             with logger.spin(f"Loading {sofa_path.name}..."):
@@ -506,7 +506,7 @@ output_format : str
         logger.info(f"Exporting SOFA file to {output_path}.")
         return _link_or_copy(sofa_path, output_path)
 
-    def _to_hdf5_file(self, sofa_path: Path, output_path: Path, *, chunk_size: int = 64) -> Path:
+    def _to_hdf5(self, sofa_path: Path, output_path: Path, *, chunk_size: int = DEFAULT_CHUNK_SIZE) -> Path:
         """Convert a SOFA file to IRDL HDF5 without loading all IR data."""
         if chunk_size <= 0:
             msg = "chunk_size must be > 0"
@@ -534,13 +534,6 @@ output_format : str
 
             meta_group = f.create_group("metadata")
             meta_group.create_dataset("sampling_rate", data=sofa.variables["Data.SamplingRate"][:])
-            for sofa_name, hdf5_name in (
-                ("RoomTemperature", "temperature"),
-                ("SpeedOfSound", "c0"),
-                ("Humidity", "humidity"),
-            ):
-                if sofa_name in sofa.variables:
-                    meta_group.create_dataset(hdf5_name, data=np.squeeze(sofa.variables[sofa_name][:]))
         return output_path
 
 
