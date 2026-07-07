@@ -6,6 +6,7 @@
 
 import hashlib
 from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import NamedTuple
 
@@ -34,11 +35,21 @@ class SofaValidationIssue(NamedTuple):
 
 IstaSofaCheck = Callable[[netCDF4.Dataset], list[SofaValidationIssue]]
 _SOFA_FIR_E_DIMS = 4
-_ISTA_CHECKSUM_VALIDATED = "irdl_ista_checksum_validated"
 
 
 class IstaBaseDataset(BaseDataset):
     """Base class for HDF5-based datasets from ISTA (MIRACLE, SRIRACHA)."""
+
+    room_location = "TU Berlin, Einsteinufer 25, 10587 Berlin"
+    listener_short_name = "Custom planar microphone array"
+    listener_description = (
+        "64-channel planar microphone array "
+        "(1.5 m x 1.5 m aluminium plate, Vogel's spiral, max spacing 1.47 m, 51.2 kHz sampling rate)"
+    )
+    receiver_short_name = "GRAS 40PL-1 Short CCP"
+    receiver_description = "GRAS 40PL-1 Short CCP"
+    source_short_name = "Loudspeaker"
+    source_description = "Dynamic 2” cone loudspeaker in a cylindrical enclosure (Frequency range 100 Hz-16 kHz)"
 
     def _source_filename(self, **dataset_kwargs) -> str:
         """Construct the raw input filename with extension."""
@@ -52,6 +63,115 @@ class IstaBaseDataset(BaseDataset):
             msg = f"{type(self).__name__} does not support directory ingest artifacts"
             raise NotImplementedError(msg)
         return self._write_sofa_from_hdf5(ingest_path, sofa_path)
+
+    def _create_default_variables(
+        self,
+        sofa: netCDF4.Dataset,
+        *,
+        m: int,
+        r: int,
+        n: int,
+        has_humidity: bool,
+        receiver_position: np.ndarray,
+        sampling_rate: float,
+    ) -> None:
+        """Create the common ISTA SOFA skeleton and fill shared defaults."""
+        for name, size in {"M": m, "R": r, "N": n, "E": 1, "C": 3, "I": 1}.items():
+            sofa.createDimension(name, size)
+
+        now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
+
+        sofa.Conventions = "SOFA"
+        sofa.Version = "2.1"
+        sofa.SOFAConventions = "SingleRoomMIMOSRIR"
+        sofa.SOFAConventionsVersion = "1.0"
+        sofa.DataType = "FIR-E"
+        sofa.Title = self.name.upper()
+        sofa.DatabaseName = self.name.upper()
+        sofa.References = self.doi
+        sofa.License = "CC BY-NC-SA 4.0"
+        sofa.RoomType = "shoebox"
+        sofa.DateCreated = now
+        sofa.DateModified = now
+        sofa.AuthorContact = "a.pelling@tu-berlin.de"
+        sofa.Organization = "TU Berlin"
+        sofa.APIName = "IRDL"
+        sofa.APIVersion = "1.0"
+        sofa.RoomLocation = self.room_location
+        sofa.ListenerShortName = self.listener_short_name
+        sofa.ListenerDescription = self.listener_description
+        sofa.ReceiverShortName = self.receiver_short_name
+        sofa.SourceShortName = self.source_short_name
+        sofa.SourceDescription = self.source_description
+
+        receiver_description_len = max(1, len(self.receiver_description))
+        sofa.createDimension("S", receiver_description_len)
+
+        data_ir = sofa.createVariable("Data.IR", "f8", ("M", "R", "N", "E"), zlib=True, complevel=4)
+        source = sofa.createVariable("SourcePosition", "f8", ("M", "C"))
+        source_view = sofa.createVariable("SourceView", "f8", ("M", "C"))
+        source_up = sofa.createVariable("SourceUp", "f8", ("M", "C"))
+        receiver = sofa.createVariable("ReceiverPosition", "f8", ("R", "C", "I"))
+        receiver_descriptions = sofa.createVariable("ReceiverDescriptions", "S1", ("R", "S"))
+        receiver_view = sofa.createVariable("ReceiverView", "f8", ("R", "C", "I"))
+        receiver_up = sofa.createVariable("ReceiverUp", "f8", ("R", "C", "I"))
+        temperature = sofa.createVariable("RoomTemperature", "f8", ("M",))
+        sampling_rate_var = sofa.createVariable("Data.SamplingRate", "f8", ("I",))
+        delay = sofa.createVariable("Data.Delay", "f8", ("M", "R", "I"))
+        listener = sofa.createVariable("ListenerPosition", "f8", ("M", "C"))
+        listener_view = sofa.createVariable("ListenerView", "f8", ("M", "C"))
+        listener_up = sofa.createVariable("ListenerUp", "f8", ("M", "C"))
+        emitter = sofa.createVariable("EmitterPosition", "f8", ("E", "C", "I"))
+        room_volume = sofa.createVariable("RoomVolume", "f8", ("I",))
+        room_corner_a = sofa.createVariable("RoomCornerA", "f8", ("I", "C"))
+        room_corner_b = sofa.createVariable("RoomCornerB", "f8", ("I", "C"))
+        room_corners = sofa.createVariable("RoomCorners", "f8", ("I", "I"))
+        measurement_date = sofa.createVariable("MeasurementDate", "f8", ("M",))
+        speed = sofa.createVariable("SpeedOfSound", "f8", ("M", "I"))
+        humidity = sofa.createVariable("Humidity", "f8", ("M", "I")) if has_humidity else None
+
+        for variable in (
+            source,
+            source_view,
+            source_up,
+            receiver,
+            receiver_view,
+            receiver_up,
+            listener,
+            listener_view,
+            listener_up,
+            emitter,
+        ):
+            variable.Type = "cartesian"
+            variable.Units = "metre"
+        temperature.Units = "kelvin"
+        sampling_rate_var.Units = "hertz"
+        room_volume.Units = "cubic metre"
+        room_corners.Type = "cartesian"
+        room_corners.Units = "metre"
+
+        receiver[:] = np.asarray(receiver_position)[:, :, np.newaxis]
+        receiver_descriptions[:] = netCDF4.stringtochar(
+            np.asarray([self.receiver_description] * r, dtype=f"S{receiver_description_len}")
+        )
+        receiver_view[:] = np.tile((1.0, 0.0, 0.0), (r, 1))[:, :, np.newaxis]
+        receiver_up[:] = np.tile((0.0, 0.0, 1.0), (r, 1))[:, :, np.newaxis]
+        sampling_rate_var[:] = sampling_rate
+        delay[:] = 0.0
+        listener[:] = 0.0
+        listener_view[:] = (1.0, 0.0, 0.0)
+        listener_up[:] = (0.0, 0.0, 1.0)
+        source_view[:] = (1.0, 0.0, 0.0)
+        source_up[:] = (0.0, 0.0, 1.0)
+        emitter[:] = 0.0
+        room_volume[:] = self.room_volume
+        room_corner_a[:] = (0.0, 0.0, 0.0)
+        room_corner_b[:] = (1.0, 1.0, 1.0)
+        room_corners[:] = 0.0
+        measurement_date[:] = self.measurement_date
+        speed[:] = 0.0
+        if humidity is not None:
+            humidity[:] = 0.0
 
     def _write_sofa_from_hdf5(  # noqa: PLR0915
         self,
@@ -70,74 +190,22 @@ class IstaBaseDataset(BaseDataset):
         with h5.File(ingest_path, "r") as hdf5, netCDF4.Dataset(sofa_path, "w", format="NETCDF4") as sofa:
             ir = hdf5["data/impulse_response"]
             m, r, n = ir.shape
+            has_humidity = "humidity" in hdf5["metadata"]
             logger.info(f"Writing {m} measurements, {r} receivers, {n} samples in chunks of {chunk_size}.")
-            for name, size in {"M": m, "R": r, "N": n, "E": 1, "C": 3, "I": 1}.items():
-                sofa.createDimension(name, size)
-
-            sofa.Conventions = "SOFA"
-            sofa.Version = "2.1"
-            sofa.SOFAConventions = "SingleRoomMIMOSRIR"
-            sofa.SOFAConventionsVersion = "1.0"
-            sofa.DataType = "FIR-E"
-            sofa.Title = self.name.upper()
-            sofa.DatabaseName = self.name.upper()
-            sofa.References = self.doi
-            sofa.License = "CC BY-NC-SA 4.0"
-            sofa.RoomType = "shoebox"
-            sofa.DateCreated = "2026-01-01 00:00:00"
-            sofa.DateModified = "2026-01-01 00:00:00"
-            sofa.AuthorContact = "a.pelling@tu-berlin.de"
-            sofa.Organization = "TU Berlin"
-            sofa.APIName = "IRDL"
-            sofa.APIVersion = "1.0"
-
-            data_ir = sofa.createVariable("Data.IR", "f8", ("M", "R", "N", "E"), zlib=True, complevel=4)
-            source = sofa.createVariable("SourcePosition", "f8", ("M", "C"))
-            source_view = sofa.createVariable("SourceView", "f8", ("M", "C"))
-            source_up = sofa.createVariable("SourceUp", "f8", ("M", "C"))
-            receiver = sofa.createVariable("ReceiverPosition", "f8", ("R", "C", "I"))
-            temperature = sofa.createVariable("RoomTemperature", "f8", ("M",))
-            sampling_rate = sofa.createVariable("Data.SamplingRate", "f8", ("I",))
-            delay = sofa.createVariable("Data.Delay", "f8", ("M", "R", "I"))
-            listener = sofa.createVariable("ListenerPosition", "f8", ("M", "C"))
-            listener_view = sofa.createVariable("ListenerView", "f8", ("M", "C"))
-            listener_up = sofa.createVariable("ListenerUp", "f8", ("M", "C"))
-            emitter = sofa.createVariable("EmitterPosition", "f8", ("E", "C", "I"))
-            room_volume = sofa.createVariable("RoomVolume", "f8", ("I",))
-            room_corner_a = sofa.createVariable("RoomCornerA", "f8", ("I", "C"))
-            room_corner_b = sofa.createVariable("RoomCornerB", "f8", ("I", "C"))
-            room_corners = sofa.createVariable("RoomCorners", "f8", ("I", "I"))
-            measurement_date = sofa.createVariable("MeasurementDate", "f8", ("M",))
-            speed = sofa.createVariable("SpeedOfSound", "f8", ("M", "I"))
-            humidity = None
-            if "humidity" in hdf5["metadata"]:
-                humidity = sofa.createVariable("Humidity", "f8", ("M", "I"))
-
-            for variable in (source, source_view, source_up, receiver, listener, listener_view, listener_up, emitter):
-                variable.Type = "cartesian"
-                variable.Units = "metre"
-            temperature.Units = "kelvin"
-            sampling_rate.Units = "hertz"
-            room_volume.Units = "cubic metre"
-            room_corners.Type = "cartesian"
-            room_corners.Units = "metre"
-
-            receiver[:] = np.asarray(hdf5["data/location/receiver"])[:, :, np.newaxis]
-            sampling_rate[:] = float(hdf5["metadata/sampling_rate"][()])
-            delay[:] = 0.0
-            listener[:] = 0.0
-            listener_view[:] = (1.0, 0.0, 0.0)
-            listener_up[:] = (0.0, 0.0, 1.0)
-            source_view[:] = (1.0, 0.0, 0.0)
-            source_up[:] = (0.0, 0.0, 1.0)
-            emitter[:] = 0.0
-            room_volume[:] = self.room_volume
-            room_corner_a[:] = (0.0, 0.0, 0.0)
-            room_corner_b[:] = (1.0, 1.0, 1.0)
-            room_corners[:] = 0.0
-            measurement_date[:] = self.measurement_date
-            if humidity is not None:
-                humidity[:] = 0.0
+            self._create_default_variables(
+                sofa,
+                m=m,
+                r=r,
+                n=n,
+                has_humidity=has_humidity,
+                receiver_position=np.asarray(hdf5["data/location/receiver"]),
+                sampling_rate=float(hdf5["metadata/sampling_rate"][()]),
+            )
+            data_ir = sofa.variables["Data.IR"]
+            source = sofa.variables["SourcePosition"]
+            temperature = sofa.variables["RoomTemperature"]
+            speed = sofa.variables["SpeedOfSound"]
+            humidity = sofa.variables["Humidity"] if has_humidity else None
             if m == 0:
                 msg = "Impulse response dataset is empty"
                 raise ValueError(msg)
@@ -685,55 +753,6 @@ class SrirachaDataset(IstaBaseDataset):
         logger.info(f"Streaming SRIRACHA split files for {scenario} to SOFA {sofa_path}.")
         logger.info(f"Writing {m} measurements, {r} receivers, {n} samples.")
         with netCDF4.Dataset(sofa_path, "w", format="NETCDF4") as sofa:
-            for name, size in {"M": m, "R": r, "N": n, "E": 1, "C": 3, "I": 1}.items():
-                sofa.createDimension(name, size)
-
-            sofa.Conventions = "SOFA"
-            sofa.Version = "2.1"
-            sofa.SOFAConventions = "SingleRoomMIMOSRIR"
-            sofa.SOFAConventionsVersion = "1.0"
-            sofa.DataType = "FIR-E"
-            sofa.Title = self.name.upper()
-            sofa.DatabaseName = self.name.upper()
-            sofa.References = self.doi
-            sofa.License = "CC BY-NC-SA 4.0"
-            sofa.RoomType = "shoebox"
-            sofa.DateCreated = "2026-01-01 00:00:00"
-            sofa.DateModified = "2026-01-01 00:00:00"
-            sofa.AuthorContact = "a.pelling@tu-berlin.de"
-            sofa.Organization = "TU Berlin"
-            sofa.APIName = "IRDL"
-            sofa.APIVersion = "1.0"
-
-            data_ir = sofa.createVariable("Data.IR", "f8", ("M", "R", "N", "E"), zlib=True, complevel=4)
-            source = sofa.createVariable("SourcePosition", "f8", ("M", "C"))
-            source_view = sofa.createVariable("SourceView", "f8", ("M", "C"))
-            source_up = sofa.createVariable("SourceUp", "f8", ("M", "C"))
-            receiver = sofa.createVariable("ReceiverPosition", "f8", ("R", "C", "I"))
-            temperature = sofa.createVariable("RoomTemperature", "f8", ("M",))
-            sampling_rate = sofa.createVariable("Data.SamplingRate", "f8", ("I",))
-            delay = sofa.createVariable("Data.Delay", "f8", ("M", "R", "I"))
-            listener = sofa.createVariable("ListenerPosition", "f8", ("M", "C"))
-            listener_view = sofa.createVariable("ListenerView", "f8", ("M", "C"))
-            listener_up = sofa.createVariable("ListenerUp", "f8", ("M", "C"))
-            emitter = sofa.createVariable("EmitterPosition", "f8", ("E", "C", "I"))
-            room_volume = sofa.createVariable("RoomVolume", "f8", ("I",))
-            room_corner_a = sofa.createVariable("RoomCornerA", "f8", ("I", "C"))
-            room_corner_b = sofa.createVariable("RoomCornerB", "f8", ("I", "C"))
-            room_corners = sofa.createVariable("RoomCorners", "f8", ("I", "I"))
-            measurement_date = sofa.createVariable("MeasurementDate", "f8", ("M",))
-            speed = sofa.createVariable("SpeedOfSound", "f8", ("M", "I"))
-            humidity = sofa.createVariable("Humidity", "f8", ("M", "I")) if has_humidity else None
-
-            for variable in (source, source_view, source_up, receiver, listener, listener_view, listener_up, emitter):
-                variable.Type = "cartesian"
-                variable.Units = "metre"
-            temperature.Units = "kelvin"
-            sampling_rate.Units = "hertz"
-            room_volume.Units = "cubic metre"
-            room_corners.Type = "cartesian"
-            room_corners.Units = "metre"
-
             with (
                 h5.File(split_files["C1"], "r") as c1,
                 h5.File(split_files["C2"], "r") as c2,
@@ -741,22 +760,20 @@ class SrirachaDataset(IstaBaseDataset):
                 h5.File(split_files["C4"], "r") as c4,
             ):
                 handles = {"C1": c1, "C2": c2, "C3": c3, "C4": c4}
-                receiver[:] = np.asarray(c1["data/location/receiver"])[:, :, np.newaxis]
-                sampling_rate[:] = float(c1["metadata/sampling_rate"][()])
-                delay[:] = 0.0
-                listener[:] = 0.0
-                listener_view[:] = (1.0, 0.0, 0.0)
-                listener_up[:] = (0.0, 0.0, 1.0)
-                source_view[:] = (1.0, 0.0, 0.0)
-                source_up[:] = (0.0, 0.0, 1.0)
-                emitter[:] = 0.0
-                room_volume[:] = self.room_volume
-                room_corner_a[:] = (0.0, 0.0, 0.0)
-                room_corner_b[:] = (1.0, 1.0, 1.0)
-                room_corners[:] = 0.0
-                measurement_date[:] = self.measurement_date
-                if humidity is not None:
-                    humidity[:] = 0.0
+                self._create_default_variables(
+                    sofa,
+                    m=m,
+                    r=r,
+                    n=n,
+                    has_humidity=has_humidity,
+                    receiver_position=np.asarray(c1["data/location/receiver"]),
+                    sampling_rate=float(c1["metadata/sampling_rate"][()]),
+                )
+                data_ir = sofa.variables["Data.IR"]
+                source = sofa.variables["SourcePosition"]
+                temperature = sofa.variables["RoomTemperature"]
+                speed = sofa.variables["SpeedOfSound"]
+                humidity = sofa.variables["Humidity"] if has_humidity else None
 
                 n_full_grid = int(np.sqrt(len(_SPLIT_OFFSETS) * n_split))
                 n_split_grid = n_full_grid // 2

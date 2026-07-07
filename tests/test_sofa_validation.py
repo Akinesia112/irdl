@@ -22,7 +22,15 @@ def test_ista_streaming_sofa_writer_produces_valid_checked_sofa(tmp_path):
     with netCDF4.Dataset(sofa_path) as sofa:
         assert sofa.variables["Data.SamplingRate"].shape == (1,)
         assert sofa.variables["RoomVolume"].shape == (1,)
-        assert sofa.irdl_ista_checksum_validated == "1"
+        assert sofa.RoomLocation == "TU Berlin, Einsteinufer 25, 10587 Berlin"
+        assert sofa.ListenerShortName == "Custom planar microphone array"
+        assert sofa.ReceiverShortName == "GRAS 40PL-1 Short CCP"
+        assert sofa.SourceShortName == "Loudspeaker"
+        assert sofa.variables["ReceiverDescriptions"].shape == (3, 21)
+        assert sofa.variables["ReceiverView"].shape == (3, 3, 1)
+        assert sofa.variables["ReceiverUp"].shape == (3, 3, 1)
+        assert sofa.DateCreated == sofa.DateModified
+        assert sofa.DateCreated != "2026-01-01 00:00:00"
         assert ista_hdf5_checksum_check(hdf5_path)(sofa) == []
 
 
@@ -39,7 +47,6 @@ def test_sriracha_split_writer_streams_provider_files_to_sofa(tmp_path):
     with sf.SofaStream(sofa_path) as sofa:
         assert sofa.verify(issue_handling="return", mode="read") is None
     with netCDF4.Dataset(sofa_path) as sofa:
-        assert sofa.irdl_ista_checksum_validated == "1"
         assert sriracha_split_checksum_check(split_files)(sofa) == []
 
 
