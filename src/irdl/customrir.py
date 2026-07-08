@@ -70,10 +70,7 @@ class MyriadDataset(BaseDataset):
         export_dir: str | Path | None = None,
         output_format: str = "pyfar",
     ) -> dict | Path | None:
-        """Download the MYRiAD dataset.
-
-        Parameters
-        ----------
+        """
         room : str
             Room to load. Either ``'SAL'`` or ``'AIL'``. Default is ``'SAL'``.
         array : str
@@ -97,7 +94,7 @@ class MyriadDataset(BaseDataset):
         dict or Path
             For 'pyfar' / 'numpy': dict of in-memory objects.
             For 'sofa' / 'hdf5' / 'raw': Path to file on disk.
-        """
+        """ # noqa: D205, D403
         return cls()._get(
             room=room,
             array=array,
