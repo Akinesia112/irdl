@@ -10,12 +10,18 @@ import sofar as sf
 from irdl.ista import SofaValidationIssue, SrirachaDataset, ista_hdf5_checksum_check, sriracha_split_checksum_check
 
 
+class TinyChunkSrirachaDataset(SrirachaDataset):
+    """SRIRACHA test double with tiny streaming chunks."""
+
+    _chunk_size = 1
+
+
 def test_ista_streaming_sofa_writer_produces_valid_checked_sofa(tmp_path):
     """ISTA streaming writer produces a SofaStream-verifiable checked SOFA file."""
     hdf5_path, _ = _write_matching_ista_files(tmp_path)
     sofa_path = tmp_path / "streamed.sofa"
 
-    SrirachaDataset()._write_sofa_from_hdf5(hdf5_path, sofa_path, chunk_size=1)
+    TinyChunkSrirachaDataset()._ingest(hdf5_path, sofa_path, scenario="SR1D", dataset_split=None)
 
     with sf.SofaStream(sofa_path) as sofa:
         assert sofa.verify(issue_handling="return", mode="read") is None
@@ -41,7 +47,7 @@ def test_sriracha_split_writer_streams_provider_files_to_sofa(tmp_path):
     _write_sriracha_split_files(provider_dir)
     sofa_path = tmp_path / "SR1.sofa"
 
-    SrirachaDataset()._write_sofa_from_split_files("SR1", provider_dir, sofa_path)
+    SrirachaDataset()._ingest(provider_dir, sofa_path, scenario="SR1", dataset_split=None)
 
     split_files = {split: provider_dir / f"SR1-{split}.h5" for split in ("C1", "C2", "C3", "C4")}
     with sf.SofaStream(sofa_path) as sofa:
@@ -125,5 +131,5 @@ def _write_matching_ista_files(tmp_path: Path) -> tuple[Path, Path]:
         metadata.create_dataset("c0", data=np.array([343.0, 343.0], dtype=np.float32))
 
     sofa_path = tmp_path / "ista.sofa"
-    SrirachaDataset()._write_sofa_from_hdf5(hdf5_path, sofa_path, chunk_size=1)
+    TinyChunkSrirachaDataset()._ingest(hdf5_path, sofa_path, scenario="SR1D", dataset_split=None)
     return hdf5_path, sofa_path

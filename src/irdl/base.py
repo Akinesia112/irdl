@@ -37,6 +37,7 @@ from irdl.utils import _link_or_copy
 _SOFA_FIR_E_DIMS = 4
 DEFAULT_CHUNK_SIZE = 256
 
+
 class DatasetCategory(StrEnum):
     """Categories for grouping datasets."""
 
@@ -72,6 +73,7 @@ class BaseDataset(ABC):
 
     name: str
     doi: str
+    _chunk_size = DEFAULT_CHUNK_SIZE
 
     # Default docstring prefix for all get() classmethods
     _get_doc_prefix = """Download {name} dataset.
@@ -506,10 +508,11 @@ output_format : str
         logger.info(f"Exporting SOFA file to {output_path}.")
         return _link_or_copy(sofa_path, output_path)
 
-    def _to_hdf5(self, sofa_path: Path, output_path: Path, *, chunk_size: int = DEFAULT_CHUNK_SIZE) -> Path:
+    def _to_hdf5(self, sofa_path: Path, output_path: Path) -> Path:
         """Convert a SOFA file to IRDL HDF5 without loading all IR data."""
+        chunk_size = int(self._chunk_size)
         if chunk_size <= 0:
-            msg = "chunk_size must be > 0"
+            msg = "_chunk_size must be > 0"
             raise ValueError(msg)
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
