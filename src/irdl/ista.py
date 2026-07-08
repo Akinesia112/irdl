@@ -40,17 +40,6 @@ _SOFA_FIR_E_DIMS = 4
 class IstaBaseDataset(BaseDataset):
     """Base class for HDF5-based datasets from ISTA (MIRACLE, SRIRACHA)."""
 
-    room_location = "TU Berlin, Einsteinufer 25, 10587 Berlin"
-    listener_short_name = "Custom planar microphone array"
-    listener_description = (
-        "64-channel planar microphone array "
-        "(1.5 m x 1.5 m aluminium plate, Vogel's spiral, max spacing 1.47 m, 51.2 kHz sampling rate)"
-    )
-    receiver_short_name = "GRAS 40PL-1 Short CCP"
-    receiver_description = "GRAS 40PL-1 Short CCP"
-    source_short_name = "Loudspeaker"
-    source_description = "Dynamic 2” cone loudspeaker in a cylindrical enclosure (Frequency range 100 Hz-16 kHz)"
-
     def _source_filename(self, **dataset_kwargs) -> str:
         """Construct the raw input filename with extension."""
         scenario = dataset_kwargs["scenario"]
@@ -97,15 +86,17 @@ class IstaBaseDataset(BaseDataset):
         sofa.Organization = "TU Berlin"
         sofa.APIName = "IRDL"
         sofa.APIVersion = "1.0"
-        sofa.RoomLocation = self.room_location
-        sofa.ListenerShortName = self.listener_short_name
-        sofa.ListenerDescription = self.listener_description
-        sofa.ReceiverShortName = self.receiver_short_name
-        sofa.SourceShortName = self.source_short_name
-        sofa.SourceDescription = self.source_description
+        sofa.RoomLocation = "TU Berlin, Einsteinufer 25, 10587 Berlin"
+        sofa.ListenerShortName = "Custom planar microphone array"
+        sofa.ListenerDescription = (
+            "64-channel planar microphone array "
+            "(1.5 m x 1.5 m aluminium plate, Vogel's spiral, max spacing 1.47 m, 51.2 kHz sampling rate)"
+        )
+        sofa.ReceiverShortName = "GRAS 40PL-1 Short CCP"
+        sofa.SourceShortName = "Loudspeaker"
+        sofa.SourceDescription = "Dynamic 2” cone loudspeaker in a cylindrical enclosure (100 Hz-16 kHz)"
 
-        receiver_description_len = max(1, len(self.receiver_description))
-        sofa.createDimension("S", receiver_description_len)
+        sofa.createDimension("S", 21)
 
         data_ir = sofa.createVariable("Data.IR", "f8", ("M", "R", "N", "E"), zlib=True, complevel=4)
         source = sofa.createVariable("SourcePosition", "f8", ("M", "C"))
@@ -133,13 +124,10 @@ class IstaBaseDataset(BaseDataset):
         for variable in (
             source,
             source_view,
-            source_up,
             receiver,
             receiver_view,
-            receiver_up,
             listener,
             listener_view,
-            listener_up,
             emitter,
         ):
             variable.Type = "cartesian"
@@ -152,7 +140,7 @@ class IstaBaseDataset(BaseDataset):
 
         receiver[:] = np.asarray(receiver_position)[:, :, np.newaxis]
         receiver_descriptions[:] = netCDF4.stringtochar(
-            np.asarray([self.receiver_description] * r, dtype=f"S{receiver_description_len}")
+            np.asarray(["GRAS 40PL-1 Short CCP"] * r, dtype="S21")
         )
         receiver_view[:] = np.tile((1.0, 0.0, 0.0), (r, 1))[:, :, np.newaxis]
         receiver_up[:] = np.tile((0.0, 0.0, 1.0), (r, 1))[:, :, np.newaxis]
