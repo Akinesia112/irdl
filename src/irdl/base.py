@@ -442,8 +442,8 @@ output_format : str
             return self._to_hdf5(sofa_path, output_path)
         if output_format in ("pyfar", "numpy"):
             logger.info(f"Loading SOFA file for {output_format} conversion.")
-            with logger.spin(f"Loading {sofa_path.name}..."):
-                sofa = sf.read_sofa(sofa_path, verify=False)
+            with logger.spin(f"Loading {sofa_path.name}..."), logger.as_stdout:
+                sofa = sf.read_sofa(sofa_path, verify=False, verbose=True)
             if output_format == "pyfar":
                 return self._to_pyfar(sofa)
             return self._to_numpy(sofa)
