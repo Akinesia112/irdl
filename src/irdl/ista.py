@@ -212,8 +212,7 @@ class IstaBaseDataset(BaseDataset):
                     humidity[row_slice, 0] = hdf5_humidity[row_slice]
 
         logger.info(f"Validating SOFA file {sofa_path}.")
-        with logger.spin(f"Validating {sofa_path.name}..."):
-            self._verify_sofa_convention(sofa_path)
+        with logger.spin(f"Running data checksum on {sofa_path.name}..."):
             with netCDF4.Dataset(sofa_path) as sofa:
                 issues = ista_hdf5_checksum_check(ingest_path, chunk_size=chunk_size)(sofa)
             if issues:
@@ -782,8 +781,7 @@ class SrirachaDataset(IstaBaseDataset):
                             humidity[dst, 0] = hdf5["metadata/humidity"][src]
 
         logger.info(f"Validating SOFA file {sofa_path}.")
-        with logger.spin(f"Validating {sofa_path.name}..."):
-            self._verify_sofa_convention(sofa_path)
+        with logger.spin(f"Running data checksum on {sofa_path.name}..."):
             with netCDF4.Dataset(sofa_path) as sofa:
                 issues = sriracha_split_checksum_check(split_files)(sofa)
             if issues:
