@@ -94,7 +94,7 @@ class MyriadDataset(BaseDataset):
         dict or Path
             For 'pyfar' / 'numpy': dict of in-memory objects.
             For 'sofa' / 'hdf5' / 'raw': Path to file on disk.
-        """ # noqa: D205, D403
+        """  # noqa: D205, D403
         return cls()._get(
             room=room,
             array=array,
