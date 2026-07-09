@@ -248,9 +248,6 @@ class IstaBaseDataset(BaseDataset):
             humidity[:] = 0.0
 
 
-_SPLIT_OFFSETS = {"C1": (0, 0), "C2": (0, 1), "C3": (1, 0), "C4": (1, 1)}
-
-
 def _canonical_shape(shape: tuple[int, ...]) -> tuple[int, ...]:
     squeezed = tuple(dim for dim in shape if dim != 1)
     return squeezed or (1,)
@@ -488,6 +485,12 @@ class SrirachaDataset(IstaBaseDataset):
     name = "sriracha"
     doi = "10.14279/depositonce-23943"
     _category = DatasetCategory.ROOM_IMPULSE_RESPONSES
+    _split_offsets = (
+        ("C1", (0, 0)),
+        ("C2", (0, 1)),
+        ("C3", (1, 0)),
+        ("C4", (1, 1)),
+    )
     room_volume = 73.5
     measurement_date = 1755648000.0
 
@@ -635,7 +638,9 @@ class SrirachaDataset(IstaBaseDataset):
             return super()._ingest(ingest_path, sofa_path, **dataset_kwargs)
 
         provider_dir = ingest_path
-        split_files = {split_name: provider_dir / f"{scenario}-{split_name}.h5" for split_name in _SPLIT_OFFSETS}
+        split_files = {
+            split_name: provider_dir / f"{scenario}-{split_name}.h5" for split_name, _ in self._split_offsets
+        }
         with h5.File(split_files["C1"], "r") as first:
             ir_shape = first["data/impulse_response"].shape
             n_split = ir_shape[0]
@@ -668,10 +673,10 @@ class SrirachaDataset(IstaBaseDataset):
             speed = sofa.variables["SpeedOfSound"]
             humidity = sofa.variables["Humidity"] if has_humidity else None
 
-            n_full_grid = int(np.sqrt(len(_SPLIT_OFFSETS) * n_split))
+            n_full_grid = int(np.sqrt(len(self._split_offsets) * n_split))
             n_split_grid = n_full_grid // 2
             logger.debug(f"Merging {n_split_grid}x{n_split_grid} split grids into {n_full_grid}x{n_full_grid} grid.")
-            for split_name, (row, col) in _SPLIT_OFFSETS.items():
+            for split_name, (row, col) in self._split_offsets:
                 hdf5 = handles[split_name]
                 for split_row in range(n_split_grid):
                     src = slice(split_row * n_split_grid, (split_row + 1) * n_split_grid)
@@ -694,7 +699,9 @@ class SrirachaDataset(IstaBaseDataset):
             return
 
         scenario = dataset_kwargs["scenario"]
-        split_files = {split_name: ingest_artifact / f"{scenario}-{split_name}.h5" for split_name in _SPLIT_OFFSETS}
+        split_files = {
+            split_name: ingest_artifact / f"{scenario}-{split_name}.h5" for split_name, _ in self._split_offsets
+        }
         logger.info(f"Validating SOFA file {sofa_path}.")
         with (
             logger.spin(f"Running data checksum on {sofa_path.name}..."),
@@ -706,9 +713,9 @@ class SrirachaDataset(IstaBaseDataset):
         ):
             handles = {"C1": c1, "C2": c2, "C3": c3, "C4": c4}
             n_split = c1["data/impulse_response"].shape[0]
-            n_full_grid = int(np.sqrt(len(_SPLIT_OFFSETS) * n_split))
+            n_full_grid = int(np.sqrt(len(self._split_offsets) * n_split))
             n_split_grid = n_full_grid // 2
-            for split_name, (row, col) in _SPLIT_OFFSETS.items():
+            for split_name, (row, col) in self._split_offsets:
                 hdf5 = handles[split_name]
                 for split_row in range(n_split_grid):
                     src = slice(split_row * n_split_grid, (split_row + 1) * n_split_grid)
