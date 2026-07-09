@@ -78,6 +78,7 @@ class IstaBaseDataset(BaseDataset):
                 if humidity is not None:
                     humidity[row_slice, 0] = hdf5_humidity[row_slice]
 
+        _preserve_permissions(ingest_path, sofa_path)
         self._verify_payload(sofa_path, ingest_path, **dataset_kwargs)
         logger.info(f"Finished SOFA file {sofa_path}.")
         return sofa_path
@@ -691,6 +692,7 @@ class SrirachaDataset(IstaBaseDataset):
                     if humidity is not None:
                         humidity[dst, 0] = hdf5["metadata/humidity"][src]
 
+        _preserve_permissions(ingest_path, sofa_path)
         self._verify_payload(sofa_path, provider_dir, scenario=scenario)
         logger.info(f"Finished SOFA file {sofa_path}.")
         return sofa_path
