@@ -46,7 +46,7 @@ class IstaBaseDataset(BaseDataset):
         split = dataset_kwargs.get("dataset_split")
         return f"{scenario}{('-' + split) if split else ''}.h5"
 
-    def _ingest(self, ingest_path: Path, sofa_path: Path, **_dataset_kwargs) -> Path:
+    def _ingest(self, ingest_path: Path, sofa_path: Path, **dataset_kwargs) -> Path:
         """Stream an ISTA HDF5 ingest-ready file to SOFA without loading all IRs."""
         if ingest_path.is_dir():
             msg = f"{type(self).__name__} does not support directory ingest artifacts"
@@ -95,15 +95,20 @@ class IstaBaseDataset(BaseDataset):
                 if humidity is not None:
                     humidity[row_slice, 0] = hdf5_humidity[row_slice]
 
+        self._verify_payload(sofa_path, ingest_path, **dataset_kwargs)
+        logger.info(f"Finished SOFA file {sofa_path}.")
+        return sofa_path
+
+    def _verify_payload(self, sofa_path: Path, ingest_artifact: Path, **_dataset_kwargs) -> None:
+        """Verify that a streamed ISTA SOFA matches its HDF5 ingest artifact."""
+        chunk_size = int(self._chunk_size)
         logger.info(f"Validating SOFA file {sofa_path}.")
         with logger.spin(f"Running data checksum on {sofa_path.name}..."):
             with netCDF4.Dataset(sofa_path) as sofa:
-                issues = ista_hdf5_checksum_check(ingest_path, chunk_size=chunk_size)(sofa)
+                issues = ista_hdf5_checksum_check(ingest_artifact, chunk_size=chunk_size)(sofa)
             if issues:
                 msg = f"SOFA checksum validation failed for {sofa_path}: {'; '.join(str(issue) for issue in issues)}"
                 raise ValueError(msg)
-        logger.info(f"Finished SOFA file {sofa_path}.")
-        return sofa_path
 
     def _create_default_variables(  # noqa: PLR0915
         self,
@@ -766,6 +771,17 @@ class SrirachaDataset(IstaBaseDataset):
                     if humidity is not None:
                         humidity[dst, 0] = hdf5["metadata/humidity"][src]
 
+        self._verify_payload(sofa_path, provider_dir, scenario=scenario)
+        logger.info(f"Finished SOFA file {sofa_path}.")
+        return sofa_path
+
+    def _verify_payload(self, sofa_path: Path, ingest_artifact: Path, **dataset_kwargs) -> None:
+        if not ingest_artifact.is_dir():
+            super()._verify_payload(sofa_path, ingest_artifact, **dataset_kwargs)
+            return
+
+        scenario = dataset_kwargs["scenario"]
+        split_files = {split_name: ingest_artifact / f"{scenario}-{split_name}.h5" for split_name in _SPLIT_OFFSETS}
         logger.info(f"Validating SOFA file {sofa_path}.")
         with logger.spin(f"Running data checksum on {sofa_path.name}..."):
             with netCDF4.Dataset(sofa_path) as sofa:
@@ -773,5 +789,3 @@ class SrirachaDataset(IstaBaseDataset):
             if issues:
                 msg = f"SOFA checksum validation failed for {sofa_path}: {'; '.join(str(issue) for issue in issues)}"
                 raise ValueError(msg)
-        logger.info(f"Finished SOFA file {sofa_path}.")
-        return sofa_path
