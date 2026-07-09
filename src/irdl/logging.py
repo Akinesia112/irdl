@@ -34,7 +34,7 @@ rich_handler = RichHandler(
 rich_handler.setFormatter(logging.Formatter("%(message)s"))
 logger.addHandler(rich_handler)
 logger.addHandler(logging.NullHandler())
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 
 class StdoutCapture:
