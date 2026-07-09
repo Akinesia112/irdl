@@ -1,5 +1,6 @@
 """Tests for Dataset conversion methods."""
 
+import os
 import tempfile
 from pathlib import Path
 
@@ -36,6 +37,16 @@ class TestDataset(BaseDataset):
 
 # Create the TestDataset instance to use for all conversion tests
 test_dataset = TestDataset()
+
+
+def _assert_permissions_preserved(source_path: Path, target_path: Path) -> None:
+    """Assert permission preservation with Windows-compatible semantics."""
+    source_mode = source_path.stat().st_mode & 0o777
+    target_mode = target_path.stat().st_mode & 0o777
+    if os.name == "nt":
+        assert bool(source_mode & 0o200) == bool(target_mode & 0o200)
+    else:
+        assert target_mode == source_mode
 
 
 class TestConversionToPyFar:
@@ -134,6 +145,17 @@ class TestConversionToSofa:
         assert loaded_sofa.Data_IR.shape == sofa_object.Data_IR.shape
         assert loaded_sofa.Data_SamplingRate == sofa_object.Data_SamplingRate
 
+    def test_conversion_to_sofa_preserves_permissions(self, sofa_object, tmp_path):
+        """Verify _to_sofa reuses the source SOFA file's permission bits."""
+        sofa_path = tmp_path / "ingest.sofa"
+        sf.write_sofa(sofa_path, sofa_object)
+        sofa_path.chmod(0o640)
+
+        output_path = tmp_path / "test.sofa"
+        result = test_dataset._to_sofa(sofa_path, output_path)
+
+        _assert_permissions_preserved(sofa_path, result)
+
 
 class TestConversionToHdf5:
     """Tests for _to_hdf5 conversion method."""
@@ -143,7 +165,7 @@ class TestConversionToHdf5:
         with tempfile.TemporaryDirectory() as tmpdir:
             sofa_path = Path(tmpdir) / "test.sofa"
             sf.write_sofa(sofa_path, sofa_object)
-            result = test_dataset._to_hdf5_file(sofa_path, Path(tmpdir) / "test.h5")
+            result = test_dataset._to_hdf5(sofa_path, Path(tmpdir) / "test.h5")
             assert isinstance(result, Path)
             assert result.exists()
 
@@ -152,7 +174,7 @@ class TestConversionToHdf5:
         with tempfile.TemporaryDirectory() as tmpdir:
             sofa_path = Path(tmpdir) / "test.sofa"
             sf.write_sofa(sofa_path, sofa_object)
-            result = test_dataset._to_hdf5_file(sofa_path, Path(tmpdir) / "test.h5")
+            result = test_dataset._to_hdf5(sofa_path, Path(tmpdir) / "test.h5")
 
             with h5py.File(result, "r") as f:
                 # Check data group exists
@@ -167,7 +189,7 @@ class TestConversionToHdf5:
                 assert "sampling_rate" in f["metadata"]
 
     def test_conversion_to_hdf5_optional_fields(self):
-        """Verify _to_hdf5_file includes optional temperature/humidity fields."""
+        """Verify _to_hdf5 includes optional temperature/humidity fields."""
         with tempfile.TemporaryDirectory() as tmpdir:
             sofa_path = Path(tmpdir) / "test.sofa"
             with netCDF4.Dataset(sofa_path, "w") as sofa:
@@ -185,9 +207,20 @@ class TestConversionToHdf5:
                 sofa.createVariable("Humidity", "f8", ("M", "I"))[:] = 50
                 sofa.createVariable("SpeedOfSound", "f8", ("M", "I"))[:] = 343
 
-            result = test_dataset._to_hdf5_file(sofa_path, Path(tmpdir) / "test.h5")
+            result = test_dataset._to_hdf5(sofa_path, Path(tmpdir) / "test.h5")
 
             with h5py.File(result, "r") as f:
                 assert "temperature" in f["metadata"]
                 assert "humidity" in f["metadata"]
                 assert "c0" in f["metadata"]
+
+    def test_conversion_to_hdf5_preserves_permissions(self, sofa_object, tmp_path):
+        """Verify _to_hdf5 reuses the source SOFA file's permission bits."""
+        sofa_path = tmp_path / "ingest.sofa"
+        sf.write_sofa(sofa_path, sofa_object)
+        sofa_path.chmod(0o640)
+
+        output_path = tmp_path / "test.h5"
+        result = test_dataset._to_hdf5(sofa_path, output_path)
+
+        _assert_permissions_preserved(sofa_path, result)

@@ -32,7 +32,7 @@ import sofar as sf
 
 from irdl.cache import IRDL_CACHE_DIR
 from irdl.logging import logger
-from irdl.utils import _link_or_copy
+from irdl.utils import _link_or_copy, _preserve_permissions
 
 _SOFA_FIR_E_DIMS = 4
 DEFAULT_CHUNK_SIZE = 256
@@ -537,6 +537,13 @@ output_format : str
 
             meta_group = f.create_group("metadata")
             meta_group.create_dataset("sampling_rate", data=sofa.variables["Data.SamplingRate"][:])
+            if "RoomTemperature" in sofa.variables:
+                meta_group.create_dataset("temperature", data=sofa.variables["RoomTemperature"][:])
+            if "SpeedOfSound" in sofa.variables:
+                meta_group.create_dataset("c0", data=sofa.variables["SpeedOfSound"][:])
+            if "Humidity" in sofa.variables:
+                meta_group.create_dataset("humidity", data=sofa.variables["Humidity"][:])
+        _preserve_permissions(sofa_path, output_path)
         return output_path
 
 

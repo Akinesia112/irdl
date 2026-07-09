@@ -15,6 +15,7 @@ import numpy as np
 from irdl.base import BaseDataset, DatasetCategory
 from irdl.downloader import _fetch, _pooch_from_doi
 from irdl.logging import logger
+from irdl.utils import _preserve_permissions
 
 _SOFA_FIR_E_DIMS = 4
 
@@ -463,6 +464,7 @@ class MiracleDataset(IstaBaseDataset):
             if "humidity" in data:
                 metadata_group.create_dataset("humidity", data=data["humidity"])
 
+        _preserve_permissions(ingest_path, output_path)
         return output_path
 
 
