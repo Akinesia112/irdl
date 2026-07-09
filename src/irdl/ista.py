@@ -5,35 +5,17 @@
 """
 
 import hashlib
-from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import NamedTuple
 
 import h5py as h5
 import netCDF4
 import numpy as np
 
-from irdl.base import DEFAULT_CHUNK_SIZE, BaseDataset, DatasetCategory
+from irdl.base import BaseDataset, DatasetCategory
 from irdl.downloader import _fetch, _pooch_from_doi
 from irdl.logging import logger
 
-
-class SofaValidationIssue(NamedTuple):
-    """Validation issue found while checking a SOFA file."""
-
-    code: str
-    message: str
-    variable: str | None = None
-
-    def __str__(self) -> str:
-        """Return a compact human-readable issue description."""
-        if self.variable is None:
-            return f"{self.code}: {self.message}"
-        return f"{self.code}: {self.variable}: {self.message}"
-
-
-IstaSofaCheck = Callable[[netCDF4.Dataset], list[SofaValidationIssue]]
 _SOFA_FIR_E_DIMS = 4
 
 
@@ -102,13 +84,62 @@ class IstaBaseDataset(BaseDataset):
     def _verify_payload(self, sofa_path: Path, ingest_artifact: Path, **_dataset_kwargs) -> None:
         """Verify that a streamed ISTA SOFA matches its HDF5 ingest artifact."""
         chunk_size = int(self._chunk_size)
+        if chunk_size <= 0:
+            msg = "_chunk_size must be > 0"
+            raise ValueError(msg)
+
         logger.info(f"Validating SOFA file {sofa_path}.")
-        with logger.spin(f"Running data checksum on {sofa_path.name}..."):
-            with netCDF4.Dataset(sofa_path) as sofa:
-                issues = ista_hdf5_checksum_check(ingest_artifact, chunk_size=chunk_size)(sofa)
-            if issues:
-                msg = f"SOFA checksum validation failed for {sofa_path}: {'; '.join(str(issue) for issue in issues)}"
-                raise ValueError(msg)
+        with (
+            logger.spin(f"Running data checksum on {sofa_path.name}..."),
+            netCDF4.Dataset(sofa_path) as sofa_dataset,
+            h5.File(ingest_artifact, "r") as hdf5,
+        ):
+            comparisons = (
+                (
+                    "Data.IR",
+                    hdf5["data/impulse_response"],
+                    sofa_dataset.variables["Data.IR"],
+                    np.dtype(np.float32),
+                ),
+                (
+                    "SourcePosition",
+                    hdf5["data/location/source"],
+                    sofa_dataset.variables["SourcePosition"],
+                    np.dtype(np.float64),
+                ),
+                (
+                    "ReceiverPosition",
+                    hdf5["data/location/receiver"],
+                    sofa_dataset.variables["ReceiverPosition"],
+                    np.dtype(np.float64),
+                ),
+            )
+            for variable_name, hdf5_variable, sofa_variable, dtype in comparisons:
+                hdf5_shape = _canonical_shape(hdf5_variable.shape)
+                sofa_shape = _canonical_shape(sofa_variable.shape)
+                if hdf5_shape != sofa_shape:
+                    msg = (
+                        f"SOFA checksum validation failed for {sofa_path}: "
+                        f"HDF5 shape {hdf5_shape} differs from SOFA shape {sofa_shape}: {variable_name}"
+                    )
+                    raise ValueError(msg)
+
+                hdf5_hash = hashlib.sha256()
+                sofa_hash = hashlib.sha256()
+                for row_slice in _chunk_slices(hdf5_shape[0], chunk_size):
+                    hdf5_data = hdf5_variable[row_slice]
+                    if len(sofa_variable.shape) == _SOFA_FIR_E_DIMS and sofa_variable.shape[-1] == 1:
+                        sofa_data = sofa_variable[row_slice, :, :, 0]
+                    else:
+                        sofa_data = sofa_variable[row_slice]
+                    hdf5_hash.update(_canonical_array(hdf5_data, dtype).view(np.uint8))
+                    sofa_hash.update(_canonical_array(sofa_data, dtype).view(np.uint8))
+                if hdf5_hash.hexdigest() != sofa_hash.hexdigest():
+                    msg = (
+                        f"SOFA checksum validation failed for {sofa_path}: "
+                        f"checksum differs from ISTA HDF5 ingest data: {variable_name}"
+                    )
+                    raise ValueError(msg)
 
     def _create_default_variables(  # noqa: PLR0915
         self,
@@ -218,124 +249,6 @@ class IstaBaseDataset(BaseDataset):
 
 
 _SPLIT_OFFSETS = {"C1": (0, 0), "C2": (0, 1), "C3": (1, 0), "C4": (1, 1)}
-
-
-def sriracha_split_checksum_check(split_files: dict[str, Path]) -> IstaSofaCheck:
-    """Return a checksum check for SRIRACHA split provider files."""
-
-    def check(sofa_dataset: netCDF4.Dataset) -> list[SofaValidationIssue]:
-        issues: list[SofaValidationIssue] = []
-        with (
-            h5.File(split_files["C1"], "r") as c1,
-            h5.File(split_files["C2"], "r") as c2,
-            h5.File(split_files["C3"], "r") as c3,
-            h5.File(split_files["C4"], "r") as c4,
-        ):
-            handles = {"C1": c1, "C2": c2, "C3": c3, "C4": c4}
-            n_split = c1["data/impulse_response"].shape[0]
-            n_full_grid = int(np.sqrt(len(_SPLIT_OFFSETS) * n_split))
-            n_split_grid = n_full_grid // 2
-            for split_name, (row, col) in _SPLIT_OFFSETS.items():
-                hdf5 = handles[split_name]
-                for split_row in range(n_split_grid):
-                    src = slice(split_row * n_split_grid, (split_row + 1) * n_split_grid)
-                    grid_row = 2 * split_row + row
-                    dst = slice(grid_row * n_full_grid + col, grid_row * n_full_grid + n_full_grid, 2)
-                    comparisons = (
-                        (
-                            "Data.IR",
-                            hdf5["data/impulse_response"][src],
-                            sofa_dataset.variables["Data.IR"][dst, :, :, 0],
-                            np.float32,
-                        ),
-                        (
-                            "SourcePosition",
-                            hdf5["data/location/source"][src],
-                            sofa_dataset.variables["SourcePosition"][dst, :],
-                            np.float64,
-                        ),
-                    )
-                    for variable_name, left, right, dtype in comparisons:
-                        left_hash = hashlib.sha256(_canonical_array(left, np.dtype(dtype)).view(np.uint8)).hexdigest()
-                        right_hash = hashlib.sha256(_canonical_array(right, np.dtype(dtype)).view(np.uint8)).hexdigest()
-                        if left_hash != right_hash:
-                            issues.append(
-                                SofaValidationIssue(
-                                    "checksum-mismatch",
-                                    "checksum differs from SRIRACHA split data",
-                                    variable_name,
-                                )
-                            )
-        return issues
-
-    return check
-
-
-def ista_hdf5_checksum_check(ingest_path: str | Path, *, chunk_size: int = DEFAULT_CHUNK_SIZE) -> IstaSofaCheck:
-    """Return a SOFA validation check comparing ISTA HDF5 ingest data."""
-    hdf5_path = Path(ingest_path)
-
-    def check(sofa_dataset: netCDF4.Dataset) -> list[SofaValidationIssue]:
-        if chunk_size <= 0:
-            msg = "chunk_size must be > 0"
-            raise ValueError(msg)
-
-        issues: list[SofaValidationIssue] = []
-        with h5.File(hdf5_path, "r") as hdf5:
-            comparisons = (
-                (
-                    "Data.IR",
-                    hdf5["data/impulse_response"],
-                    sofa_dataset.variables["Data.IR"],
-                    np.dtype(np.float32),
-                ),
-                (
-                    "SourcePosition",
-                    hdf5["data/location/source"],
-                    sofa_dataset.variables["SourcePosition"],
-                    np.dtype(np.float64),
-                ),
-                (
-                    "ReceiverPosition",
-                    hdf5["data/location/receiver"],
-                    sofa_dataset.variables["ReceiverPosition"],
-                    np.dtype(np.float64),
-                ),
-            )
-            for variable_name, hdf5_variable, sofa_variable, dtype in comparisons:
-                hdf5_shape = _canonical_shape(hdf5_variable.shape)
-                sofa_shape = _canonical_shape(sofa_variable.shape)
-                if hdf5_shape != sofa_shape:
-                    issues.append(
-                        SofaValidationIssue(
-                            "shape-mismatch",
-                            f"HDF5 shape {hdf5_shape} differs from SOFA shape {sofa_shape}",
-                            variable_name,
-                        )
-                    )
-                    continue
-
-                hdf5_hash = hashlib.sha256()
-                sofa_hash = hashlib.sha256()
-                for row_slice in _chunk_slices(hdf5_shape[0], chunk_size):
-                    hdf5_data = hdf5_variable[row_slice]
-                    if len(sofa_variable.shape) == _SOFA_FIR_E_DIMS and sofa_variable.shape[-1] == 1:
-                        sofa_data = sofa_variable[row_slice, :, :, 0]
-                    else:
-                        sofa_data = sofa_variable[row_slice]
-                    hdf5_hash.update(_canonical_array(hdf5_data, dtype).view(np.uint8))
-                    sofa_hash.update(_canonical_array(sofa_data, dtype).view(np.uint8))
-                if hdf5_hash.hexdigest() != sofa_hash.hexdigest():
-                    issues.append(
-                        SofaValidationIssue(
-                            "checksum-mismatch",
-                            "checksum differs from ISTA HDF5 ingest data",
-                            variable_name,
-                        )
-                    )
-        return issues
-
-    return check
 
 
 def _canonical_shape(shape: tuple[int, ...]) -> tuple[int, ...]:
@@ -783,9 +696,44 @@ class SrirachaDataset(IstaBaseDataset):
         scenario = dataset_kwargs["scenario"]
         split_files = {split_name: ingest_artifact / f"{scenario}-{split_name}.h5" for split_name in _SPLIT_OFFSETS}
         logger.info(f"Validating SOFA file {sofa_path}.")
-        with logger.spin(f"Running data checksum on {sofa_path.name}..."):
-            with netCDF4.Dataset(sofa_path) as sofa:
-                issues = sriracha_split_checksum_check(split_files)(sofa)
-            if issues:
-                msg = f"SOFA checksum validation failed for {sofa_path}: {'; '.join(str(issue) for issue in issues)}"
-                raise ValueError(msg)
+        with (
+            logger.spin(f"Running data checksum on {sofa_path.name}..."),
+            netCDF4.Dataset(sofa_path) as sofa_dataset,
+            h5.File(split_files["C1"], "r") as c1,
+            h5.File(split_files["C2"], "r") as c2,
+            h5.File(split_files["C3"], "r") as c3,
+            h5.File(split_files["C4"], "r") as c4,
+        ):
+            handles = {"C1": c1, "C2": c2, "C3": c3, "C4": c4}
+            n_split = c1["data/impulse_response"].shape[0]
+            n_full_grid = int(np.sqrt(len(_SPLIT_OFFSETS) * n_split))
+            n_split_grid = n_full_grid // 2
+            for split_name, (row, col) in _SPLIT_OFFSETS.items():
+                hdf5 = handles[split_name]
+                for split_row in range(n_split_grid):
+                    src = slice(split_row * n_split_grid, (split_row + 1) * n_split_grid)
+                    grid_row = 2 * split_row + row
+                    dst = slice(grid_row * n_full_grid + col, grid_row * n_full_grid + n_full_grid, 2)
+                    comparisons = (
+                        (
+                            "Data.IR",
+                            hdf5["data/impulse_response"][src],
+                            sofa_dataset.variables["Data.IR"][dst, :, :, 0],
+                            np.float32,
+                        ),
+                        (
+                            "SourcePosition",
+                            hdf5["data/location/source"][src],
+                            sofa_dataset.variables["SourcePosition"][dst, :],
+                            np.float64,
+                        ),
+                    )
+                    for variable_name, left, right, dtype in comparisons:
+                        left_hash = hashlib.sha256(_canonical_array(left, np.dtype(dtype)).view(np.uint8)).hexdigest()
+                        right_hash = hashlib.sha256(_canonical_array(right, np.dtype(dtype)).view(np.uint8)).hexdigest()
+                        if left_hash != right_hash:
+                            msg = (
+                                f"SOFA checksum validation failed for {sofa_path}: "
+                                f"checksum differs from SRIRACHA split data: {variable_name}"
+                            )
+                            raise ValueError(msg)

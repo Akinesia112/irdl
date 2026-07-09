@@ -5,9 +5,10 @@ from pathlib import Path
 import h5py
 import netCDF4
 import numpy as np
+import pytest
 import sofar as sf
 
-from irdl.ista import SofaValidationIssue, SrirachaDataset, ista_hdf5_checksum_check, sriracha_split_checksum_check
+from irdl.ista import SrirachaDataset
 
 
 class TinyChunkSrirachaDataset(SrirachaDataset):
@@ -37,7 +38,7 @@ def test_ista_streaming_sofa_writer_produces_valid_checked_sofa(tmp_path):
         assert sofa.variables["ReceiverUp"].shape == (3, 3, 1)
         assert sofa.DateCreated == sofa.DateModified
         assert sofa.DateCreated != "2026-01-01 00:00:00"
-        assert ista_hdf5_checksum_check(hdf5_path)(sofa) == []
+        TinyChunkSrirachaDataset()._verify_payload(sofa_path, hdf5_path, scenario="SR1D", dataset_split=None)
 
 
 def test_sriracha_split_writer_streams_provider_files_to_sofa(tmp_path):
@@ -49,11 +50,9 @@ def test_sriracha_split_writer_streams_provider_files_to_sofa(tmp_path):
 
     SrirachaDataset()._ingest(provider_dir, sofa_path, scenario="SR1", dataset_split=None)
 
-    split_files = {split: provider_dir / f"SR1-{split}.h5" for split in ("C1", "C2", "C3", "C4")}
     with sf.SofaStream(sofa_path) as sofa:
         assert sofa.verify(issue_handling="return", mode="read") is None
-    with netCDF4.Dataset(sofa_path) as sofa:
-        assert sriracha_split_checksum_check(split_files)(sofa) == []
+    SrirachaDataset()._verify_payload(sofa_path, provider_dir, scenario="SR1", dataset_split=None)
 
 
 def test_sriracha_full_plane_process_keeps_provider_artifact_set(tmp_path):
@@ -67,28 +66,21 @@ def test_sriracha_full_plane_process_keeps_provider_artifact_set(tmp_path):
     assert not ingest_path.exists()
 
 
-def test_ista_checksum_check_accepts_matching_hdf5_and_sofa(tmp_path):
-    """ISTA checksum validation accepts matching HDF5 and SOFA data."""
+def test_ista_payload_verification_accepts_matching_hdf5_and_sofa(tmp_path):
+    """ISTA payload verification accepts matching HDF5 and SOFA data."""
     hdf5_path, sofa_path = _write_matching_ista_files(tmp_path)
 
-    with netCDF4.Dataset(sofa_path) as sofa:
-        result = ista_hdf5_checksum_check(hdf5_path)(sofa)
-
-    assert result == []
+    TinyChunkSrirachaDataset()._verify_payload(sofa_path, hdf5_path, scenario="SR1D", dataset_split=None)
 
 
-def test_ista_checksum_check_rejects_changed_coordinates(tmp_path):
-    """ISTA checksum validation rejects changed Coordinates."""
+def test_ista_payload_verification_rejects_changed_coordinates(tmp_path):
+    """ISTA payload verification rejects changed Coordinates."""
     hdf5_path, sofa_path = _write_matching_ista_files(tmp_path)
     with netCDF4.Dataset(sofa_path, "a") as dataset:
         dataset.variables["SourcePosition"][0, 0] = 99.0
 
-    with netCDF4.Dataset(sofa_path) as sofa:
-        result = ista_hdf5_checksum_check(hdf5_path)(sofa)
-
-    assert result == [
-        SofaValidationIssue("checksum-mismatch", "checksum differs from ISTA HDF5 ingest data", "SourcePosition")
-    ]
+    with pytest.raises(ValueError, match="checksum differs from ISTA HDF5 ingest data: SourcePosition"):
+        TinyChunkSrirachaDataset()._verify_payload(sofa_path, hdf5_path, scenario="SR1D", dataset_split=None)
 
 
 def _write_sriracha_split_files(provider_dir: Path) -> None:
