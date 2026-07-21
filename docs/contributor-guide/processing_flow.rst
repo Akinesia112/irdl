@@ -45,11 +45,12 @@ Cache stages
 
 2. ``ingest``
 
-   The single ingest-ready file that ``irdl`` can read into the internal SOFA representation.
+   The ingest-ready provider-derived artifact. This is usually one file, but a Dataset may
+   use an artifact set when writing directly to the internal SOFA file.
 
 3. ``output``
 
-   Files produced by converting the internal SOFA representation to disk-based
+   The retained internal SOFA file and files produced by converting it to disk-based
    Output Formats.
 
 Use these names in code comments and documentation. "Ingest-ready" is an adjective for a
@@ -69,13 +70,13 @@ A public ``Dataset.get(...)`` call delegates to the shared :class:`~irdl.base.Ba
          ├─ validate common and Dataset-specific parameters
          ├─ resolve provider / ingest / output paths
          ├─ [optional] raw output: retrieve provider artifact and return it
-         ├─ reuse cached output if available
-         ├─ reuse ingest file if available
+         ├─ reuse cached output/internal SOFA file if available
+         ├─ reuse ingest artifact if available
          ├─ retrieve provider artifact if needed
-         ├─ [optional] process provider file(s) into ingest file
-         ├─ ingest to internal SOFA representation
-         ├─ verify and upgrade SOFA convention
-         └─ convert SOFA → requested Output Format
+         ├─ [optional] process provider file(s) into ingest artifact
+         ├─ ingest to retained internal SOFA file
+         ├─ validate SOFA file
+         └─ convert SOFA file → requested Output Format
 
 Each Dataset has the following extension points:
 
@@ -94,7 +95,8 @@ Each Dataset has the following extension points:
    from ``provider`` to ``ingest``.
 
 ``_ingest()``
-   Mandatory. Read the ingest-ready file and return the internal SOFA representation.
+   Optional for SOFA-native providers. Write the ingest artifact to the retained internal SOFA file.
+   The default implementation promotes SOFA files directly.
 
 ``_to_output()``
    Optional. Conversion methods normally stay in :class:`~irdl.base.BaseDataset`. New Datasets should not implement

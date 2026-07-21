@@ -8,12 +8,12 @@
 from pathlib import Path
 from zipfile import ZipFile
 
-from irdl.base import DatasetCategory, SofaBaseDataset
+from irdl.base import BaseDataset, DatasetCategory
 from irdl.downloader import _fetch, _pooch_from_doi
 from irdl.logging import logger
 
 
-class AKTZipBaseDataset(SofaBaseDataset):
+class AKTZipBaseDataset(BaseDataset):
     """Base class for zipped datasets of the Audio Communications Group of TU Berlin."""
 
     _zipfile: str

@@ -21,7 +21,6 @@ class TestBaseDatasetAbstract:
         expected_abstract = {
             "_source_filename",
             "_download",
-            "_ingest",
             "_validate_params",
         }
         assert BaseDataset.__abstractmethods__ == expected_abstract

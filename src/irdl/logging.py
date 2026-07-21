@@ -6,6 +6,7 @@ This module provides centralized logging setup for the irdl package using Rich.
 import io
 import logging
 import sys
+from contextlib import contextmanager
 
 from rich.console import Console
 from rich.logging import RichHandler
@@ -49,7 +50,7 @@ class StdoutCapture:
         sys.stdout = self.capture_buffer
         return self.capture_buffer
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(self, *_exc_info) -> None:
         """Exit the context manager and restore stdout."""
         sys.stdout = self.old_stdout
         output = self.capture_buffer.getvalue()
@@ -62,6 +63,16 @@ as_stdout = StdoutCapture()
 
 # Attach to logger for convenient access
 logger.as_stdout = as_stdout
+
+
+@contextmanager
+def spin(message: str):
+    """Show a Rich spinner while a blocking operation runs."""
+    with console.status(message):
+        yield
+
+
+logger.spin = spin
 
 
 def configure_cli_logging() -> logging.Logger:

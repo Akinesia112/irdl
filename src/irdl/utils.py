@@ -1,6 +1,8 @@
 """Utility functions for IRDL."""
 
 import json
+import os
+import shutil
 from functools import cache
 from importlib import resources
 from pathlib import Path
@@ -89,7 +91,7 @@ def _fits_in_memory(ingest_path: Path) -> bool:
     """
     file_size = ingest_path.stat().st_size
     available = psutil.virtual_memory().available
-    if file_size < available * 0.9:  # Headroom
+    if file_size < available * 0.9:
         return True
     logger.warning(
         f"Dataset too large for available memory "
@@ -97,3 +99,21 @@ def _fits_in_memory(ingest_path: Path) -> bool:
         f"{available / 1e9:.1f} GB available). "
     )
     return False
+
+
+def _link_or_copy(source_path: Path, target_path: Path) -> Path:
+    """Hard-link a file, falling back to copy."""
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    if target_path.parent.parent == source_path.parent.parent:
+        try:
+            logger.debug(f"Linking {source_path} to {target_path}.")
+            with logger.spin(f"Linking {target_path.name}..."):
+                os.link(source_path, target_path)
+        except OSError as error:
+            logger.debug(f"Linking failed: {error!r}")
+        else:
+            return target_path
+    logger.debug(f"Copying {source_path} to {target_path}.")
+    with logger.spin(f"Copying {target_path.name}..."):
+        shutil.copy2(source_path, target_path)
+    return target_path

@@ -58,25 +58,21 @@ class TestMiracleProcessing:
 class TestSrirachaProcessing:
     """Tests for SRIRACHA-specific processing helpers."""
 
-    def test_merge_split_files_preserves_permissions(self, tmp_path):
-        """Verify merged ingest files reuse the split file's permission bits."""
+    def test_full_plane_process_keeps_provider_artifact_set(self, tmp_path):
+        """Verify full-plane processing keeps split files as the ingest artifact set."""
         dataset = SrirachaDataset()
         provider_dir = tmp_path / "provider"
         provider_dir.mkdir()
 
-        first_split_path = None
         for index, split in enumerate(("C1", "C2", "C3", "C4")):
             split_path = provider_dir / f"SR1-{split}.h5"
             _write_ista_hdf5(split_path, n_sources=1, start=index * 100)
             split_path.chmod(0o640)
-            if first_split_path is None:
-                first_split_path = split_path
 
-        assert first_split_path is not None
-        source_mode = first_split_path.stat().st_mode & 0o777
         ingest_path = tmp_path / "ingest" / "SR1.h5"
         ingest_path.parent.mkdir()
-        result = dataset._merge_split_files("SR1", provider_dir, ingest_path)
+        result = dataset._process(provider_dir, ingest_path, scenario="SR1", dataset_split=None)
 
-        _assert_permissions_preserved(source_mode, result)
-        assert not any(provider_dir.glob("SR1-C*.h5"))
+        assert result == provider_dir
+        assert not ingest_path.exists()
+        assert len(list(provider_dir.glob("SR1-C*.h5"))) == len(("C1", "C2", "C3", "C4"))

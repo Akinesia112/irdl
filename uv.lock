@@ -631,6 +631,7 @@ version = "1.0.0b5"
 source = { editable = "." }
 dependencies = [
     { name = "h5py" },
+    { name = "netcdf4" },
     { name = "numpydoc" },
     { name = "pooch" },
     { name = "psutil" },
@@ -669,12 +670,13 @@ tests = [
 [package.metadata]
 requires-dist = [
     { name = "h5py", specifier = ">=3.15.1" },
+    { name = "netcdf4", specifier = ">=1.7.3" },
     { name = "numpydoc", specifier = ">=1.10.0" },
     { name = "pooch", specifier = ">=1.8.2" },
     { name = "psutil", specifier = ">=7.0.0" },
     { name = "pyfar", specifier = ">=0.7.3" },
     { name = "rich", specifier = ">=13.0.0" },
-    { name = "sofar", specifier = ">=1.2.3" },
+    { name = "sofar", git = "https://github.com/pyfar/sofar.git?rev=verify-stream" },
     { name = "typer", specifier = ">=0.26.7,<0.27" },
 ]
 
@@ -1590,17 +1592,13 @@ wheels = [
 [[package]]
 name = "sofar"
 version = "1.2.3"
-source = { registry = "https://pypi.org/simple" }
+source = { git = "https://github.com/pyfar/sofar.git?rev=verify-stream#281013bf8260594e5f6593af15127975ca6eb686" }
 dependencies = [
     { name = "beautifulsoup4" },
     { name = "netcdf4" },
     { name = "numpy" },
     { name = "packaging" },
     { name = "requests" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/fd/2b/dfeea31a5419e1e93dcf1fc3239e12d91772ab74a931d5dd3ae2bf434e90/sofar-1.2.3.tar.gz", hash = "sha256:31058d4460b0577016ce0f5de66376e7e1397b1bddc22e7c7fc036079f63d364", size = 383297, upload-time = "2026-02-03T17:26:06.646Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/92/b3/eb82436d5f725f4702a1376c7f53578f8f711e1a1d9ba4e7926610cf1dbe/sofar-1.2.3-py3-none-any.whl", hash = "sha256:d1c0813bdb2e56fc820ace5caaeebdbb22d562ae9f7c07af230a32ec71b63327", size = 440088, upload-time = "2026-02-03T17:26:05.222Z" },
 ]
 
 [[package]]
