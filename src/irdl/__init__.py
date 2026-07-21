@@ -9,7 +9,5 @@ from .base import _get_dataset_classes as _get_dataset_classes
 from .customrir import MyriadDataset as MyriadDataset
 from .ista import MiracleDataset as MiracleDataset
 from .ista import SrirachaDataset as SrirachaDataset
-from .sofa import FabianDataset as FabianDataset
-from .sofacoustics import HutubsDataset as HutubsDataset
 
 __all__ = [dataset_class.__name__ for dataset_class in _get_dataset_classes(_sys.modules[__name__])]
