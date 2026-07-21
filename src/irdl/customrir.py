@@ -65,7 +65,6 @@ class MyriadDataset(BaseDataset):
         room: str = "SAL",
         array: str = "all",
         config: str = "P1",
-        convention: str = "SingleRoomMIMOSRIR",
         cache_dir: str | Path | None = None,
         export_dir: str | Path | None = None,
         output_format: str = "pyfar",
@@ -83,11 +82,6 @@ class MyriadDataset(BaseDataset):
         config : str
             Microphone configuration placement in the AIL. Either ``'P1'`` or ``'P2'``.
             Ignored for the SAL. Default is ``'P1'``.
-        convention : str or None
-            SOFA convention of the output. Either ``'SingleRoomMIMOSRIR'`` or
-            ``'MultiSpeakerBRIR'``. ``'MultiSpeakerBRIR'`` is only valid when
-            ``array`` selects exactly the ``'dummy_head'`` group. Default is
-            ``'SingleRoomMIMOSRIR'``.
 
         Returns
         -------
@@ -99,7 +93,6 @@ class MyriadDataset(BaseDataset):
             room=room,
             array=array,
             config=config,
-            convention=convention,
             cache_dir=cache_dir,
             export_dir=export_dir,
             output_format=output_format,
@@ -112,9 +105,8 @@ class MyriadDataset(BaseDataset):
         ----------
         **dataset_kwargs : dict
             Must contain ``'room'`` (one of ``'SAL'``, ``'AIL'``), ``'array'`` (one
-            or more valid group names or ``'all'``), ``'config'`` (one of ``'P1'``,
-            ``'P2'``), and ``'convention'`` (one of ``'SingleRoomMIMOSRIR'``,
-            ``'MultiSpeakerBRIR'``). ``output_format`` is also passed but unused here.
+            or more valid group names or ``'all'``) and ``'config'`` (one of ``'P1'``,
+            ``'P2'``). ``output_format`` is also passed but unused here.
 
         Raises
         ------
@@ -139,14 +131,6 @@ class MyriadDataset(BaseDataset):
 
         if selection["room"] == "AIL" and selection["config"] not in ("P1", "P2"):
             msg = "config must be one of ['P1', 'P2'] for the AIL"
-            raise ValueError(msg)
-
-        if selection["convention"] not in ("SingleRoomMIMOSRIR", "MultiSpeakerBRIR"):
-            msg = "convention must be one of ['SingleRoomMIMOSRIR', 'MultiSpeakerBRIR']"
-            raise ValueError(msg)
-
-        if selection["convention"] == "MultiSpeakerBRIR" and set(selection["groups"]) != {"dummy_head"}:
-            msg = "convention 'MultiSpeakerBRIR' is only valid for array='dummy_head'"
             raise ValueError(msg)
 
     def _source_filename(self, **dataset_kwargs) -> str:
@@ -176,7 +160,7 @@ class MyriadDataset(BaseDataset):
         parts = ["MYRIAD", selection["room"]]
         if selection["room"] == "AIL":
             parts.append(selection["config"])
-        parts += [tokens, selection["convention"]]
+        parts.append(tokens)
         return "_".join(parts)
 
     def _download(self, provider_dir: Path, **dataset_kwargs) -> Path:  # noqa: ARG002
@@ -246,7 +230,7 @@ class MyriadDataset(BaseDataset):
 
         return ingest_path
 
-    def _ingest(self, ingest_artifact: Path, sofa_path: Path, **dataset_kwargs) -> Path:  # noqa: PLR0915
+    def _ingest(self, ingest_artifact: Path, sofa_path: Path, **dataset_kwargs) -> Path:
         """Build the internal SOFA from the extracted files and write it to sofa_path.
 
         Stacks the selected loudspeaker/microphone WAVs into a ``Data.IR`` array of
@@ -311,15 +295,7 @@ class MyriadDataset(BaseDataset):
         descriptions = [group_hardware[label_to_group[mic]] for mic in selection["mics"]]
 
         # --- build the SOFA ------------------------------------------------------
-        sofa = sf.Sofa(selection["convention"])
-        sofa.Data_IR = ir  # (M=1, R, N, E)
-        sofa.Data_SamplingRate = float(sampling_rate)
-        sofa.Data_Delay = np.zeros((m, r, e))
-        sofa.ListenerPosition = np.zeros((1, 3))  # (M=1, C) origin
-        sofa.ReceiverPosition = receiver.reshape(r, 3, 1)  # (R, C, I) absolute room coords
-        sofa.SourcePosition = np.zeros((1, 3))  # (M=1, C) origin
-        sofa.EmitterPosition = source.reshape(e, 3, 1)  # (R, C, I) absolute room coords
-
+        sofa = sf.Sofa("SingleRoomMIMOSRIR")
         sofa.GLOBAL_Title = "MYRiAD"
         sofa.GLOBAL_DatabaseName = "MYRiAD"
         sofa.GLOBAL_Organization = "KU Leuven, ESAT-STADIUS"
@@ -328,28 +304,28 @@ class MyriadDataset(BaseDataset):
         sofa.GLOBAL_RoomType = "reverberant"
         sofa.GLOBAL_Comment = f"MYRiAD room {selection['room']}; emitters=loudspeakers, receivers=selected microphones."
 
-        sofa.ListenerPosition_Type = "cartesian"
-        sofa.ListenerPosition_Units = "metre"
-        sofa.ReceiverPosition_Type = "cartesian"
-        sofa.ReceiverPosition_Units = "metre"
-        sofa.ReceiverDescriptions = np.array(descriptions)  # (R, S)
-        sofa.SourcePosition_Type = "cartesian"
-        sofa.SourcePosition_Units = "metre"
-        sofa.EmitterPosition_Type = "cartesian"
-        sofa.EmitterPosition_Units = "metre"
+        sofa.Data_IR = ir  # (M=1, R, N, E)
+        sofa.Data_SamplingRate = float(sampling_rate)
+        sofa.Data_Delay = np.zeros((m, r, e))
         sofa.RoomVolume = room_volumes[selection["room"]]
 
-        if selection["convention"] == "MultiSpeakerBRIR":
-            sofa.ListenerView_Type = "cartesian"
-            sofa.ListenerView = np.tile([0.0, 1.0, 0.0], (m, 1))
-            sofa.ListenerUp = np.tile([0.0, 0.0, 1.0], (m, 1))
+        sofa.ListenerPosition = np.zeros((1, 3))  # (M=1, C) origin
+        sofa.SourcePosition = np.zeros((1, 3))  # (M=1, C) origin
+        sofa.ReceiverView = np.tile([1.0, 0.0, 0.0], (r, 1))[..., np.newaxis]  # (R,C,I)
+        sofa.ReceiverUp = np.tile([0.0, 0.0, 1.0], (r, 1))[..., np.newaxis]
+        sofa.ReceiverPosition = receiver.reshape(r, 3, 1)  # (R, C, I) absolute room coords
+        sofa.ReceiverDescriptions = np.array(descriptions)  # (R, S)
+        sofa.EmitterView = np.tile([1.0, 0.0, 0.0], (e, 1))[..., np.newaxis]  # (E,C,I)
+        sofa.EmitterUp = np.tile([0.0, 0.0, 1.0], (e, 1))[..., np.newaxis]
+        sofa.EmitterPosition = source.reshape(e, 3, 1)  # (R, C, I) absolute room coords
+        sofa.EmitterDescriptions = np.array(["Loudspeaker"] * e)  # (E,S)
 
         sofa_path.parent.mkdir(parents=True, exist_ok=True)
         sf.write_sofa(sofa_path, sofa)  # verifies the convention on write
         return sofa_path
 
     @classmethod
-    def _resolve(cls, *, room, array, config=None, convention=None, **_ignored) -> dict:
+    def _resolve(cls, *, room, array, config=None, **_ignored) -> dict:
         """Resolve the raw get() parameters into a concrete selection.
 
         Parses the array selection into a deduplicated, canonical-order group list
@@ -369,9 +345,6 @@ class MyriadDataset(BaseDataset):
         config : str or None
             Microphone configuration placement in the AIL (``'P1'`` or ``'P2'``).
             Ignored for the SAL.
-        convention : str or None
-            Requested SOFA convention, or None to default to
-            ``'SingleRoomMIMOSRIR'``.
 
         Returns
         -------
@@ -426,7 +399,6 @@ class MyriadDataset(BaseDataset):
         return {
             "room": room,
             "config": config,
-            "convention": convention or "SingleRoomMIMOSRIR",
             "groups": groups,
             "speakers": speakers.get(room, []),
             "mics": [mic for g in groups if g in cls._ARRAY_GROUPS for mic in cls._ARRAY_GROUPS[g]],
