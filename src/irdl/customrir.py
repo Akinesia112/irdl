@@ -317,7 +317,7 @@ class MyriadDataset(BaseDataset):
         sofa.ReceiverDescriptions = np.array(descriptions)  # (R, S)
         sofa.EmitterView = np.tile([1.0, 0.0, 0.0], (e, 1))[..., np.newaxis]  # (E,C,I)
         sofa.EmitterUp = np.tile([0.0, 0.0, 1.0], (e, 1))[..., np.newaxis]
-        sofa.EmitterPosition = source.reshape(e, 3, 1)  # (R, C, I) absolute room coords
+        sofa.EmitterPosition = source.reshape(e, 3, 1)  # (E, C, I) absolute room coords
         sofa.EmitterDescriptions = np.array(["Loudspeaker"] * e)  # (E,S)
 
         sofa_path.parent.mkdir(parents=True, exist_ok=True)
@@ -349,9 +349,9 @@ class MyriadDataset(BaseDataset):
         Returns
         -------
         dict
-            Resolved selection with keys ``'room'``, ``'config'``, ``'convention'``,
-            ``'groups'`` (requested groups in canonical order, unknowns kept at the
-            end), ``'speakers'`` (emitter labels) and ``'mics'`` (receiver labels
+            Resolved selection with keys ``'room'``, ``'config'``, ``'groups'``
+            (requested groups in canonical order, unknowns kept at the end),
+            ``'speakers'`` (emitter labels) and ``'mics'`` (receiver labels
             for the known groups).
         """
         # Loudspeaker labels per room, in canonical order
