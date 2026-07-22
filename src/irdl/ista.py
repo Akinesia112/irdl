@@ -1,5 +1,7 @@
 """Datasets from the Department of Engineering Acoustics, TU Berlin, Berlin Germany.
 
+Currently this module hosts:
+
 - MIRACLE: Microphone Array Impulse Response Dataset for Acoustic Learning.
 - SRIRACHA: Shoebox Room Impulse Response Archive with Varying Absorption.
 """

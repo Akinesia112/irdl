@@ -1,8 +1,11 @@
 """Datasets from the Audio Communications Group of TU Berlin, Berlin, Germany.
 
+Currently this module hosts:
+
 - BRAS-RS8: Benchmark for Room Acoustical Simulation: Reference Scene 8.
 - FABIAN: The FABIAN head-related transfer function data base.
 - HUTUBS: The HUTUBS head-related transfer function (HRTF) database.
+
 """
 
 from pathlib import Path

@@ -1,12 +1,8 @@
-"""Datasets with custom provider formats.
-
-This module provides Dataset implementations whose provider data requires
-custom handling to build the internal SOFA representation
-(e.g. WAV files, proprietary archives).
+"""Datasets from the Department of Electrical Engineering, KU Leuven, Leuven, Belgium.
 
 Currently this module hosts:
 
-- MYRiAD: A Multi-Array Room Acoustic Database (KU Leuven).
+- MYRiAD: A Multi-Array Room Acoustic Database
 
 """
 
