@@ -30,16 +30,9 @@ Acoustics, TU Berlin.
 
 Give the module a docstring naming the department/provider and listing every Dataset it hosts for example:
 
-.. code-block:: python
-
-   """Datasets from the Department of Engineering Acoustics, TU Berlin, Berlin, Germany.
-
-   Currently this module hosts:
-
-   - MIRACLE: Microphone Array Impulse Response Dataset for Acoustic Learning.
-   - SRIRACHA: Shoebox Room Impulse Response Archive with Varying Absorption.
-
-   """
+.. literalinclude:: ../../../src/irdl/ista.py
+   :language: python
+   :lines: 1-13
 
 When adding a Dataset from a department that already has a module, add the class there and
 extend the docstring's list instead of creating a new file. Only create a new module when the
