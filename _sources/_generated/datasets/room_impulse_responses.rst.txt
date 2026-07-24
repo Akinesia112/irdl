@@ -1,0 +1,17 @@
+Room Impulse Responses
+======================
+
+.. autosummary::
+
+   ~irdl.akt.BrasRs8Dataset
+   ~irdl.ista.MiracleDataset
+   ~irdl.esat.MyriadDataset
+   ~irdl.ista.SrirachaDataset
+
+.. toctree::
+   :hidden:
+
+   bras_rs8_dataset
+   miracle_dataset
+   myriad_dataset
+   sriracha_dataset
