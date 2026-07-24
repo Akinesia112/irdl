@@ -11,6 +11,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.0b5] - 2026-06-19
+
+### Added
+- `BrasRs8Dataset` for the BRAS-RS8 room impulse response dataset
+- `MyriadDataset` for selectable MYRiAD room and microphone-array responses
+
+### Changed
+- Reorganized dataset implementations by institution while retaining the top-level dataset API
+- Centralized SOFA convention validation and improved streaming ingestion for ISTA datasets
+- Updated contributor documentation for the dataset processing flow
+
+### Fixed
+- Preserved file permissions when copying cached and exported artifacts
+- Improved Windows compatibility for conversions and ISTA processing
+
+### Removed
+- Obsolete SOFAcoustics implementation and checksum registry
+
+---
+
 ## [1.0.0b4] - 2026-06-12
 
 ### Added
@@ -147,7 +167,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[Unreleased]: https://github.com/artpelling/irdl/compare/v1.0.0b4...HEAD
+[Unreleased]: https://github.com/artpelling/irdl/compare/v1.0.0b5...HEAD
+[1.0.0b5]: https://github.com/artpelling/irdl/compare/v1.0.0b4...v1.0.0b5
 [1.0.0b4]: https://github.com/artpelling/irdl/compare/v1.0.0b3...v1.0.0b4
 [1.0.0b3]: https://github.com/artpelling/irdl/compare/v1.0.0b2...v1.0.0b3
 [1.0.0b2]: https://github.com/artpelling/irdl/compare/v1.0.0b1...v1.0.0b2
