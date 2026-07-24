@@ -20,6 +20,24 @@ If the provider data is already SOFA-native, keep inheriting from
 :class:`~irdl.base.BaseDataset`. The default ``_ingest()`` promotes SOFA files directly
 without rewriting them.
 
+Choose a module
+----------------
+
+Datasets from the same provider (typically a university department or lab) belong in a single
+module, named after the provider's short abbreviation, rather than one file per Dataset. For
+example, ``ista.py`` hosts both MIRACLE and SRIRACHA from the Department of Engineering
+Acoustics, TU Berlin.
+
+Give the module a docstring naming the department/provider and listing every Dataset it hosts for example:
+
+.. literalinclude:: ../../src/irdl/ista.py
+   :language: python
+   :lines: 1-13
+
+When adding a Dataset from a department that already has a module, add the class there and
+extend the docstring's list instead of creating a new file. Only create a new module when the
+Dataset comes from a provider without an existing one.
+
 Implement the Dataset class
 ---------------------------
 

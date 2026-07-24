@@ -4,3 +4,4 @@ docs/_autosummary
 docs/_generated
 /docs/cli-help.txt
 /docs/cli-miracle-help.txt
+.DS_Store
