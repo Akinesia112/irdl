@@ -30,7 +30,7 @@ Acoustics, TU Berlin.
 
 Give the module a docstring naming the department/provider and listing every Dataset it hosts for example:
 
-.. literalinclude:: ../../../src/irdl/ista.py
+.. literalinclude:: ../../src/irdl/ista.py
    :language: python
    :lines: 1-13
 
