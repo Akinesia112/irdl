@@ -1,4 +1,4 @@
-"""Datasets from the Department of Engineering Acoustics, TU Berlin, Berlin Germany.
+"""Datasets from the Department of Engineering Acoustics, TU Berlin, Berlin, Germany.
 
 Currently this module hosts:
 
