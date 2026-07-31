@@ -49,6 +49,8 @@ from irdl.logging import logger
 
 # Separate connect vs. read timeout: DepositOnce can be slow to accept connections.
 DEFAULT_TIMEOUT = (60, 30)  # (connect_timeout_s, read_timeout_s)
+DSPACE_API_ROOT = "https://api-depositonce.tu-berlin.de/server/api"
+EXPECTED_DSPACE_VERSION_PREFIX = "DSpace 9"
 
 MAX_RETRIES = 5
 BACKOFF_FACTOR = 2.0  # exponential backoff: waits 2, 4, 8, 16, 32 s between retries
@@ -122,6 +124,50 @@ class DSpaceRepository(DataRepository):
 
         return cls(doi, archive_url)
 
+    def _handle_pid(self) -> str | None:
+        """Return the DepositOnce handle path from the archive URL, if present."""
+        parts = self.archive_url.split("/handle/", maxsplit=1)
+        return parts[1] if len(parts) == 2 else None
+
+    def _warn_on_version_mismatch(self, session: requests.Session) -> None:
+        """Warn when the DepositOnce DSpace major version differs from the tested API family."""
+        response = session.get(DSPACE_API_ROOT, timeout=DEFAULT_TIMEOUT)
+        response.raise_for_status()
+        dspace_version = response.json().get("dspaceVersion")
+        if dspace_version is None:
+            logger.warning("DepositOnce API did not report dspaceVersion; assuming compatible DSpace API.")
+            return
+        if not dspace_version.startswith(EXPECTED_DSPACE_VERSION_PREFIX):
+            logger.warning(
+                f"DepositOnce reports {dspace_version}; expected {EXPECTED_DSPACE_VERSION_PREFIX}.x. "
+                "IRDL may need an API compatibility update."
+            )
+
+    def _resolve_item(self, session: requests.Session) -> dict:
+        """Resolve DOI/handle to the current DSpace item record."""
+        identifiers = [self.doi]
+        handle_pid = self._handle_pid()
+        if handle_pid is not None:
+            identifiers.append(handle_pid)
+
+        last_error = None
+        for identifier in dict.fromkeys(identifiers):
+            response = session.get(
+                f"{DSPACE_API_ROOT}/pid/find",
+                params={"id": identifier},
+                timeout=DEFAULT_TIMEOUT,
+            )
+            try:
+                response.raise_for_status()
+            except requests.HTTPError as error:
+                last_error = error
+                continue
+            return response.json()
+
+        if last_error is not None:
+            raise last_error
+        raise ValueError(f"Could not resolve DepositOnce item for {self.doi}.")
+
     @property
     def api_response(self) -> dict:
         """Get the API response, fetching from server if not cached.
@@ -137,18 +183,18 @@ class DSpaceRepository(DataRepository):
             If no 'ORIGINAL' bundle is found for the item.
         """
         if self._api_response is None:
-            article_id = self.archive_url.split("/")[-1]
             with _make_session() as session:
-                response = session.get(
-                    f"https://api-depositonce.tu-berlin.de/server/api/core/items/{article_id}/bundles",
-                    timeout=DEFAULT_TIMEOUT,
-                )
+                self._warn_on_version_mismatch(session)
+                item = self._resolve_item(session)
+                bundles_url = item["_links"]["bundles"]["href"]
+                response = session.get(bundles_url, timeout=DEFAULT_TIMEOUT)
                 response.raise_for_status()
                 bundles = response.json()["_embedded"]["bundles"]
 
                 original = next((b for b in bundles if b["name"] == "ORIGINAL"), None)
                 if original is None:
-                    raise ValueError(f"No 'ORIGINAL' bundle found for item {article_id}.")
+                    item_id = item.get("uuid") or item.get("id") or self.doi
+                    raise ValueError(f"No 'ORIGINAL' bundle found for item {item_id}.")
 
                 response = session.get(
                     original["_links"]["bitstreams"]["href"],
