@@ -61,7 +61,7 @@ def _response_key(url: str, params: dict | None = None) -> tuple[str, tuple[tupl
 
 
 def test_dspace_repository_resolves_item_via_pid_find(monkeypatch):
-    """Verify DSpaceRepository follows pid/find -> bundles -> bitstreams."""
+    """Verify DSpaceRepository follows PID lookup and all API pages."""
     doi = "10.14279/depositonce-5718.5"
     bundles_url = f"{DSPACE_API_ROOT}/core/items/test-uuid/bundles"
     bitstreams_url = f"{DSPACE_API_ROOT}/core/bundles/original/bitstreams"
@@ -72,6 +72,12 @@ def test_dspace_repository_resolves_item_via_pid_find(monkeypatch):
                 {"uuid": "test-uuid", "_links": {"bundles": {"href": bundles_url}}}
             ),
             _response_key(bundles_url): FakeResponse(
+                {
+                    "_embedded": {"bundles": [{"name": "LICENSE", "_links": {}}]},
+                    "_links": {"next": {"href": f"{bundles_url}?page=1"}},
+                }
+            ),
+            _response_key(f"{bundles_url}?page=1"): FakeResponse(
                 {"_embedded": {"bundles": [{"name": "ORIGINAL", "_links": {"bitstreams": {"href": bitstreams_url}}}]}}
             ),
             _response_key(bitstreams_url): FakeResponse(
@@ -83,6 +89,21 @@ def test_dspace_repository_resolves_item_via_pid_find(monkeypatch):
                                 "sizeBytes": 123,
                                 "checkSum": {"checkSumAlgorithm": "MD5", "value": "abc"},
                                 "_links": {"content": {"href": f"{DSPACE_API_ROOT}/core/bitstreams/file/content"}},
+                            }
+                        ]
+                    },
+                    "_links": {"next": {"href": f"{bitstreams_url}?page=1"}},
+                }
+            ),
+            _response_key(f"{bitstreams_url}?page=1"): FakeResponse(
+                {
+                    "_embedded": {
+                        "bitstreams": [
+                            {
+                                "name": "FABIAN_HRTF_DATABASE_v4.sofa",
+                                "sizeBytes": 456,
+                                "checkSum": {"checkSumAlgorithm": "MD5", "value": "def"},
+                                "_links": {"content": {"href": f"{DSPACE_API_ROOT}/core/bitstreams/file-2/content"}},
                             }
                         ]
                     }
@@ -99,7 +120,12 @@ def test_dspace_repository_resolves_item_via_pid_find(monkeypatch):
             "url": f"{DSPACE_API_ROOT}/core/bitstreams/file/content",
             "checksum": "MD5:abc",
             "size": 123,
-        }
+        },
+        "FABIAN_HRTF_DATABASE_v4.sofa": {
+            "url": f"{DSPACE_API_ROOT}/core/bitstreams/file-2/content",
+            "checksum": "MD5:def",
+            "size": 456,
+        },
     }
     assert (f"{DSPACE_API_ROOT}/pid/find", {"id": doi}) in session.calls
     assert not any(url.endswith("/6153.5/bundles") for url, _params in session.calls)
