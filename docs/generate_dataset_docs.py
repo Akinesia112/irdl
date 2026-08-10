@@ -77,7 +77,7 @@ def _write_dataset_page(dataset_class: type) -> None:
     # Auto-detect description RST
     intro_rst = _find_description_rst(dataset_class.name)
     if intro_rst is not None:
-        include_path = intro_rst.relative_to(GENERATED_DATASETS_DIR)
+        include_path = Path("../..") / intro_rst.relative_to(DOCS_DIR)
         lines.extend(
             [
                 f".. include:: {include_path.as_posix()}",
