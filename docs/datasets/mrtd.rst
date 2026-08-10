@@ -1,7 +1,7 @@
 The Multi Room Transition Dataset contains 4,032 measured room impulse
 responses from three complex indoor environments. For each environment, four
 stationary loudspeakers were measured with both a binaural KEMAR and a
-four-channel Zoom H3-VR receiver. IRDL downloads only the SOFA file selected by
+four-channel Zoom H3-VR receiver. ``irdl`` downloads only the SOFA file selected by
 ``environment``, ``receiver``, and ``loudspeaker``.
 
 The provider files use the ``SingleRoomSRIR`` SOFA convention and include
