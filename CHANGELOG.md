@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- MRTD dataset by [@Akinesia112](https://github.com/Akinesia112)
+
+### Fixed
+- Documentation build for Dataset overview pages
+
 ---
 
 ## [1.0.0b5] - 2026-06-19
