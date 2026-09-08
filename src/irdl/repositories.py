@@ -78,6 +78,18 @@ def _make_session() -> requests.Session:
     return session
 
 
+def _fetch_paginated_embedded(session: requests.Session, url: str, embedded_key: str) -> list[dict]:
+    """Fetch every page of a DSpace embedded collection."""
+    results = []
+    while url:
+        response = session.get(url, timeout=DEFAULT_TIMEOUT)
+        response.raise_for_status()
+        payload = response.json()
+        results.extend(payload["_embedded"][embedded_key])
+        url = payload.get("_links", {}).get("next", {}).get("href")
+    return results
+
+
 class DSpaceRepository(DataRepository):
     """DSpace repository implementation for DepositOnce.
 
@@ -187,21 +199,16 @@ class DSpaceRepository(DataRepository):
                 self._warn_on_version_mismatch(session)
                 item = self._resolve_item(session)
                 bundles_url = item["_links"]["bundles"]["href"]
-                response = session.get(bundles_url, timeout=DEFAULT_TIMEOUT)
-                response.raise_for_status()
-                bundles = response.json()["_embedded"]["bundles"]
+                bundles = _fetch_paginated_embedded(session, bundles_url, "bundles")
 
                 original = next((b for b in bundles if b["name"] == "ORIGINAL"), None)
                 if original is None:
                     item_id = item.get("uuid") or item.get("id") or self.doi
                     raise ValueError(f"No 'ORIGINAL' bundle found for item {item_id}.")
 
-                response = session.get(
-                    original["_links"]["bitstreams"]["href"],
-                    timeout=DEFAULT_TIMEOUT,
+                bitstreams = _fetch_paginated_embedded(
+                    session, original["_links"]["bitstreams"]["href"], "bitstreams"
                 )
-                response.raise_for_status()
-                bitstreams = response.json()["_embedded"]["bitstreams"]
 
             self._api_response = {
                 bs["name"]: {
